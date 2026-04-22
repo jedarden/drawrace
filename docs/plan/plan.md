@@ -420,7 +420,7 @@ The hot path (per-frame) allocates zero objects. Point buffers, Planck transform
 - **(a) Declaration.** The constant lives in `packages/engine-core/src/version.ts` exported as `export const PHYSICS_VERSION: number`. It is also baked into the compiled `engine-core.wasm` artifact — the WASM module exports a `physics_version()` function whose return value is verified against the TS constant at boot, and the artifact's content hash is derived from the bytes that include that constant. Client bundle and validator image both pin the same artifact by hash.
 - **(b) On-the-wire identity.** The ghost blob's `version` byte at offset 4 (§Multiplayer 5) is a **combined format+physics version**: since v1 there is one monotonically increasing integer covering both the binary layout and the physics semantics. No separate `physics_version` field is added — the existing byte carries the full meaning. A bump to `PHYSICS_VERSION` is always a bump to the blob's `version` byte.
 - **(c) Ingress rejection.** The `drawrace-api` pod reads `version` from every incoming submission and compares it against the validator's currently-deployed `PHYSICS_VERSION`. Mismatch → `409 PHYSICS_VERSION_MISMATCH` with the expected value in the body, so the client can surface "update the game" and refuse to submit.
-- **(d) Historical ghosts.** Every stored ghost row carries its origin `version` in Postgres (`ghosts.physics_version SMALLINT NOT NULL`). After a bump, older ghosts are either (i) re-simmed lazily on first read by a validator pod running a pinned older WASM artifact loaded by hash, or (ii) tagged `is_legacy = true` and suppressed from matchmaking and leaderboards. v1 policy is (ii) — simpler, and a fresh global time table per physics version is honest to the player.
+- **(d) Historical ghosts.** Every stored ghost row carries its origin `version` in Postgres (`ghosts.physics_version SMALLINT NOT NULL CHECK (physics_version BETWEEN 0 AND 255)` — SMALLINT is the narrowest Postgres integer type that fits, and the CHECK pins the domain to the uint8 wire cap so the DB can never hold a value the blob format can't encode). After a bump, older ghosts are either (i) re-simmed lazily on first read by a validator pod running a pinned older WASM artifact loaded by hash, or (ii) tagged `is_legacy = true` and suppressed from matchmaking and leaderboards. v1 policy is (ii) — simpler, and a fresh global time table per physics version is honest to the player.
 - **(e) Rollout order.** Client and validator must never disagree on `PHYSICS_VERSION` in production. The `drawrace-build` Argo workflow enforces this: the validator image is built and deployed to the api namespace first (with a readiness probe that exposes the running `physics_version()`), and the Cloudflare Pages publish step for the client bundle is gated on a check that the live validator reports the same version the client bundle was built against. If the gate fails, the Pages promote is blocked — the client never ships ahead of the server.
 
 ---
@@ -517,7 +517,7 @@ Go would be the fallback if the team prefers it — we'd lose the "share the phy
 
 Two Deployments, not five:
 - `drawrace-api` — 2 replicas, public, fronts everything.
-- `drawrace-validator` — 1–2 replicas, internal ClusterIP, pulls submissions off a Redis list and writes verdicts back. No K8s Jobs (per convention); it's a long-running Deployment with an internal `while let Some(job) = queue.pop().await` loop.
+- `drawrace-validator` — 1–2 replicas, internal ClusterIP, pulls submissions off a Redis list and writes verdicts back. No K8s Jobs (per convention); it's a long-running Deployment with an internal `while let Some(job) = queue.pop().await` loop. Alongside the queue worker, the validator serves a single unauthenticated HTTP endpoint on its ClusterIP — `GET /internal/version` (see §Multiplayer & Backend 7) — used both by the api pod's readiness-cache poll and by the `wait-validator-live` Argo step (§Multiplayer & Backend 10). This endpoint is not exposed through Traefik and has no public route.
 
 ---
 
@@ -545,9 +545,9 @@ Binary layout, little-endian:
 Offset  Size  Field              Notes
 ------  ----  -----------------  ----------------------------------------
 0       4     magic              "DRGH"
-4       1     version            combined format+physics version; equals PHYSICS_VERSION since v1 (see §Gameplay — Physics versioning)
+4       1     version            combined format+physics version; equals PHYSICS_VERSION since v1 (see §Gameplay — Physics versioning). The Postgres `ghosts.physics_version` column is `SMALLINT NOT NULL CHECK (physics_version BETWEEN 0 AND 255)` to match the wire cap.
 5       2     track_id           uint16
-7       1     flags              bit0=zstd (other bits reserved)
+7       1     flags              bit0=zstd, bit1=ephemeral (do-not-persist), other bits reserved
 8       4     finish_time_ms     uint32 (re-sim must match ±tolerance)
 12      8     submitted_at       int64 unix millis
 20      16    player_uuid        raw 128-bit
@@ -561,10 +561,11 @@ Offset  Size  Field              Notes
                                   uint16 dt_ms × point_count
 ...     1     checkpoint_count   uint8
 ...     ...   checkpoint_splits  uint32 ms × checkpoint_count
-end     32    hmac_sha256        HMAC over everything above (§Multiplayer & Backend 8)
 ```
 
-Expected size for a 24-vertex polygon, 200-point stroke, 5 checkpoints: `64 + 48 + 1200 + 20 + 32 ≈ 1.4 KB` raw. After compression typically 0.9–1.2 KB. Wheel thumbnails are rendered on demand from the polygon (§Graphics 4 / 9.5 / 9.6) — no thumbnail blob is stored.
+The HMAC is transmitted in the `X-DrawRace-ClientHMAC` request header at submission time and computed over the entire blob bytes (magic through checkpoint_splits, inclusive). The blob itself contains no HMAC — stored ghosts are authenticated only at ingestion, after which server-side re-simulation (Layer 3) is the sole integrity check.
+
+Expected size for a 24-vertex polygon, 200-point stroke, 5 checkpoints: `64 + 48 + 1200 + 20 ≈ 1.3 KB` raw. After compression typically 0.8–1.1 KB. Wheel thumbnails are rendered on demand from the polygon (§Graphics 4 / 9.5 / 9.6) — no thumbnail blob is stored.
 
 **Compression: zstd level 3.** The research doc evaluates gzip / zstd / brotli; zstd wins on decompression speed (important on mid-range Android) at similar ratios to gzip-9, and `ruzstd` / WASM `zstd-wasm` both work in-browser. We apply zstd at the storage layer, not per-field — simpler, and the HMAC is over the pre-compression bytes.
 
@@ -610,6 +611,7 @@ Base URL: `https://api.drawrace.example`. All responses JSON, ghost blobs binary
 
 ```
 POST   /v1/submissions
+GET    /v1/submissions/{submission_id}  → verdict poll (202 pending / final state)
 GET    /v1/leaderboard/{track_id}/top?limit=10
 GET    /v1/leaderboard/{track_id}/context?player_uuid={uuid}&window=5
 GET    /v1/ghosts/{ghost_id}            → 302 → presigned Garage URL
@@ -633,18 +635,33 @@ X-DrawRace-ClientHMAC: 9f3c…
 
 Response: `202 Accepted`
 
-Validation is asynchronous — clients poll `GET /v1/submissions/{id}` (below) for the verdict.
+Validation is asynchronous — clients poll `GET /v1/submissions/{id}` (below) for the verdict. The 202 body deliberately contains **no** rank, bucket, or any other derived score data — at 202 time the `finish_time_ms` is still a client claim (forgeable) and the submission may yet be rejected by re-simulation. Exposing a "preliminary" rank here would mean showing (and then retracting) a score for runs that never actually made the board.
 
 ```json
 {
   "submission_id": "01HY...",
   "status": "pending_validation",
-  "preliminary_rank": 47,
-  "preliminary_bucket": "mid"
+  "poll_url": "/v1/submissions/01HY..."
 }
 ```
 
-After `drawrace-validator` runs, a subsequent `GET /v1/submissions/{id}` returns:
+The client MUST NOT display any rank/bucket for this run until polling returns `status: accepted`. The Result screen (§Graphics & UX 9.5) shows the finish time locally while the rank row displays a skeleton/loading indicator until the poll succeeds; on rejection the skeleton is replaced with a short "Time not accepted" message (no score change).
+
+##### Poll the verdict
+
+```http
+GET /v1/submissions/01HY...
+X-DrawRace-Player: 550e8400-e29b-41d4-a716-446655440000
+```
+
+**Auth & ownership.** The request MUST carry `X-DrawRace-Player: <uuid>` matching the submission's owning player UUID. On mismatch the api returns `403 Forbidden`. If the submission ID is unknown to the api, it returns `404 Not Found` — the api does **not** distinguish "never existed" from "exists but belongs to another player"; both collapse to 404 so attackers cannot enumerate valid submission IDs by probing for 403s.
+
+**Status values.**
+- `pending_validation` — re-simulation not yet complete. The api returns `200 OK` with this body (not `202`; the 202 semantics belong only to the original POST). Clients should poll.
+- `accepted` — final. Body includes `ghost_id`, `time_ms`, `rank`, `bucket`, `is_pb`.
+- `rejected` — final. Body includes a machine-readable `reason` string (e.g. `replay_mismatch`, `physics_version_skew`, `malformed_blob`). No leaderboard row exists for this submission.
+
+Accepted response:
 ```json
 {
   "status": "accepted",
@@ -655,6 +672,16 @@ After `drawrace-validator` runs, a subsequent `GET /v1/submissions/{id}` returns
   "is_pb": true
 }
 ```
+
+Rejected response:
+```json
+{
+  "status": "rejected",
+  "reason": "replay_mismatch"
+}
+```
+
+**Rate limit.** Polling is capped at **60 requests/minute per player UUID**, enforced via the same Redis `INCR` + `EXPIRE` primitive used for submit/matchmake, under a new `poll` namespace (`rl:poll:<uuid>`). Over-limit responses return `429 Too Many Requests` with `Retry-After`. This budget forces clients to use a sensible backoff (the reference client uses 500 ms → 1 s → 2 s → 4 s capped at 4 s, which stays well under the limit); it is not meant to be hit in normal play.
 
 #### Contextual window (the main leaderboard view)
 
@@ -696,7 +723,44 @@ GET /v1/matchmake/1?player_uuid=550e8400-…
 
 `url` fields are 5-minute presigned Garage S3 URLs — the client downloads blobs directly, bypassing the api pod.
 
-`shadow_ghost` is **absent** (field omitted, or explicitly `null`) for first-time players who have no recorded PB on the track. The client must treat a missing `shadow_ghost` as "race against the 3 ghosts only" — this is the documented first-run path, not an error.
+`shadow_ghost` is a **nullable, always-present field** — the key is always emitted. Its value is `null` for players with no recorded PB on the track, and an object `{ghost_id, time_ms, name, url}` otherwise. OpenAPI schema: `nullable: true`, `required: [shadow_ghost]`. This disambiguates "field-omitted vs explicit-null" for generators (which treat the two very differently) and gives clients a single branch to check (`response.shadow_ghost === null`). The client must treat `null` as "race against the 3 ghosts only" — this is the documented first-run path, not an error.
+
+For illustration, a first-time player's matchmake response:
+```json
+{
+  "track_id": 1,
+  "player_bucket": "mid",
+  "target_bucket": "skilled",
+  "ghosts": [ /* 3 ghosts, same shape as above */ ],
+  "shadow_ghost": null,
+  "expires_at": "2026-04-21T20:12:00Z"
+}
+```
+
+#### Health
+
+`GET /v1/health` is the api's public liveness/readiness surface. It also proxies the validator's running physics version so clients (for the SW version-skew rule, §Multiplayer & Backend 14) and CI (for `wait-validator-live`, §Multiplayer & Backend 10) don't need any other endpoint to detect rollout state.
+
+Internally the api pod polls the validator's ClusterIP endpoint `GET /internal/version` (unauthenticated, not exposed via ingress) every 10s and caches the response. The validator's endpoint returns:
+
+```json
+{
+  "physics_version": 3,
+  "engine_core_wasm_sha256": "ab12cd34…",
+  "started_at": "2026-04-22T14:02:11Z"
+}
+```
+
+`GET /v1/health` on the api then returns:
+
+```json
+{
+  "api":       { "ok": true, "version": "3.a1b2c3d" },
+  "validator": { "physics_version": 3, "engine_core_wasm_sha256": "ab12cd34…", "ok": true }
+}
+```
+
+When the validator is unreachable for more than 30s, the cached `validator` object is served with `"ok": false` and the existing `physics_version`/`engine_core_wasm_sha256` from the last successful poll (so clients don't flap into forced reloads on a blip). A sibling endpoint `GET /v1/health/ready` is wired to the pod's `readinessProbe`: it returns `503` whenever `validator.ok` is false, which takes the api out of rotation for reads but **does not** drop submissions — `POST /v1/submissions` keeps accepting and enqueueing into Redis, so a slow or restarting validator never loses user runs; they simply wait in the queue until the validator is back.
 
 ---
 
@@ -708,16 +772,28 @@ Three layers, cheapest first:
 
 What the HMAC actually buys: it forces CURL-based spam from scripts to do one extra step (HMAC the body with a rotating key) instead of being a one-liner. That raises the floor above "trivially forged POST requests" and nothing more. Client HMACs the ghost blob (SHA-256); server rejects missing or mismatched HMACs as **malformed input (400)**, not **unauthorized (401)**.
 
-**Key rotation.** A new `CLIENT_SHARED_KEY` is generated per frontend release and baked into that Pages build. The server accepts both the current and previous release's key for a 24h grace window so in-flight PWAs on a stale bundle keep working through a deploy. Rotation is automated in the `drawrace-build` pipeline (§Multiplayer & Backend 10): a new random key is written to a ConfigMap consumed by both the Pages build step and the api Deployment's env.
+**Key rotation.** A new `CLIENT_SHARED_KEY` is generated per frontend release and baked into that Pages build. The server accepts both the current and previous release's key for a 24h grace window so in-flight PWAs on a stale bundle keep working through a deploy. The api and the Pages build consume the key from a single `drawrace-client-key` ConfigMap:
+
+```
+drawrace-client-key ConfigMap:
+  current:     <hex32>
+  previous:    <hex32>
+  rotated_at:  <RFC3339 timestamp>
+```
+
+The api accepts requests signed with EITHER `current` or `previous` while `now() - rotated_at < 24h`; after 24h it accepts only `current`. Rotation is advanced by the `pages-publish` Argo step in the `drawrace-build` pipeline (§Multiplayer & Backend 10): before publishing, the step runs a `rotate-client-key` job that writes `previous=<old_current>, current=<new_random_hex>, rotated_at=now()` to the ConfigMap via a single `kubectl apply`; then it embeds the new `current` into the PWA build and publishes to Pages. On deploy rollback, the api's `current`/`previous` values mean signed requests from the rolled-back Pages build still verify, so long as the rollback happens inside the 24h window.
+
+Failure modes: (a) if a rollback happens after the 24h grace has elapsed, the rolled-back client will 400 until its build is re-published — operational procedure is to re-trigger `pages-publish` on the old commit, which will fetch the now-current key and re-bake it into the bundle; (b) if rotation crashes mid-way, the ConfigMap still has a consistent state because `rotate-client-key` writes atomically (single `kubectl apply` of the full manifest, not successive field patches), so no partial-update window exists where `current` is new but `previous` still holds the pre-old value.
 
 **Where the real anti-forgery weight lives.** Layer 3 (deterministic server-side re-simulation, §Multiplayer & Backend 8 below) and the per-UUID / per-IP rate limits (Layer 2) are what actually stop forged submissions. A cheater who extracts the public key still has to produce a ghost blob whose re-sim finish tick matches the claimed time within ±2 ticks — which is exactly as hard as beating the game legitimately. Layer 1 is housekeeping; Layer 3 is the gate.
 
 **Layer 2 — Structural checks** (synchronous, in `drawrace-api`):
 - Path plausibility: polygon is closed, 8–32 vertices, all within the draw-canvas bounds.
 - `finish_time_ms` ≥ floor-time-for-track (track length / max-possible-wheel-speed, computed once per track).
-- `finish_time_ms` is non-zero and does not exceed the track's DNF threshold (`2 × currentTrackBest`, clamped ≥ 90 s per §Gameplay 1). Either violation → reject; DNF runs should never reach the server in the first place (client drops them at the Result → submit boundary), so a submission in this range is either a bug or a forgery.
+- Server rejects any submission with `finish_time_ms == 0` or `finish_time_ms > 2 × max(global_best_ms, 90_000)` for the submission's track_id. `global_best_ms` is the MIN of `ghosts.time_ms` for that track (cached 60s in Redis); freshly-launched tracks default to the 90s floor until the first accepted run is recorded. DNF runs should never reach the server in the first place (client drops them at the Result → submit boundary per §Gameplay 1), so a submission in this range is either a bug or a forgery.
 - Checkpoint splits monotonic, in-range, sum ≈ finish time.
-- Per-player-UUID submission rate limit: 20/min via Redis `INCR` + `EXPIRE`. Per-IP limits are keyed off the TCP remote address (see §Multiplayer 1 "API DNS policy"); `X-Forwarded-For` / `CF-Connecting-IP` are not trusted on the `api.*` vhost.
+- Per-player-UUID submission rate limit: 20/min via Redis `INCR` + `EXPIRE`. Per-IP limits are keyed off the TCP remote address (see §Multiplayer 1 "API DNS policy"); `X-Forwarded-For` / `CF-Connecting-IP` are not trusted on the `api.*` vhost. In staging only (`DRAWRACE_ENV=staging`), an allowlist env var `DRAWRACE_RATE_LIMIT_BYPASS_CIDR` (comma-separated list of CIDRs; e.g., the k6 runner's egress) skips per-IP limits. The bypass is never read in production (`DRAWRACE_ENV=production`); the deployment manifest hardcodes `DRAWRACE_ENV` from the namespace (`drawrace` → production, `drawrace-staging` → staging).
+- If `flags & 0x02` (ephemeral) is set, the submission is validated structurally (re-sim still runs for telemetry) but never persisted to Postgres or Garage; the server responds `204 No Content`. This is the storage path used by private-browsing clients (see §Graphics & UX 13 First-run identity flow).
 
 **Layer 3 — Deterministic re-simulation** (asynchronous, in `drawrace-validator`):
 
@@ -788,9 +864,10 @@ Under `k8s/iad-acb/drawrace/`:
 - `validator-deployment.yaml` (1 replica, HPA to 3 on queue depth)
 - `redis.yaml` (single replica, `emptyDir` — ephemeral is fine, hot cache)
 - `postgres-cluster.yaml` (CloudNativePG `Cluster`, 1 instance for v1, PVC on Longhorn, `backup` block shipping base backups to Garage `drawrace-pg-backups/`)
+- `configmap.yaml` (client HMAC key: `current` + `previous` + `rotated_at`; rotated per release, never secret — see Layer 1 in §Multiplayer & Backend 8)
 - `ingress.yaml` (Traefik IngressRoute, `api.drawrace.example`)
 - `certificate.yaml` (cert-manager, `letsencrypt-prod` ClusterIssuer)
-- `sealed-secrets.yaml` (client HMAC key, Postgres superuser password, S3 creds)
+- `sealed-secrets.yaml` (Postgres superuser password, S3 creds, Cloudflare Pages API token)
 - `servicemonitor.yaml` (Prometheus scrape)
 
 **CI build** — new WorkflowTemplate in `jedarden/declarative-config` at `k8s/iad-ci/argo-workflows/drawrace-build.yaml`, patterned after the existing `container-build` / `kalshi-weather-build`:
@@ -809,6 +886,10 @@ spec:
         value: https://github.com/jedarden/drawrace
       - name: revision
         value: main
+      - name: branch
+        # "main" on push-to-main; "pr-<number>" on PR synchronize events.
+        # Gates which steps run — see `when:` expressions below.
+        value: main
   templates:
     - name: build
       steps:
@@ -816,6 +897,7 @@ spec:
             template: git-clone
         - - name: buildx
             template: docker-buildx
+            when: "{{workflow.parameters.branch}} == main"
             arguments:
               parameters:
                 - name: image
@@ -824,6 +906,7 @@ spec:
                   value: Dockerfile.api
         - - name: buildx-validator
             template: docker-buildx
+            when: "{{workflow.parameters.branch}} == main"
             arguments:
               parameters:
                 - name: image
@@ -832,10 +915,20 @@ spec:
                   value: Dockerfile.validator
         - - name: bump-manifest
             template: update-declarative-config
+            when: "{{workflow.parameters.branch}} == main"
             arguments:
               parameters:
                 - name: path
                   value: k8s/iad-acb/drawrace
+        - - name: wait-validator-live
+            template: wait-validator-live
+            when: "{{workflow.parameters.branch}} == main"
+            arguments:
+              parameters:
+                - name: expected-physics-version
+                  # Read from packages/engine-core/src/version.ts at checkout time
+                  # and passed in by the webhook dispatcher.
+                  value: "{{workflow.parameters.expected-physics-version}}"
         - - name: pages-publish
             template: wrangler-pages
             arguments:
@@ -843,9 +936,9 @@ spec:
                 - name: project
                   value: drawrace
                 - name: branch
-                  # "main" on push-to-main → production;
-                  # "pr-<number>" on PR branches → Cloudflare Pages preview URL.
-                  value: "{{workflow.parameters.pages-branch}}"
+                  # On main → production publish. On PR branches → Cloudflare Pages
+                  # preview slot `pr-<number>`; no images, no manifest bump ran upstream.
+                  value: "{{workflow.parameters.branch}}"
     - name: wrangler-pages
       # ci-wrangler is a small dedicated image: node:20-alpine + `npm i -g wrangler@3`.
       # (ci-snap already has Node but not wrangler; we keep ci-snap lean and use a
@@ -889,9 +982,40 @@ spec:
         parameters:
           - name: preview-url
             valueFrom: { path: /tmp/preview_url }
+    - name: wait-validator-live
+      # Polls the prod api's /v1/health until the validator object reports the
+      # same physics_version the client bundle was built against. Enforces the
+      # rollout-order promise in §Gameplay & Physics — Physics versioning (e):
+      # validator must be live with the new version BEFORE Pages promotes the
+      # matching client bundle. On timeout, the workflow fails and pages-publish
+      # never runs — the last-good client stays live in production.
+      inputs:
+        parameters:
+          - { name: expected-physics-version }
+          - { name: health-url, value: "https://api.drawrace.example/v1/health" }
+          - { name: timeout-seconds, value: "900" } # 15 min
+          - { name: poll-interval-seconds, value: "10" }
+      container:
+        image: ghcr.io/drawrace/ci-wrangler:2026-04-22 # has curl + jq
+        command: [bash, -lc]
+        args:
+          - |
+            set -euo pipefail
+            want="{{inputs.parameters.expected-physics-version}}"
+            url="{{inputs.parameters.health-url}}"
+            deadline=$(( $(date +%s) + {{inputs.parameters.timeout-seconds}} ))
+            until [ "$(curl -sf "$url" | jq -r '.validator.physics_version // empty')" = "$want" ]; do
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "timeout: validator never reported physics_version=$want"
+                curl -sf "$url" | jq . || true
+                exit 1
+              fi
+              sleep {{inputs.parameters.poll-interval-seconds}}
+            done
+            echo "validator live at physics_version=$want"
 ```
 
-Triggered by a webhook from the drawrace repo (existing pattern). GitHub Actions stays off, per convention. On push to `main` the webhook passes `pages-branch=main` (production publish); on PR synchronize events it passes `pages-branch=pr-<number>`, yielding a Cloudflare Pages preview URL surfaced as the `pages-publish` step's `preview-url` output parameter — consumed by `drawrace-ci` (§Testing 11) for the phone-smoke step.
+Triggered by a webhook from the drawrace repo (existing pattern). GitHub Actions stays off, per convention. The webhook passes `branch=main` on push-to-main and `branch=pr-<number>` on PR synchronize events. On PR branches, only `checkout` and `pages-publish` (preview slot `pr-<n>`) run; the `when:` gates on `buildx`, `buildx-validator`, `bump-manifest`, and `wait-validator-live` suppress image pushes and manifest promotion — PRs never push `drawrace-api` / `drawrace-validator` tags and never bump declarative-config. On `main`, all steps run in order; the `wait-validator-live` step blocks `pages-publish` until ArgoCD has synced the validator Deployment to the cluster and its `/internal/version` endpoint reports the freshly built `physics_version` (see §Multiplayer & Backend 3 and 7 for the endpoint contracts). The `preview-url` output of `pages-publish` is consumed by `drawrace-ci` (§Testing 11) for the phone-smoke step.
 
 ---
 
@@ -940,6 +1064,8 @@ The v1 ghost system thus becomes the v2 "AI opponents / backfill" system, the bi
 ### 14. Service Worker & offline cache
 
 The PWA calls itself "offline-playable" (§Overview) and §Testing 5 Layer 4 exercises `offline mid-race falls back to cached ghosts`. This subsection pins down exactly what's cached, how the SW updates, and what lives in IndexedDB.
+
+**`BUILD_ID` definition.** `BUILD_ID = {PHYSICS_VERSION}.{git_short_sha}` (e.g. `3.a1b2c3d`), injected into the bundle at build time by the `pages-publish` step. The leading integer is the `PHYSICS_VERSION` constant from `packages/engine-core/src/version.ts` (source of truth: §Gameplay & Physics — Physics versioning); the trailing segment is the 7-char short SHA of the build commit. UI-only or backend-only changes bump **only** the `git_short_sha` half, so the SW gets a clean cache-bust without dragging physics semantics along; intentional physics changes bump the integer. Two invariants follow: (a) a `BUILD_ID` change *alone* never forces a mid-race reload — that's reserved for `PHYSICS_VERSION` mismatches against the live validator, so physics-safe UI rollouts don't interrupt players; (b) the `engine-core.wasm` content hash is a function of `PHYSICS_VERSION` plus compilation inputs only, so UI-only `BUILD_ID` bumps leave the WASM artifact's hash (and therefore the matching validator image digest) untouched.
 
 **SW strategy per route:**
 - `/` and app shell (HTML / JS / WASM / CSS / fonts / sprite atlas): `CacheFirst` against a versioned cache name `drawrace-shell-v{BUILD_ID}`. On `activate`, any cache whose name doesn't match the current `BUILD_ID` is pruned.
@@ -1240,6 +1366,8 @@ No bottom controls — race is autonomous. Tap anywhere for pause (top-left paus
 
 Wheel thumbnails are rendered on demand from the ghost blob's polygon — no thumbnail blob is stored. The **Try Again** CTA matches the Home screen's RACE button styling (button fill `#D94F3A`, label in ink `#2B2118`, 18pt Caveat 600, ink border); the **Leaderbrd** button uses the standard secondary style (cream surface, ink label, ink border).
 
+**Rank row loading state.** Per §Multiplayer & Backend 7, the `POST /v1/submissions` 202 response carries no preliminary rank — the rank row (`rank #47 ▲ 12` in the wireframe above) is rendered as a shimmering skeleton placeholder (same ink-on-cream palette, `~110px` wide, `~16pt` tall to match the eventual content) while the client polls `GET /v1/submissions/{id}`. The finish time on the line above renders immediately from the local simulation and does not wait on the poll. On `status: accepted` the skeleton resolves into the real `rank #NN ▲ delta` string; on `status: rejected` it is replaced with a muted italic `Time not accepted` label (no numerals, no arrow, no score change) and the "You beat / Lost to" comparison lines are suppressed. Polling backoff is 500 ms → 1 s → 2 s → 4 s cap, well inside the 60/min per-UUID budget.
+
 #### 9.6 Leaderboard
 
 Scrollable list, sticky "your row" highlighted with cream surface + mustard left border. Each row 64px tall: rank, name, time, wheel thumbnail. Tab switcher "Around You / Top 10" at top. Wheel thumbnails are rendered on demand from the ghost blob's polygon — no thumbnail blob is stored.
@@ -1335,7 +1463,7 @@ If any asset takes >500ms beyond target, a **static** 3px-tall progress bar appe
 **First-run identity flow** (the concrete shape of the `player_uuid` contract in §Multiplayer 9):
 
 1. On first app boot, before the splash animation finishes, the app checks `localStorage['drawrace.player_uuid']`. If absent and localStorage is writable, it generates a v4 via `crypto.randomUUID()` and persists it.
-2. If localStorage is **unavailable** (Safari Private Browsing, Lockdown Mode, storage-quota errors), the app falls back to a session-only UUID held in memory and shows a small banner on the splash: "Private browsing detected — scores won't save." All API calls still work, but submissions and name claims are flagged `ephemeral = true` — the server silently `204`s `ephemeral=true` submissions instead of writing them, so private tabs can't pollute the leaderboard.
+2. If localStorage is **unavailable** (Safari Private Browsing, Lockdown Mode, storage-quota errors), the app falls back to a session-only UUID held in memory and shows a small banner on the splash: "Private browsing detected — scores won't save." All API calls still work, but the submit path sets the ghost blob `flags` bit `0x02` (ephemeral); the server validates and returns `204 No Content` without persisting, so private tabs can't pollute the leaderboard. Name claims from ephemeral sessions are similarly rejected with `204`.
 3. Name claim is **deferred.** The first race is playable anonymously as `GhostUser_<last 4 of UUID>`. The name-claim UI appears from the Result Screen's "claim a name" chip after the first finish, and from Settings at any time thereafter.
 4. A newly-generated UUID is registered **lazily** on first submission — there is no `POST /v1/players` step. The server creates the row on the first `POST /v1/submissions` it sees from an unknown UUID.
 
@@ -1559,12 +1687,13 @@ The URL `?seed=1` is a production-safe test hook: when present, the app injects 
 
 The **Rust/axum backend** is run locally via `docker compose up` against local Postgres, Redis, and a MinIO S3 stub (proxying for Garage). A contract suite (Vitest + `undici`, or `cargo test` against the same image) exercises:
 
-- **Golden request/response pairs** under `contracts/` — `POST /v1/submissions` with a known payload produces a byte-for-byte response (minus the server timestamp, which is stubbed via `X-Test-Clock` header only honored when `DRAWRACE_ENV=test`).
+- **Golden request/response pairs** under `contracts/` — `POST /v1/submissions` with a known payload produces a byte-for-byte response (minus the server timestamp, which is stubbed via `X-Test-Clock` header only honored when `DRAWRACE_ENV=test`). The 202 body is asserted to contain **exactly** the three keys `submission_id`, `status` (= `"pending_validation"`), `poll_url` — no `preliminary_rank`, no `preliminary_bucket`, no other fields. Extra keys fail the test.
+- **Poll lifecycle & ownership** — `POST /v1/submissions` with player A, then `GET /v1/submissions/{id}` without `X-DrawRace-Player` returns 403; with A's UUID returns 200 + `pending_validation` (or `accepted`/`rejected` once the validator has run); with B's UUID returns 404 (NOT 403 — the enumeration-safe branch). An unknown submission ID with any UUID returns 404. A rejected submission returns a body with exactly `{status, reason}`.
 - **HMAC roundtrip**: sign client-side with the public test key, server accepts; flip one byte, server **400s** (malformed request, not 401 unauthorized). This test validates **input rejection**, not authentication — the HMAC key is public (see §Multiplayer 8 Layer 1) and carries no trust; the test only asserts the server refuses to store a payload whose own integrity check fails.
 - **Ghost integrity**: `POST` a ghost, `GET` it back, assert polygon and position stream are byte-identical (base64 equality). This verifies the binary format (§Multiplayer & Backend 5) roundtrips cleanly through the S3 layer.
 - **Bucket assignment**: submit 100 seeded times, verify the `bucket` field on the 101st submission.
 - **Matchmake empty-bucket fallback**: seed a DB with 0 ghosts in the target bucket and assert `GET /v1/matchmake/{track_id}` returns 3 ghosts drawn from the next-faster bucket; with all higher buckets empty, assert it falls back to the bundled seed pool (§Multiplayer 6). This pins the full fallback chain, not just the happy path.
-- **Shadow ghost inclusion**: given a player with a recorded PB on the track, assert the response includes a `shadow_ghost` field whose `ghost_id` equals the player's PB ghost; given a player with no PB, assert `shadow_ghost` is absent (or explicitly `null`) and that the OpenAPI spec documents that absence as the first-time-player case.
+- **Shadow ghost inclusion**: given a player with a recorded PB on the track, assert the response includes a `shadow_ghost` field whose `ghost_id` equals the player's PB ghost; given a player with no PB, assert the response key `shadow_ghost` is **present** and its value is **exactly `null`** (`response.shadow_ghost === null`, not `undefined`, not a missing key). The OpenAPI spec must declare `shadow_ghost` as `nullable: true` and `required`, and the contract test fails if the schema regresses to field-omission.
 
 These tests double as the OpenAPI conformance gate — we generate the schema from axum route handlers (via `utoipa` or equivalent) and fail CI if the golden response does not conform.
 
@@ -1621,7 +1750,7 @@ export default function () {
 }
 ```
 
-Targets: 10k concurrent submissions, p99 < 1.2s, error rate < 1%. Runs nightly against staging; never on PRs.
+Targets: 10k concurrent submissions, p99 < 1.2s, error rate < 1%. Runs nightly against staging; never on PRs. The k6 runner's egress IP (or its /32) is listed in `DRAWRACE_RATE_LIMIT_BYPASS_CIDR` on staging — without this, the ramp to 2000 RPS would trip per-IP limits on the first second.
 
 **Chaos**: Rackspace Spot can preempt nodes (~90s notice). A nightly job randomly deletes one `drawrace-api` pod while k6 runs 500 RPS and asserts the client's retry-with-backoff keeps `http_req_failed < 0.5%`. A second chaos job kills the single `drawrace-validator` pod and asserts the queue drains cleanly once a new pod comes up.
 
