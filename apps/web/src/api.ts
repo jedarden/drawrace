@@ -197,4 +197,29 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export async function submitFeedback(
+  category: "bug" | "feature" | "other",
+  body: string,
+  metadata?: Record<string, unknown>,
+): Promise<boolean> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return false;
+
+  const playerUuid = getPlayerUuid();
+
+  try {
+    const resp = await fetch(`${apiUrl}/v1/feedback`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-DrawRace-Player": playerUuid,
+      },
+      body: JSON.stringify({ category, body, metadata }),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
 export { isOnline };

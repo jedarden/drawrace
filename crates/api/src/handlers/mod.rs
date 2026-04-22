@@ -1,3 +1,4 @@
+pub mod feedback;
 pub mod ghosts;
 pub mod health;
 pub mod leaderboard;

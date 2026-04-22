@@ -56,6 +56,10 @@ pub fn app(state: Arc<AppState>) -> Router {
             "/v1/matchmake/{track_id}",
             axum::routing::get(crate::handlers::matchmake::get_matchmake),
         )
+        .route(
+            "/v1/feedback",
+            axum::routing::post(crate::handlers::feedback::post_feedback),
+        )
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
         .with_state(state)

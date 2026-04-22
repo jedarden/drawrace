@@ -5,6 +5,7 @@ import { createRenderer, createGhostWheelPath, preloadAssets } from "./Renderer.
 import { ParticleSystem } from "./Particles.js";
 import { getPerformanceManager } from "./PerformanceManager.js";
 import { getHaptics } from "./Haptics.js";
+import { getSoundManager } from "./Sound.js";
 
 interface GhostDef {
   id: string;
@@ -57,6 +58,8 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
       const render = createRenderer(canvas, track, wheelDraw);
       const ghostWheelPaths = ghosts.map((g) => createGhostWheelPath(g.wheelVertices));
       const perf = getPerformanceManager();
+      const sound = getSoundManager();
+      const haptics = getHaptics();
 
       // Render initial frame
       const initSnap = sim.snapshot();
@@ -68,9 +71,11 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
       const COUNTDOWN_TICKS = 180;
       phaseRef.current = "countdown";
       countdownRef.current = 3;
+      let lastCountdownVal = 3;
 
       let lastTime = performance.now();
       let accumTime = 0;
+      let motorHumInterval: ReturnType<typeof setInterval> | null = null;
 
       function loop() {
         if (cancelled) return;

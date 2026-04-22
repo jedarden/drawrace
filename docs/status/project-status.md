@@ -1,7 +1,7 @@
 # DrawRace Project Status
 
 **Last Updated:** 2026-04-22
-**Current Phase:** Phase 3 Complete → Phase 4 (Beta) Blocked on Operational Tasks
+**Current Phase:** Phase 3 Complete → Phase 4 (Beta) Blocked on Operational Tasks → Phase 5 (Launch) Partial
 
 ## Phase Completion Status
 
@@ -84,16 +84,21 @@ Remaining deliverables (all operational, not code):
 - No WCAG regressions
 - Load test passes thresholds
 
-### ⏸️ Phase 5: Launch — BLOCKED (Awaiting Phase 4)
+### ⏸️ Phase 5: Launch — PARTIAL (Code Complete, Operational Tasks Pending)
 **Blocker:** Cannot proceed until Beta phase completes
 
-Remaining deliverables:
+**Code Deliverables Completed (2026-04-22):**
+- ✅ PWA install instructions landing screen (`LandingScreen.tsx`)
+- ✅ Platform-specific guidance (iOS, Android, Desktop)
+- ✅ Integration into app flow with localStorage persistence
+- ✅ "Show Install Instructions" button in Settings
+
+**Remaining Operational Deliverables:**
 1. **DNS Cutover**
    - `drawrace.example` → Cloudflare Pages production
    - Verify TLS certificates
 
 2. **Launch Preparation**
-   - Add PWA install instructions to landing page
    - Prepare blog post / HN announcement
    - Record monitoring baselines (QPS, submission rate, bucket distribution)
 

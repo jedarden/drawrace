@@ -4,11 +4,14 @@ import type { StrokePoint } from "./DrawScreen.js";
 import { RaceScreen } from "./RaceScreen.js";
 import { ResultScreen } from "./ResultScreen.js";
 import { SettingsScreen } from "./SettingsScreen.js";
+import { LandingScreen } from "./LandingScreen.js";
 import { fetchGhosts, type GhostData } from "./api.js";
 import { getHaptics } from "./Haptics.js";
 import type { DrawResult } from "@drawrace/engine-core";
 
 type Screen = "draw" | "race" | "result";
+
+const LANDING_DISMISSED_KEY = "drawrace_landing_dismissed";
 
 interface TrackData {
   id: string;
@@ -35,10 +38,13 @@ export function App() {
   const [track, setTrack] = useState<TrackData | null>(null);
   const [ghosts, setGhosts] = useState<GhostData[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showLanding, setShowLanding] = useState(false);
 
-  // Initialize haptics
+  // Initialize haptics and check landing screen
   useEffect(() => {
     getHaptics();
+    const dismissed = localStorage.getItem(LANDING_DISMISSED_KEY) === "true";
+    setShowLanding(!dismissed);
   }, []);
 
   useEffect(() => {
@@ -71,6 +77,15 @@ export function App() {
     }
   }, [track]);
 
+  const handleLandingStart = useCallback(() => {
+    setShowLanding(false);
+    localStorage.setItem(LANDING_DISMISSED_KEY, "true");
+  }, []);
+
+  const handleShowLanding = useCallback(() => {
+    setShowLanding(true);
+  }, []);
+
   if (!track) {
     return (
       <div
@@ -96,6 +111,7 @@ export function App() {
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }} role="application" aria-label="DrawRace Game">
+      <LandingScreen onStart={handleLandingStart} dismissed={!showLanding} />
       {screen === "draw" && (
         <DrawScreen
           onComplete={handleDrawComplete}
@@ -121,7 +137,7 @@ export function App() {
         />
       )}
       {settingsOpen && (
-        <SettingsScreen onClose={() => setSettingsOpen(false)} />
+        <SettingsScreen onClose={() => setSettingsOpen(false)} onShowLanding={handleShowLanding} />
       )}
     </div>
   );

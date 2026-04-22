@@ -1,15 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { getHaptics } from "./Haptics.js";
+import { getSoundManager } from "./Sound.js";
 
 interface SettingsScreenProps {
   onClose: () => void;
+  onShowLanding?: () => void;
 }
 
 type DisplayState = "idle" | "clearing" | "cleared";
 
-export function SettingsScreen({ onClose }: SettingsScreenProps) {
+export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) {
   const haptics = getHaptics();
-  const [soundEnabled, setSoundEnabled] = useState(false);
+  const sound = getSoundManager();
+  const [soundEnabled, setSoundEnabled] = useState(sound.isEnabled);
   const [hapticsEnabled, setHapticsEnabled] = useState(haptics.isEnabled);
   const [reducedMotion, setReducedMotion] = useState(
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -18,18 +21,16 @@ export function SettingsScreen({ onClose }: SettingsScreenProps) {
   const [displayState, setDisplayState] = useState<DisplayState>("idle");
 
   useEffect(() => {
-    const storedSound = localStorage.getItem("drawrace.sound");
     const storedName = localStorage.getItem("drawrace.displayName");
-    if (storedSound) setSoundEnabled(storedSound === "true");
     if (storedName) setDisplayName(storedName);
   }, []);
 
   const handleSoundToggle = useCallback(() => {
     const newValue = !soundEnabled;
     setSoundEnabled(newValue);
-    localStorage.setItem("drawrace.sound", newValue.toString());
+    sound.saveSettings(newValue);
     haptics.uiTap();
-  }, [soundEnabled, haptics]);
+  }, [soundEnabled, sound, haptics]);
 
   const handleHapticsToggle = useCallback(() => {
     const newValue = !hapticsEnabled;
@@ -173,6 +174,33 @@ export function SettingsScreen({ onClose }: SettingsScreenProps) {
               Saved automatically when you leave the field
             </p>
           </div>
+
+          {onShowLanding && (
+            <div style={{ paddingTop: 16, borderTop: "1px solid rgba(43,33,24,0.1)" }}>
+              <button
+                onClick={() => {
+                  haptics.uiTap();
+                  onShowLanding();
+                }}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  backgroundColor: "#4A7C59",
+                  color: "#F4EAD5",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                Show Install Instructions
+              </button>
+              <p style={{ margin: "8px 0 0 0", fontSize: 12, opacity: 0.7 }}>
+                Learn how to install DrawRace as an app on your device
+              </p>
+            </div>
+          )}
 
           <div style={{ paddingTop: 16, borderTop: "1px solid rgba(43,33,24,0.1)" }}>
             <button
