@@ -32,13 +32,16 @@ export class SoundManager {
 
     if (!this.context) {
       try {
-        this.context = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const AudioContextClass = window.AudioContext || (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (AudioContextClass) {
+          this.context = new AudioContextClass();
+        }
       } catch {
         return null;
       }
     }
 
-    if (this.context.state === "suspended") {
+    if (this.context && this.context.state === "suspended") {
       this.context.resume().catch(() => {});
     }
 
@@ -186,10 +189,10 @@ export class SoundManager {
     this.motorRunning = false;
 
     if (osc1) {
-      setTimeout(() => { try { osc1.stop(); } catch {} }, 350);
+      setTimeout(() => this.stopOscillatorSafely(osc1), 350);
     }
     if (osc2) {
-      setTimeout(() => { try { osc2.stop(); } catch {} }, 350);
+      setTimeout(() => this.stopOscillatorSafely(osc2), 350);
     }
   }
 
@@ -202,6 +205,15 @@ export class SoundManager {
     if (this.context) {
       this.context.close().catch(() => {});
       this.context = null;
+    }
+  }
+
+  private stopOscillatorSafely(osc: OscillatorNode | null): void {
+    if (!osc) return;
+    try {
+      osc.stop();
+    } catch {
+      // Oscillator may already be stopped
     }
   }
 }

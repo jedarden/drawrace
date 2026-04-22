@@ -52,29 +52,30 @@ All visual polish deliverables implemented:
 - ⚠️ Redmi 9 30fps verification - needs real-device testing
 - ⚠️ CI with all 9 test layers - partial (see CI Test Matrix below)
 
-### ⏸️ Phase 4: Beta — BLOCKED (Operational Tasks)
-**Blocker:** Requires production infrastructure deployment and coordination
+### 🔄 Phase 4: Beta — Code Deliverables Complete, Operational Tasks Pending
 
-Remaining deliverables (all operational, not code):
+**Code deliverables completed (2026-04-22):**
+- ✅ Beta landing page with invite flow, how-to-play, install instructions (`LandingScreen.tsx`)
+- ✅ Feedback endpoint (`POST /v1/feedback`) with rate limiting and Postgres storage
+- ✅ Feedback UI on landing screen (bug/feature/other categories)
+- ✅ k6 load test script (`load/submit.js`) with ramping-arrival-rate (50→2000 RPS)
+- ✅ Chaos test script (`load/chaos-test.sh`) — kills api pod, verifies recovery, checks error thresholds
+- ✅ Grafana dashboard JSON (`monitoring/drawrace-dashboard.json`) — submission rate, rejection rate, validator queue, latency, replay mismatch
+- ✅ Prometheus alert rules (`k8s/servicemonitor.yaml`) — rejection >10%, queue >100, api unavailable, replay mismatch >0.5%
+- ✅ ServiceMonitor for Prometheus scraping (`k8s/servicemonitor.yaml`)
+
+**Remaining operational tasks:**
 1. **Infrastructure Deployment**
    - Deploy `drawrace-api` and `drawrace-validator` to production cluster
    - Configure Cloudflare Pages production project
-   - Set up DNS records: `beta.drawrace.example` → Cloudflare, `api.drawrace.example` → cluster
-   - Configure monitoring dashboards and alerts (Grafana, Prometheus)
+   - Set up DNS records: `api.drawrace.ardenone.com` → cluster
+   - Apply monitoring manifests (ServiceMonitor, PrometheusRule)
 
-2. **Beta Testing Infrastructure**
-   - Create invite link / landing page
-   - Set up feedback collection (Google Form or `/feedback` endpoint)
-   - Configure replay-mismatch dashboard alerts
-   - Wire alerts to on-call email
-
-3. **Load & Chaos Testing**
-   - Run k6 load tests against staging
-   - Execute chaos tests (pod failure scenarios)
-   - Verify client retry behavior
-
-4. **Beta Execution**
-   - Invite 20-40 testers
+2. **Beta Execution**
+   - Recruit 20-40 testers
+   - Run k6 load test against staging (`k6 run -e API=<staging-url> load/submit.js`)
+   - Execute chaos test (`API=<staging-url> ./load/chaos-test.sh`)
+   - Import Grafana dashboard (`monitoring/drawrace-dashboard.json`)
    - Monitor replay-mismatch rate (< 0.5% target)
    - Collect top-30 real beta times for launch seed pool
 
@@ -82,6 +83,7 @@ Remaining deliverables (all operational, not code):
 - 0 crash reports in last 48h of beta
 - Replay-mismatch rate < 0.5%
 - No WCAG regressions
+- Load test passes thresholds (p95 < 400ms, error rate < 1%)
 - Load test passes thresholds
 
 ### ⏸️ Phase 5: Launch — PARTIAL (Code Complete, Operational Tasks Pending)
@@ -122,7 +124,7 @@ Remaining deliverables (all operational, not code):
 | 5 | Backend Contract | ❌ MISSING | Needs Rust backend tests |
 | 6 | Replay Verification | ✅ COMPLETE | Validator crate tests |
 | 7 | Performance Budget | ⚠️ PARTIAL | size-limit configured, not enforced in CI |
-| 8 | Load & Chaos | ❌ MISSING | Needs k6 scripts, staging env |
+| 8 | Load & Chaos | ✅ SCRIPTS READY | k6 load + chaos test scripts; needs staging env to run against |
 | 9 | Device Matrix | ❌ MISSING | Needs real-device testing |
 
 ## Known Technical Debt

@@ -3,6 +3,7 @@ import type { DrawResult } from "@drawrace/engine-core";
 import type { StrokePoint } from "./DrawScreen.js";
 import { submitGhost, waitForVerdict, isOnline, type SubmissionVerdict } from "./api.js";
 import { getSoundManager } from "./Sound.js";
+import { getHaptics } from "./Haptics.js";
 
 interface GhostResult {
   name: string;

@@ -1,5 +1,5 @@
 import { PHYSICS_VERSION } from "@drawrace/engine-core";
-import type { DrawResult, Point } from "@drawrace/engine-core";
+import type { Point } from "@drawrace/engine-core";
 
 export interface GhostBlobInput {
   trackId: number;
