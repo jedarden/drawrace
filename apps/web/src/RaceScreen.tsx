@@ -1,7 +1,10 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect } from "react";
 import { RaceSim } from "@drawrace/engine-core";
 import type { DrawResult, TrackDef } from "@drawrace/engine-core";
-import { createRenderer, createGhostWheelPath } from "./Renderer.js";
+import { createRenderer, createGhostWheelPath, preloadAssets } from "./Renderer.js";
+import { ParticleSystem } from "./Particles.js";
+import { getPerformanceManager } from "./PerformanceManager.js";
+import { getHaptics } from "./Haptics.js";
 
 interface GhostDef {
   id: string;
@@ -24,106 +27,152 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const phaseRef = useRef<RacePhase>("countdown");
   const countdownRef = useRef(3);
-  const simRef = useRef<RaceSim | null>(null);
-  const ghostSimsRef = useRef<RaceSim[]>([]);
   const rafRef = useRef<number>(0);
-  const renderFnRef = useRef<((snap: any, ghosts: any[]) => void) | null>(null);
   const finishedCalledRef = useRef(false);
-  const [countdownDisplay, setCountdownDisplay] = useState(3);
+  const particlesRef = useRef<ParticleSystem | null>(null);
+  const confettiTriggeredRef = useRef(false);
+  const prevWheelPosRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-
-    const ctx = canvas.getContext("2d")!;
-    ctx.scale(dpr, dpr);
-    // Use CSS dimensions for rendering calculations
     canvas.width = rect.width;
     canvas.height = rect.height;
 
-    // Create player simulation
-    const sim = new RaceSim(track, wheelDraw.vertices);
-    simRef.current = sim;
+    let cancelled = false;
+    let rafId: number = 0;
 
-    // Create ghost simulations
-    const ghostSims = ghosts.map((g) => new RaceSim(track, g.wheelVertices, g.seed));
-    ghostSimsRef.current = ghostSims;
+    (async () => {
+      await preloadAssets();
+      if (cancelled) return;
 
-    // Create renderer
-    const render = createRenderer(canvas, track, wheelDraw);
-    renderFnRef.current = render;
+      const sim = new RaceSim(track, wheelDraw.vertices);
+      const ghostSims = ghosts.map((g) => new RaceSim(track, g.wheelVertices, g.seed));
 
-    // Build ghost wheel paths
-    const ghostWheelPaths = ghosts.map((g) => createGhostWheelPath(g.wheelVertices));
+      const particles = new ParticleSystem();
+      particlesRef.current = particles;
 
-    // Render initial frame
-    const snap = sim.snapshot();
-    const ghostSnaps = ghostSims.map((gs) => ({ snapshot: gs.snapshot(), wheelPath: ghostWheelPaths[ghostSims.indexOf(gs)] }));
-    render(snap, ghostSnaps);
+      const render = createRenderer(canvas, track, wheelDraw);
+      const ghostWheelPaths = ghosts.map((g) => createGhostWheelPath(g.wheelVertices));
+      const perf = getPerformanceManager();
 
-    // Countdown phase — 3 seconds
-    let countdownTick = 0;
-    const COUNTDOWN_TICKS = 180; // 3 seconds at 60fps
-    phaseRef.current = "countdown";
-    countdownRef.current = 3;
-    setCountdownDisplay(3);
+      // Render initial frame
+      const initSnap = sim.snapshot();
+      prevWheelPosRef.current = { x: initSnap.wheel.x, y: initSnap.wheel.y };
+      const initGhosts = ghostSims.map((gs, i) => ({ snapshot: gs.snapshot(), wheelPath: ghostWheelPaths[i] }));
+      render(initSnap, initGhosts, particles, 3);
 
-    function loop() {
-      if (phaseRef.current === "countdown") {
-        // Step physics with gravity only (no motor)
-        const snap = sim.snapshot();
-        const ghostSnaps = ghostSims.map((gs, i) => ({ snapshot: gs.snapshot(), wheelPath: ghostWheelPaths[i] }));
-        render(snap, ghostSnaps);
-        sim.step();
-        ghostSims.forEach((gs) => gs.step());
+      let countdownTick = 0;
+      const COUNTDOWN_TICKS = 180;
+      phaseRef.current = "countdown";
+      countdownRef.current = 3;
 
-        countdownTick++;
-        const newCountdown = 3 - Math.floor(countdownTick / 60);
-        if (newCountdown !== countdownRef.current && newCountdown >= 0) {
-          countdownRef.current = newCountdown;
-          setCountdownDisplay(newCountdown);
-        }
+      let lastTime = performance.now();
+      let accumTime = 0;
 
-        if (countdownTick >= COUNTDOWN_TICKS) {
-          phaseRef.current = "racing";
-          sim.enableMotor();
-          ghostSims.forEach((gs) => gs.enableMotor());
-          setCountdownDisplay(-1);
-        }
+      function loop() {
+        if (cancelled) return;
+        const now = performance.now();
+        const dt = now - lastTime;
+        lastTime = now;
 
-        rafRef.current = requestAnimationFrame(loop);
-        return;
-      }
+        perf.recordFrame(dt);
 
-      if (phaseRef.current === "racing") {
-        const snap = sim.step();
-        const ghostSnaps = ghostSims.map((gs, i) => {
-          const gsnap = gs.step();
-          return { snapshot: gsnap, wheelPath: ghostWheelPaths[i] };
-        });
-        render(snap, ghostSnaps);
+        if (phaseRef.current === "countdown") {
+          sim.step();
+          ghostSims.forEach((gs) => gs.step());
 
-        if (snap.finished) {
-          phaseRef.current = "done";
-          if (!finishedCalledRef.current) {
-            finishedCalledRef.current = true;
-            onFinished(snap.elapsedMs);
+          const snap = sim.snapshot();
+          const ghostSnaps = ghostSims.map((gs, i) => ({ snapshot: gs.snapshot(), wheelPath: ghostWheelPaths[i] }));
+          particles.update(1 / 60);
+          render(snap, ghostSnaps, particles, countdownRef.current);
+
+          countdownTick++;
+          const newCountdown = 3 - Math.floor(countdownTick / 60);
+          if (newCountdown !== countdownRef.current && newCountdown >= 0) {
+            countdownRef.current = newCountdown;
           }
+
+          if (countdownTick >= COUNTDOWN_TICKS) {
+            phaseRef.current = "racing";
+            sim.enableMotor();
+            ghostSims.forEach((gs) => gs.enableMotor());
+            getHaptics().raceStart();
+          }
+
+          rafId = requestAnimationFrame(loop);
           return;
         }
 
-        rafRef.current = requestAnimationFrame(loop);
-      }
-    }
+        if (phaseRef.current === "racing") {
+          accumTime += dt;
+          const simDt = perf.simDt * 1000;
 
-    rafRef.current = requestAnimationFrame(loop);
+          while (accumTime >= simDt) {
+            sim.step();
+            ghostSims.forEach((gs) => gs.step());
+            accumTime -= simDt;
+          }
+
+          const snap = sim.snapshot();
+
+          // Compute wheel speed from position delta (SimBody has no vx/vy)
+          const dx = snap.wheel.x - prevWheelPosRef.current.x;
+          const dy = snap.wheel.y - prevWheelPosRef.current.y;
+          const speed = Math.hypot(dx, dy) * 60; // approx m/s
+          prevWheelPosRef.current = { x: snap.wheel.x, y: snap.wheel.y };
+
+          // Filter ghosts based on performance
+          const maxGhosts = perf.maxGhosts;
+          const activeGhostSnaps = ghostSims.slice(0, maxGhosts).map((gs, i) => ({
+            snapshot: gs.snapshot(),
+            wheelPath: ghostWheelPaths[i],
+          }));
+
+          // Emit dust behind wheel
+          particles.setParticleLevel(perf.particleLevel);
+          if (perf.particleLevel !== "none") {
+            const cw = canvasRef.current?.width ?? 400;
+            const ch = canvasRef.current?.height ?? 800;
+            const wheelSX = snap.wheel.x * 30 - cw * 0.35;
+            const wheelSY = -snap.wheel.y * 30 - ch * 0.6;
+            particles.emitDust(wheelSX, wheelSY, speed);
+          }
+
+          particles.update(1 / 60);
+          render(snap, activeGhostSnaps, particles);
+
+          if (snap.finished && !confettiTriggeredRef.current) {
+            confettiTriggeredRef.current = true;
+            getHaptics().finishLine();
+            if (perf.particleLevel !== "none") {
+              const cw = canvasRef.current?.width ?? 400;
+              const ch = canvasRef.current?.height ?? 800;
+              particles.emitConfetti(cw / 2, ch * 0.4);
+            }
+          }
+
+          if (snap.finished) {
+            phaseRef.current = "done";
+            if (!finishedCalledRef.current) {
+              finishedCalledRef.current = true;
+              onFinished(snap.elapsedMs);
+            }
+            return;
+          }
+
+          rafId = requestAnimationFrame(loop);
+        }
+      }
+
+      rafId = requestAnimationFrame(loop);
+    })();
 
     return () => {
+      cancelled = true;
+      if (rafId) cancelAnimationFrame(rafId);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [track, wheelDraw, ghosts, onFinished]);
@@ -132,32 +181,10 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
     <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#F4EAD5" }}>
       <canvas
         ref={canvasRef}
+        role="img"
+        aria-label="Race view. Your wheel is shown in red, ghosts in gray."
         style={{ width: "100%", height: "100%", display: "block" }}
       />
-      {phaseRef.current === "countdown" && countdownRef.current >= 0 && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(244, 234, 213, 0.6)",
-            pointerEvents: "none",
-          }}
-        >
-          <span
-            style={{
-              fontSize: 96,
-              fontWeight: "bold",
-              color: "#2B2118",
-              fontFamily: "system-ui, sans-serif",
-            }}
-          >
-            {countdownRef.current === 0 ? "GO!" : countdownRef.current}
-          </span>
-        </div>
-      )}
     </div>
   );
 }

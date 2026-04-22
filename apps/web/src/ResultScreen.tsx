@@ -72,6 +72,8 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
 
   return (
     <div
+      role="main"
+      aria-label="Race results screen"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -86,27 +88,27 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
         boxSizing: "border-box",
       }}
     >
-      <div style={{ fontSize: 44, fontWeight: "bold", fontFamily: "monospace" }}>
+      <div style={{ fontSize: 44, fontWeight: "bold", fontFamily: "monospace" }} role="timer" aria-label={`Finish time: ${formatTime(finishTimeMs)}`}>
         {formatTime(finishTimeMs)}
       </div>
 
       {online && verdict && verdict.status === "pending_validation" && (
-        <div style={{ fontSize: 14, opacity: 0.6 }}>
+        <div style={{ fontSize: 14, opacity: 0.6 }} role="status" aria-live="polite">
           Verifying time...
         </div>
       )}
       {online && verdict && verdict.status === "accepted" && (
-        <div style={{ fontSize: 14, color: "#7CA05C" }}>
-          Rank #{verdict.rank} — {verdict.bucket} {verdict.is_pb ? "(New PB!)" : ""}
+        <div style={{ fontSize: 14, color: "#7CA05C" }} role="status" aria-live="polite">
+          Rank #{verdict.rank} — {verdict.bucket} {verdict.is_pb ? "(New Personal Best!)" : ""}
         </div>
       )}
       {online && verdict && verdict.status === "rejected" && (
-        <div style={{ fontSize: 14, color: "#D94F3A" }}>
+        <div style={{ fontSize: 14, color: "#D94F3A" }} role="alert" aria-live="assertive">
           Time not accepted
         </div>
       )}
 
-      <div style={{ fontSize: 16, opacity: 0.7 }}>
+      <div style={{ fontSize: 16, opacity: 0.7 }} role="status" aria-live="polite">
         {beaten > 0
           ? `Beat ${beaten} of ${ghosts.length} ghosts`
           : ghosts.length > 0
@@ -115,6 +117,8 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
       </div>
 
       <div
+        role="img"
+        aria-label="Your wheel shape"
         style={{
           width: 96,
           height: 96,
@@ -127,7 +131,7 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
           overflow: "hidden",
         }}
       >
-        <svg width="80" height="80" viewBox="-50 -50 100 100">
+        <svg width="80" height="80" viewBox="-50 -50 100 100" aria-hidden="true">
           <polygon
             points={wheelDraw.vertices
               .map((v) => `${(v.x * 40).toFixed(1)},${(v.y * 40).toFixed(1)}`)
@@ -139,9 +143,13 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
         </svg>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: 300 }}>
+      <ul
+        style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: 300 }}
+        role="list"
+        aria-label="Ghost comparison results"
+      >
         {comparisons.map((c) => (
-          <div
+          <li
             key={c.name}
             style={{
               display: "flex",
@@ -155,12 +163,13 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
             <span style={{ fontFamily: "monospace", color: c.beat ? "#7CA05C" : "#D94F3A" }}>
               {formatTime(c.ghostTime)}
             </span>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
 
       <button
         onClick={onRetry}
+        aria-label="Try again with a new wheel"
         style={{
           marginTop: 16,
           padding: "14px 48px",

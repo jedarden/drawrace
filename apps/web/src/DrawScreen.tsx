@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect, useState } from "react";
 import { processDraw, type DrawResult, type Point } from "@drawrace/engine-core";
+import { getHaptics } from "./Haptics.js";
 
 export interface StrokePoint extends Point {
   t: number;
@@ -7,11 +8,12 @@ export interface StrokePoint extends Point {
 
 interface DrawScreenProps {
   onComplete: (result: DrawResult, strokePoints: StrokePoint[]) => void;
+  onOpenSettings: () => void;
 }
 
 const CANVAS_SIZE_CSS = 300;
 
-export function DrawScreen({ onComplete }: DrawScreenProps) {
+export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const offCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rawPointsRef = useRef<StrokePoint[]>([]);
@@ -161,6 +163,8 @@ export function DrawScreen({ onComplete }: DrawScreenProps) {
 
   return (
     <div
+      role="main"
+      aria-label="Draw your wheel screen"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -173,11 +177,30 @@ export function DrawScreen({ onComplete }: DrawScreenProps) {
         gap: 16,
       }}
     >
-      <h1 style={{ margin: 0, fontSize: 24 }}>Draw your wheel</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", maxWidth: 350 }}>
+        <h1 style={{ margin: 0, fontSize: 24 }}>Draw your wheel</h1>
+        <button
+          onClick={onOpenSettings}
+          aria-label="Open settings"
+          style={{
+            background: "none",
+            border: "2px solid #2B2118",
+            borderRadius: 8,
+            padding: "8px 12px",
+            fontSize: 20,
+            cursor: "pointer",
+            color: "#2B2118",
+          }}
+        >
+          ⚙️
+        </button>
+      </div>
       <canvas
         ref={canvasRef}
         width={CANVAS_SIZE_CSS}
         height={CANVAS_SIZE_CSS}
+        role="img"
+        aria-label="Drawing canvas. Use mouse or touch to draw a wheel shape."
         style={{
           width: CANVAS_SIZE_CSS,
           height: CANVAS_SIZE_CSS,
@@ -192,9 +215,10 @@ export function DrawScreen({ onComplete }: DrawScreenProps) {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       />
-      <div style={{ display: "flex", gap: 12 }}>
+      <div style={{ display: "flex", gap: 12 }} role="toolbar" aria-label="Drawing controls">
         <button
           onClick={handleClear}
+          aria-label="Clear drawing"
           style={{
             padding: "10px 24px",
             fontSize: 16,
@@ -210,6 +234,7 @@ export function DrawScreen({ onComplete }: DrawScreenProps) {
         <button
           onClick={handleRace}
           disabled={!canRace}
+          aria-label={canRace ? "Start race" : "Draw a wheel first to enable race"}
           style={{
             padding: "10px 24px",
             fontSize: 16,
@@ -222,6 +247,9 @@ export function DrawScreen({ onComplete }: DrawScreenProps) {
         >
           Race!
         </button>
+      </div>
+      <div style={{ fontSize: 14, opacity: 0.7 }} role="status" aria-live="polite">
+        {canRace ? "Wheel ready!" : "Draw a complete wheel shape (minimum size and length required)"}
       </div>
     </div>
   );

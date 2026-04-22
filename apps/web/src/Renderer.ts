@@ -1,13 +1,154 @@
 import type { RaceSnapshot, TrackDef, SimBody } from "@drawrace/engine-core";
 import type { DrawResult } from "@drawrace/engine-core";
+import type { ParticleSystem } from "./Particles.js";
 
-const PPM = 30; // pixelsPerMeter
+const PPM = 30;
+
+const reducedMotion =
+  typeof window !== "undefined" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Deterministic PRNG for cosmetic effects (mulberry32)
+function mulberry32(seed: number) {
+  let s = seed | 0;
+  return function () {
+    s |= 0;
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function fnvHash(input: string | number): number {
+  const str = String(input);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+// Pre-rendered assets (created once)
+let crossHatchPattern: CanvasPattern | null = null;
+const tuftSprites: HTMLCanvasElement[] = [];
+let assetsPreloaded = false;
+
+export async function preloadAssets(): Promise<void> {
+  if (assetsPreloaded) return;
+  // Actual asset creation deferred to first createRenderer call where we have a ctx.
+  // This async stub satisfies callers that await preloadAssets().
+  assetsPreloaded = true;
+}
+
+function ensureAssets(ctx: CanvasRenderingContext2D): void {
+  if (crossHatchPattern !== null || tuftSprites.length > 0) return;
+
+  // Cross-hatch pattern (256x256)
+  const patCanvas = document.createElement("canvas");
+  patCanvas.width = 256;
+  patCanvas.height = 256;
+  const pctx = patCanvas.getContext("2d")!;
+  pctx.strokeStyle = "rgba(43, 33, 24, 0.06)";
+  pctx.lineWidth = 1;
+  pctx.lineCap = "round";
+  for (let i = -256; i < 512; i += 12) {
+    pctx.beginPath();
+    pctx.moveTo(i, 256);
+    pctx.lineTo(i + 256 * Math.tan((20 * Math.PI) / 180), 0);
+    pctx.stroke();
+  }
+  for (let i = -256; i < 512; i += 18) {
+    pctx.beginPath();
+    pctx.moveTo(i, 0);
+    pctx.lineTo(i + 256 * Math.tan((25 * Math.PI) / 180), 256);
+    pctx.stroke();
+  }
+  try {
+    crossHatchPattern = ctx.createPattern(patCanvas, "repeat");
+  } catch {
+    crossHatchPattern = null;
+  }
+
+  // Grass tuft sprites (4 deterministic variants)
+  const tuftRng = mulberry32(12345);
+  for (let v = 0; v < 4; v++) {
+    const tc = document.createElement("canvas");
+    tc.width = 16;
+    tc.height = 24;
+    const tctx = tc.getContext("2d")!;
+    tctx.strokeStyle = "#7CA05C";
+    tctx.lineWidth = 1.5;
+    tctx.lineCap = "round";
+    const blades = 2 + Math.floor(tuftRng() * 2);
+    for (let b = 0; b < blades; b++) {
+      const bx = 4 + tuftRng() * 8;
+      const lean = (tuftRng() - 0.5) * 6;
+      tctx.beginPath();
+      tctx.moveTo(bx, 24);
+      tctx.quadraticCurveTo(bx + lean * 0.5, 12, bx + lean, 2 + tuftRng() * 4);
+      tctx.stroke();
+    }
+    tuftSprites.push(tc);
+  }
+}
 
 interface Camera {
   x: number;
   y: number;
   width: number;
   height: number;
+}
+
+function buildWobblePath(
+  vertices: Array<{ x: number; y: number }>,
+  seed: number
+): Path2D {
+  const path = new Path2D();
+  if (vertices.length < 3) return path;
+
+  const rng = mulberry32(seed);
+  const n = vertices.length;
+
+  path.moveTo(vertices[0].x * PPM, -vertices[0].y * PPM);
+
+  for (let i = 0; i < n; i++) {
+    const curr = vertices[i];
+    const next = vertices[(i + 1) % n];
+
+    const cx = curr.x * PPM;
+    const cy = -curr.y * PPM;
+    const nx = next.x * PPM;
+    const ny = -next.y * PPM;
+
+    const ex = nx - cx;
+    const ey = ny - cy;
+    const len = Math.hypot(ex, ey);
+    if (len < 0.01) continue;
+
+    // Outward normal
+    const nnx = -ey / len;
+    const nny = ex / len;
+
+    // Two midpoints with perpendicular jitter
+    for (let m = 1; m <= 2; m++) {
+      const t = m / 3;
+      const mx = cx + ex * t;
+      const my = cy + ey * t;
+      const offset = (rng() - 0.5) * 1.4; // ±0.7px
+      const mx2 = mx + nnx * offset;
+      const my2 = my + nny * offset;
+      const cpx = mx2 + (rng() - 0.5) * 0.6;
+      const cpy = my2 + (rng() - 0.5) * 0.6;
+      path.quadraticCurveTo(cpx, cpy, mx2, my2);
+    }
+
+    path.lineTo(nx, ny);
+  }
+
+  path.closePath();
+  return path;
 }
 
 export function createRenderer(
@@ -20,15 +161,16 @@ export function createRenderer(
   const height = canvas.height;
   ctx.imageSmoothingEnabled = true;
 
+  ensureAssets(ctx);
+
   const camera: Camera = { x: 0, y: 0, width, height };
 
-  // Pre-compute terrain screen points (Y-flip: negate for screen)
   const terrainScreenPts = track.terrain.map(([x, y]) => ({
     wx: x,
     wy: y,
   }));
 
-  // Pre-build wheel Path2D (local coordinates, in pixels, Y-flipped)
+  // Physics-accurate wheel Path2D
   const wheelPath = new Path2D();
   const verts = wheelDraw.vertices;
   if (verts.length > 0) {
@@ -39,10 +181,37 @@ export function createRenderer(
     wheelPath.closePath();
   }
 
+  // Wobble cosmetic stroke (§Graphics & UX 4)
+  const wobblePath = buildWobblePath(verts, fnvHash("wobble"));
+
+  // Pre-compute grass tuft positions (seeded, deterministic)
+  const tuftPositions: Array<{ wx: number; wy: number; spriteIdx: number }> = [];
+  {
+    const rng = mulberry32(fnvHash("grass-tufts"));
+    for (let i = 0; i < terrainScreenPts.length - 1; i++) {
+      const ax = terrainScreenPts[i].wx;
+      const bx = terrainScreenPts[i + 1].wx;
+      const ay = terrainScreenPts[i].wy;
+      const by = terrainScreenPts[i + 1].wy;
+      const segLen = Math.hypot(bx - ax, by - ay);
+      const spacing = 2.0 + rng() * 1.5;
+      let d = spacing * rng();
+      while (d < segLen) {
+        const t = d / segLen;
+        tuftPositions.push({
+          wx: ax + (bx - ax) * t,
+          wy: ay + (by - ay) * t,
+          spriteIdx: Math.floor(rng() * 4),
+        });
+        d += spacing + rng() * 1.0;
+      }
+    }
+  }
+
   function worldToScreen(wx: number, wy: number): { sx: number; sy: number } {
     return {
       sx: wx * PPM - camera.x,
-      sy: -wy * PPM - camera.y, // Y-flip for screen coordinates
+      sy: -wy * PPM - camera.y,
     };
   }
 
@@ -104,7 +273,7 @@ export function createRenderer(
   function drawTerrain() {
     const pts = terrainScreenPts.map((p) => worldToScreen(p.wx, p.wy));
 
-    // Fill band: close to screen bottom
+    // Fill band
     ctx.fillStyle = "#E5D3B0";
     ctx.beginPath();
     ctx.moveTo(pts[0].sx, pts[0].sy);
@@ -116,27 +285,59 @@ export function createRenderer(
     ctx.closePath();
     ctx.fill();
 
-    // Ink top edge
-    ctx.strokeStyle = "#2B2118";
-    ctx.lineWidth = 3;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    ctx.moveTo(pts[0].sx, pts[0].sy);
-    for (let i = 1; i < pts.length; i++) {
-      ctx.lineTo(pts[i].sx, pts[i].sy);
+    // Cross-hatch overlay clipped to terrain
+    if (crossHatchPattern) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(pts[0].sx, pts[0].sy);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i].sx, pts[i].sy);
+      }
+      ctx.lineTo(pts[pts.length - 1].sx, height + 10);
+      ctx.lineTo(pts[0].sx, height + 10);
+      ctx.closePath();
+      ctx.clip();
+      ctx.fillStyle = crossHatchPattern;
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
     }
-    ctx.stroke();
 
-    // Grass strip (just above terrain line)
+    // Grass strip
     ctx.strokeStyle = "#7CA05C";
     ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     ctx.beginPath();
     ctx.moveTo(pts[0].sx, pts[0].sy - 2);
     for (let i = 1; i < pts.length; i++) {
       ctx.lineTo(pts[i].sx, pts[i].sy - 2);
     }
     ctx.stroke();
+
+    // Grass tufts (deterministic positions)
+    for (const tuft of tuftPositions) {
+      const { sx, sy } = worldToScreen(tuft.wx, tuft.wy);
+      if (sx < -20 || sx > width + 20) continue;
+      const sprite = tuftSprites[tuft.spriteIdx];
+      if (sprite) {
+        ctx.drawImage(sprite, sx - 8, sy - 22, 16, 24);
+      }
+    }
+
+    // Ink top edge with variable-width modulation (2.5/3.5px alternating ~80px)
+    ctx.strokeStyle = "#2B2118";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    let accumulatedX = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const segLen = Math.hypot(pts[i + 1].sx - pts[i].sx, pts[i + 1].sy - pts[i].sy);
+      ctx.lineWidth = Math.floor(accumulatedX / 80) % 2 === 0 ? 2.5 : 3.5;
+      ctx.beginPath();
+      ctx.moveTo(pts[i].sx, pts[i].sy);
+      ctx.lineTo(pts[i + 1].sx, pts[i + 1].sy);
+      ctx.stroke();
+      accumulatedX += segLen;
+    }
   }
 
   function drawFinishLine() {
@@ -154,29 +355,53 @@ export function createRenderer(
     const botSy = worldToScreen(track.finish.pos[0], finishTerrainY).sy;
     const { sx } = worldToScreen(track.finish.pos[0], finishTerrainY);
 
-    ctx.strokeStyle = "#D94F3A";
-    ctx.lineWidth = 4;
-    ctx.setLineDash([6, 4]);
+    // Checkered pattern
+    const lineLen = botSy - topSy;
+    const checkSize = 6;
+    ctx.save();
     ctx.beginPath();
-    ctx.moveTo(sx, topSy);
-    ctx.lineTo(sx, botSy);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.rect(sx - 4, topSy, 8, lineLen);
+    ctx.clip();
+    for (let row = 0; row < Math.ceil(lineLen / checkSize); row++) {
+      for (let col = 0; col < 2; col++) {
+        ctx.fillStyle = (row + col) % 2 === 0 ? "#F4EAD5" : "#2B2118";
+        ctx.fillRect(sx - 4 + col * checkSize, topSy + row * checkSize, checkSize, checkSize);
+      }
+    }
+    ctx.restore();
+
+    // Highlight border
+    ctx.strokeStyle = "#E8B64C";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(sx - 5, topSy - 1, 10, lineLen + 2);
   }
 
-  function drawWheel(body: SimBody, path: Path2D, fillStyle: string, alpha: number) {
+  function drawWheel(body: SimBody, path: Path2D, cosmeticPath: Path2D | null, fillStyle: string, alpha: number) {
     const { sx, sy } = worldToScreen(body.x, body.y);
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(sx, sy);
-    ctx.rotate(-body.angle); // negate angle for screen Y-flip
+    ctx.rotate(-body.angle);
 
+    // Base fill
     ctx.fillStyle = fillStyle;
     ctx.fill(path);
+
+    // Ink outline
     ctx.strokeStyle = "#2B2118";
     ctx.lineWidth = 2.5;
     ctx.lineJoin = "round";
+    ctx.lineCap = "round";
     ctx.stroke(path);
+
+    // Wobble decorative stroke (player only, not in reduced-motion)
+    if (cosmeticPath && !reducedMotion) {
+      ctx.strokeStyle = "rgba(43, 33, 24, 0.35)";
+      ctx.lineWidth = 1.2;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.stroke(cosmeticPath);
+    }
 
     ctx.restore();
   }
@@ -201,21 +426,18 @@ export function createRenderer(
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(sx, sy);
-    ctx.rotate(-body.angle); // Y-flip
+    ctx.rotate(-body.angle);
 
     const bw = 1.2 * PPM;
     const bh = 0.4 * PPM;
 
-    // Body
     ctx.fillStyle = alpha < 1 ? "#8896A3" : "#FBF4E3";
     ctx.fillRect(-bw / 2, -bh / 2, bw, bh);
 
-    // Ink outline
     ctx.strokeStyle = "#2B2118";
     ctx.lineWidth = 2;
     ctx.strokeRect(-bw / 2, -bh / 2, bw, bh);
 
-    // Window + driver (player car only)
     if (alpha >= 1) {
       ctx.fillStyle = "rgba(111, 168, 201, 0.4)";
       ctx.fillRect(-bw * 0.15, -bh / 2 + 2, bw * 0.35, bh - 6);
@@ -226,10 +448,28 @@ export function createRenderer(
       ctx.fill();
     }
 
-    // Lower shadow strip
     ctx.fillStyle = alpha < 1 ? "rgba(0,0,0,0.1)" : "#E9DEC3";
     ctx.fillRect(-bw / 2, bh / 2 - 4, bw, 4);
 
+    ctx.restore();
+  }
+
+  function drawCountdown(countdown: number) {
+    if (countdown < 0) return;
+    const text = countdown === 0 ? "GO!" : String(countdown);
+    const scale = countdown === 0 ? 1.15 : 1;
+
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = countdown === 0 ? "#D94F3A" : "#2B2118";
+    ctx.font = `bold ${Math.round(96 * scale)}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.translate(width / 2, height / 2);
+    ctx.shadowColor = "rgba(43, 33, 24, 0.2)";
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 4;
+    ctx.fillText(text, 0, 0);
     ctx.restore();
   }
 
@@ -249,7 +489,6 @@ export function createRenderer(
     ctx.textBaseline = "top";
     ctx.fillText(timeStr, 16, 16);
 
-    // Progress bar
     const playerWX = (camera.x + width * 0.35) / PPM;
     const progress = Math.min(1, playerWX / track.finish.pos[0]);
     const barW = width - 32;
@@ -267,7 +506,12 @@ export function createRenderer(
 
   const REAR_WHEEL_RADIUS = 0.35;
 
-  return function render(snapshot: RaceSnapshot, ghosts: Array<{ snapshot: RaceSnapshot; wheelPath: Path2D }>) {
+  return function render(
+    snapshot: RaceSnapshot,
+    ghosts: Array<{ snapshot: RaceSnapshot; wheelPath: Path2D }>,
+    particles: ParticleSystem,
+    countdown?: number
+  ) {
     updateCamera(snapshot.wheel.x, snapshot.wheel.y);
 
     drawSky();
@@ -276,19 +520,28 @@ export function createRenderer(
     drawTerrain();
     drawFinishLine();
 
-    // Ghosts
+    // Ghosts (layer 4)
     for (const ghost of ghosts) {
-      drawWheel(ghost.snapshot.wheel, ghost.wheelPath, "#8896A3", 0.6);
+      drawWheel(ghost.snapshot.wheel, ghost.wheelPath, null, "#8896A3", 0.6);
       drawChassis(ghost.snapshot.chassis, 0.6);
       drawRearWheel(ghost.snapshot.rearWheel, 0.6);
     }
 
-    // Player
+    // Player (layer 5)
     drawRearWheel(snapshot.rearWheel, 1);
-    drawWheel(snapshot.wheel, wheelPath, "#D94F3A", 1);
+    drawWheel(snapshot.wheel, wheelPath, wobblePath, "#D94F3A", 1);
     drawChassis(snapshot.chassis, 1);
 
+    // Particles (layer 6)
+    particles.render(ctx);
+
+    // HUD (layer 7)
     drawHUD(snapshot.elapsedMs);
+
+    // Countdown overlay
+    if (countdown !== undefined && countdown >= 0) {
+      drawCountdown(countdown);
+    }
   };
 }
 

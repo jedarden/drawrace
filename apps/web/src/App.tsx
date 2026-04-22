@@ -3,7 +3,9 @@ import { DrawScreen } from "./DrawScreen.js";
 import type { StrokePoint } from "./DrawScreen.js";
 import { RaceScreen } from "./RaceScreen.js";
 import { ResultScreen } from "./ResultScreen.js";
+import { SettingsScreen } from "./SettingsScreen.js";
 import { fetchGhosts, type GhostData } from "./api.js";
+import { getHaptics } from "./Haptics.js";
 import type { DrawResult } from "@drawrace/engine-core";
 
 type Screen = "draw" | "race" | "result";
@@ -32,6 +34,12 @@ export function App() {
   const [finishTimeMs, setFinishTimeMs] = useState(0);
   const [track, setTrack] = useState<TrackData | null>(null);
   const [ghosts, setGhosts] = useState<GhostData[]>([]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Initialize haptics
+  useEffect(() => {
+    getHaptics();
+  }, []);
 
   useEffect(() => {
     fetch("/tracks/hills-01.json")
@@ -66,6 +74,9 @@ export function App() {
   if (!track) {
     return (
       <div
+        role="status"
+        aria-live="polite"
+        aria-label="Loading"
         style={{
           width: "100vw",
           height: "100vh",
@@ -73,8 +84,9 @@ export function App() {
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: "#F4EAD5",
-          fontFamily: "system-ui, sans-serif",
+          fontFamily: '"Caveat", "Patrick Hand", "Comic Sans MS", cursive, system-ui, sans-serif',
           color: "#2B2118",
+          fontSize: 24,
         }}
       >
         Loading...
@@ -83,9 +95,12 @@ export function App() {
   }
 
   return (
-    <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }}>
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }} role="application" aria-label="DrawRace Game">
       {screen === "draw" && (
-        <DrawScreen onComplete={handleDrawComplete} />
+        <DrawScreen
+          onComplete={handleDrawComplete}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
       )}
       {screen === "race" && drawResult && (
         <RaceScreen
@@ -104,6 +119,9 @@ export function App() {
           ghosts={ghosts.map((g) => ({ name: g.name, finishTimeMs: g.finishTimeMs }))}
           onRetry={handleRetry}
         />
+      )}
+      {settingsOpen && (
+        <SettingsScreen onClose={() => setSettingsOpen(false)} />
       )}
     </div>
   );
