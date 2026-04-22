@@ -517,7 +517,7 @@ Go would be the fallback if the team prefers it — we'd lose the "share the phy
 
 Two Deployments, not five:
 - `drawrace-api` — 2 replicas, public, fronts everything.
-- `drawrace-validator` — 1–2 replicas, internal ClusterIP, pulls submissions off a Redis list and writes verdicts back. No K8s Jobs (per convention); it's a long-running Deployment with an internal `while let Some(job) = queue.pop().await` loop. Alongside the queue worker, the validator serves a single unauthenticated HTTP endpoint on its ClusterIP — `GET /internal/version` (see §Multiplayer & Backend 7) — used both by the api pod's readiness-cache poll and by the `wait-validator-live` Argo step (§Multiplayer & Backend 10). This endpoint is not exposed through Traefik and has no public route.
+- `drawrace-validator` — 1–2 replicas, internal ClusterIP, pulls submissions off a Redis list and writes verdicts back. No K8s Jobs (per convention); it's a long-running Deployment with an internal `while let Some(job) = queue.pop().await` loop. Alongside the queue worker, the validator serves a single unauthenticated HTTP endpoint on its ClusterIP — `GET /internal/version` (see §Multiplayer & Backend 7) — used both by the api pod's readiness-cache poll and by the `wait-validator-live` Argo step (§Multiplayer & Backend 10). This endpoint is not exposed through Traefik and has no public route. The validator's internal endpoints are further protected by a namespace-scoped `NetworkPolicy` (`networkpolicy.yaml` in the manifest set, §Multiplayer & Backend 10) restricting ingress to pods labeled `app=drawrace-api` in the same namespace — even though `/internal/*` is unauthenticated, only the api pod can reach it.
 
 ---
 
@@ -530,6 +530,7 @@ Two Deployments, not five:
 | Hot leaderboard cache | **Redis** (single replica, ephemeral) | ZSET per track; sub-ms top-N and rank lookups. Populated lazily from Postgres; a cold miss is fine. |
 | Job queue (validator) | **Redis list** | Same Redis; one `LPUSH drawrace:validate {submission_id}`, validator `BRPOP`s. |
 | Anti-abuse state | **Redis** with TTLs | Per-IP submission counters, per-device-UUID name claim rate limits. |
+| Submission inflight | **Redis** keys with TTL | `submission:<id>:inflight = "pending"` written by `POST /v1/submissions` synchronously before returning 202, TTL 60 s. Checked by `GET /v1/submissions/{id}` so any api replica can answer `200 {status: pending_validation}` during the Postgres replication-lag window — eliminates the 404-race immediately after submit (see §Multiplayer & Backend 7 poll spec). |
 
 Why not Turso / SQLite + Litestream: the leaderboard's hot write path is ~10–100 writes/minute at real scale and `UPDATE … WHERE time_ms > NEW.time_ms` semantics read cleanly in Postgres. CloudNativePG on Longhorn with a nightly dump shipped to Garage is operationally smaller than juggling Litestream restores across spot preemption.
 
@@ -656,6 +657,8 @@ X-DrawRace-Player: 550e8400-e29b-41d4-a716-446655440000
 
 **Auth & ownership.** The request MUST carry `X-DrawRace-Player: <uuid>` matching the submission's owning player UUID. On mismatch the api returns `403 Forbidden`. If the submission ID is unknown to the api, it returns `404 Not Found` — the api does **not** distinguish "never existed" from "exists but belongs to another player"; both collapse to 404 so attackers cannot enumerate valid submission IDs by probing for 403s.
 
+**404 grace window (submission-not-yet-ingested).** For the first **5 seconds** after the `POST /v1/submissions` returned 202, a `404` on the poll is expected-normal (inter-replica replication lag, pending DB write, etc.) and clients MUST retry with backoff `500 ms → 1 s → 2 s` capped at the 5 s window. After 5 s, a `404` is authoritative — the submission either never existed or does not belong to the requesting player UUID. Server-side, the api eliminates the replication-lag window via Redis: the POST handler synchronously writes `SETEX submission:<id>:inflight 60 "pending"` before returning 202 (see §Multiplayer & Backend 4 — Submission inflight). The poll handler checks this inflight key first on every lookup; if present, the handler responds with `200 {status: "pending_validation"}` regardless of which api replica receives the poll and regardless of whether the Postgres row is visible to that replica yet. The 60 s TTL is a safety net only — in normal operation the key is overwritten or left to expire once the submission row is durably visible, which is well under a second.
+
 **Status values.**
 - `pending_validation` — re-simulation not yet complete. The api returns `200 OK` with this body (not `202`; the 202 semantics belong only to the original POST). Clients should poll.
 - `accepted` — final. Body includes `ghost_id`, `time_ms`, `rank`, `bucket`, `is_pb`.
@@ -756,11 +759,19 @@ Internally the api pod polls the validator's ClusterIP endpoint `GET /internal/v
 ```json
 {
   "api":       { "ok": true, "version": "3.a1b2c3d" },
-  "validator": { "physics_version": 3, "engine_core_wasm_sha256": "ab12cd34…", "ok": true }
+  "validator": { "physics_version": 3, "engine_core_wasm_sha256": "ab12cd34…", "ok": true, "age_seconds": 4 }
 }
 ```
 
-When the validator is unreachable for more than 30s, the cached `validator` object is served with `"ok": false` and the existing `physics_version`/`engine_core_wasm_sha256` from the last successful poll (so clients don't flap into forced reloads on a blip). A sibling endpoint `GET /v1/health/ready` is wired to the pod's `readinessProbe`: it returns `503` whenever `validator.ok` is false, which takes the api out of rotation for reads but **does not** drop submissions — `POST /v1/submissions` keeps accepting and enqueueing into Redis, so a slow or restarting validator never loses user runs; they simply wait in the queue until the validator is back.
+`validator.age_seconds` is the integer seconds since the api pod last successfully polled `/internal/version`. Clients (SW version-skew rule, §Multiplayer & Backend 14) use this to disregard particularly stale values — cached entries older than 60 s are treated as unavailable regardless of `ok`. When the validator is unreachable for more than 30 s, the cached `validator` object is served with `"ok": false` and the existing `physics_version`/`engine_core_wasm_sha256` from the last successful poll (so clients don't flap into forced reloads on a blip); `age_seconds` keeps incrementing while `ok` is false.
+
+**`GET /v1/health/ready` readiness contract.** Wired to the pod's `readinessProbe`. Two-phase behavior designed to break the cold-start deadlock between api and validator:
+
+- **Boot grace period (first 120 s after api process start).** Returns `200` if EITHER (a) the api has successfully polled the validator at least once since startup, OR (b) the 120 s grace window has not yet elapsed. During the grace window when no successful poll has occurred yet, the api logs a WARN every 10 s (`readiness: in grace period, validator not yet reachable`) so operators see the state. This lets a fresh cluster converge — the api Service admits traffic as soon as the api pod is up, the api polls the validator on its ClusterIP, the validator becomes reachable, and `wait-validator-live` (which polls through the public ingress → api → cached validator state) starts seeing fresh responses.
+- **Post-grace steady state.** Once the api has successfully polled the validator at least once, `/v1/health/ready` returns `200` on all subsequent requests **regardless of cache age or subsequent `validator.ok` flapping**. The staleness path is informational only (surfaced via `age_seconds` in `/v1/health`) and is not readiness-gating. Rationale: once the api has proven it can reach the validator, a transient validator outage should not remove api pods from the Service — `POST /v1/submissions` keeps enqueueing work into Redis, so runs are never dropped; they simply wait in the queue until the validator is back.
+- **Failure mode.** If the 120 s grace elapses with zero successful polls, `/v1/health/ready` returns `503`. At this point the api pod is genuinely broken (wrong Service name, NetworkPolicy misconfiguration, validator crash-looping from the start) and should be taken out of rotation so Kubernetes can restart it or the operator can intervene.
+
+Submissions are never gated on readiness — `POST /v1/submissions` keeps accepting and enqueueing into Redis even while `/v1/health/ready` returns 503, so a slow or restarting validator never loses user runs.
 
 ---
 
@@ -781,9 +792,21 @@ drawrace-client-key ConfigMap:
   rotated_at:  <RFC3339 timestamp>
 ```
 
-The api accepts requests signed with EITHER `current` or `previous` while `now() - rotated_at < 24h`; after 24h it accepts only `current`. Rotation is advanced by the `pages-publish` Argo step in the `drawrace-build` pipeline (§Multiplayer & Backend 10): before publishing, the step runs a `rotate-client-key` job that writes `previous=<old_current>, current=<new_random_hex>, rotated_at=now()` to the ConfigMap via a single `kubectl apply`; then it embeds the new `current` into the PWA build and publishes to Pages. On deploy rollback, the api's `current`/`previous` values mean signed requests from the rolled-back Pages build still verify, so long as the rollback happens inside the 24h window.
+The api accepts requests signed with EITHER `current` or `previous` while `now() - rotated_at < 24h`; after 24h it accepts only `current`. The `rotate-client-key` job runs only when `branch == main` AND `republish_only != true` — PR preview builds and rollback (republish) builds do NOT rotate. PR preview builds read `drawrace-client-key.current` from the ConfigMap at build time and embed it without rotating; they publish to the Pages `pr-<n>` preview slot and exercise the production api with the current public key (since the key is public anti-casual-forgery housekeeping, not a secret — see paragraph above — sharing it with previews is fine and lets PRs test against real prod state). On a genuine main-branch release, `rotate-client-key` writes `previous=<old_current>, current=<new_random_hex>, rotated_at=now()` to the ConfigMap via a single `kubectl apply`; the build then embeds the new `current` into the PWA and publishes to Pages.
 
-Failure modes: (a) if a rollback happens after the 24h grace has elapsed, the rolled-back client will 400 until its build is re-published — operational procedure is to re-trigger `pages-publish` on the old commit, which will fetch the now-current key and re-bake it into the bundle; (b) if rotation crashes mid-way, the ConfigMap still has a consistent state because `rotate-client-key` writes atomically (single `kubectl apply` of the full manifest, not successive field patches), so no partial-update window exists where `current` is new but `previous` still holds the pre-old value.
+**First-deploy bootstrap.** The initial `drawrace-client-key` ConfigMap shipped in `jedarden/declarative-config` is manifest-born with `current: <16-byte random hex baked at manifest-write time>`, `previous: ""`, and `rotated_at: "1970-01-01T00:00:00Z"`. On the first main-branch build, `rotate-client-key` finds `previous == ""` (equivalently `rotated_at <= unix_epoch`) and treats this as a first-run promotion: it still performs `previous = current; current = <new_random_hex>; rotated_at = now()`. The api's verifier MUST ignore `previous` when it equals the empty string explicitly (string equality check, not HMAC-comparison against zero-length input — an HMAC over an empty key is a valid SHA-256 output that an attacker could pre-compute). Verification function:
+
+```
+fn verify_hmac(body, sig, cfg) -> bool:
+    if hmac_sha256(cfg.current, body) == sig: return true
+    if cfg.previous != "" and (now() - cfg.rotated_at) < 24h and
+       hmac_sha256(cfg.previous, body) == sig: return true
+    return false
+```
+
+**Rollback procedure:** re-trigger `drawrace-build` against the target git ref with `republish_only=true`. The step skips rotation; the old bundle is republished embedded with the CURRENT production key, so existing installed clients continue to verify. This is the standard recovery path for both intra-24h and post-24h rollbacks (post-24h rollbacks on prior schemes would permanently break older bundles; this design keeps every bundle signing-compatible with the latest rotation, because the rolled-back bundle is freshly re-baked against whatever `current` is live at rollback time).
+
+Failure modes: (a) if a rollback is attempted by a normal (non-`republish_only`) re-run, the key would rotate again and extend (not resolve) the incident — operators must use `republish_only=true`; (b) if rotation crashes mid-way, the ConfigMap still has a consistent state because `rotate-client-key` writes atomically (single `kubectl apply` of the full manifest, not successive field patches), so no partial-update window exists where `current` is new but `previous` still holds the pre-old value.
 
 **Where the real anti-forgery weight lives.** Layer 3 (deterministic server-side re-simulation, §Multiplayer & Backend 8 below) and the per-UUID / per-IP rate limits (Layer 2) are what actually stop forged submissions. A cheater who extracts the public key still has to produce a ghost blob whose re-sim finish tick matches the claimed time within ±2 ticks — which is exactly as hard as beating the game legitimately. Layer 1 is housekeeping; Layer 3 is the gate.
 
@@ -869,6 +892,9 @@ Under `k8s/iad-acb/drawrace/`:
 - `certificate.yaml` (cert-manager, `letsencrypt-prod` ClusterIssuer)
 - `sealed-secrets.yaml` (Postgres superuser password, S3 creds, Cloudflare Pages API token)
 - `servicemonitor.yaml` (Prometheus scrape)
+- `networkpolicy.yaml` — two rules, namespace-scoped to `drawrace`:
+  1. **Deny-all ingress** to pods matching `app=drawrace-validator` by default (empty `ingress:` list with `podSelector: matchLabels: app: drawrace-validator`).
+  2. **Allow ingress to port 8080** on `drawrace-validator` pods only from pods labeled `app=drawrace-api` in the same namespace (`from.podSelector.matchLabels.app: drawrace-api`, `ports: [{port: 8080, protocol: TCP}]`). This covers both the api pod's `/internal/version` readiness-cache poll and the Redis-queue path (the validator pulls from Redis, so no validator-initiated ingress rules are needed; Redis itself sits on a separate Service). The `wait-validator-live` Argo step (§Multiplayer & Backend 10) polls through the public ingress → api → cached validator state, so it does NOT need direct network access to the validator and is correctly excluded by this policy.
 
 **CI build** — new WorkflowTemplate in `jedarden/declarative-config` at `k8s/iad-ci/argo-workflows/drawrace-build.yaml`, patterned after the existing `container-build` / `kalshi-weather-build`:
 
@@ -890,54 +916,93 @@ spec:
         # "main" on push-to-main; "pr-<number>" on PR synchronize events.
         # Gates which steps run — see `when:` expressions below.
         value: main
+      - name: republish_only
+        # When "true", skip rotate-client-key, buildx, buildx-validator, and
+        # bump-manifest; re-publish the Pages bundle at the checked-out git ref
+        # with the CURRENT production ConfigMap key baked in. This is the
+        # rollback path — see §Multiplayer & Backend 8 Layer 1 rollback
+        # procedure. Defaults to "false".
+        value: "false"
   templates:
+    # Top-level DAG: explicit dependency edges ensure pages-publish is skipped
+    # if wait-validator-live fails. Argo DAG semantics auto-skip dependents
+    # when a dependency fails; the sequential `steps:` form does NOT, hence
+    # the DAG choice here (matches the drawrace-ci convention in §Testing 11).
     - name: build
-      steps:
-        - - name: checkout
+      dag:
+        tasks:
+          - name: checkout
             template: git-clone
-        - - name: buildx
+          - name: rotate-client-key
+            template: rotate-client-key
+            dependencies: [checkout]
+            # Only rotates on genuine main-branch releases. PR previews and
+            # republish (rollback) builds must NOT touch the production
+            # ConfigMap — see §Multiplayer & Backend 8 Layer 1.
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
+          - name: buildx
             template: docker-buildx
-            when: "{{workflow.parameters.branch}} == main"
+            dependencies: [checkout]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
                 - name: image
                   value: ronaldraygun/drawrace-api
                 - name: dockerfile
                   value: Dockerfile.api
-        - - name: buildx-validator
+          - name: buildx-validator
             template: docker-buildx
-            when: "{{workflow.parameters.branch}} == main"
+            dependencies: [checkout]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
                 - name: image
                   value: ronaldraygun/drawrace-validator
                 - name: dockerfile
                   value: Dockerfile.validator
-        - - name: bump-manifest
+          - name: bump-manifest
             template: update-declarative-config
-            when: "{{workflow.parameters.branch}} == main"
+            dependencies: [buildx, buildx-validator]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
                 - name: path
                   value: k8s/iad-acb/drawrace
-        - - name: wait-validator-live
+          - name: read-expected-physics-version
+            template: read-expected-physics-version
+            dependencies: [checkout]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
+          - name: wait-validator-live
             template: wait-validator-live
-            when: "{{workflow.parameters.branch}} == main"
+            dependencies: [bump-manifest, read-expected-physics-version]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
                 - name: expected-physics-version
-                  # Read from packages/engine-core/src/version.ts at checkout time
-                  # and passed in by the webhook dispatcher.
-                  value: "{{workflow.parameters.expected-physics-version}}"
-        - - name: pages-publish
+                  # Extracted post-checkout from packages/engine-core/src/version.ts.
+                  # The webhook dispatcher passes only the git ref; the workflow
+                  # is responsible for extracting the version (the dispatcher runs
+                  # before checkout and cannot read workspace files).
+                  value: "{{tasks.read-expected-physics-version.outputs.parameters.physics_version}}"
+          - name: pages-publish
             template: wrangler-pages
+            # Depends on both rotate-client-key (so the bundle embeds the
+            # just-rotated `current`) AND wait-validator-live (so the
+            # validator is live with the matching physics_version before the
+            # client ships). On PR branches and republish_only runs, those
+            # deps are SKIPPED rather than FAILED — DAG semantics treat a
+            # skipped dep as satisfied, so pages-publish still runs for
+            # previews and rollbacks. On main non-republish runs, if
+            # wait-validator-live FAILS, pages-publish is auto-skipped and
+            # the prior production Pages build remains live.
+            dependencies: [rotate-client-key, wait-validator-live]
             arguments:
               parameters:
                 - name: project
                   value: drawrace
                 - name: branch
                   # On main → production publish. On PR branches → Cloudflare Pages
-                  # preview slot `pr-<number>`; no images, no manifest bump ran upstream.
+                  # preview slot `pr-<number>`.
                   value: "{{workflow.parameters.branch}}"
     - name: wrangler-pages
       # ci-wrangler is a small dedicated image: node:20-alpine + `npm i -g wrangler@3`.
@@ -982,6 +1047,32 @@ spec:
         parameters:
           - name: preview-url
             valueFrom: { path: /tmp/preview_url }
+    - name: read-expected-physics-version
+      # Extracts the PHYSICS_VERSION integer from the just-checked-out
+      # packages/engine-core/src/version.ts. Produces an output parameter
+      # `physics_version` consumed by wait-validator-live (and available to
+      # any future step that needs to key off the build's physics version,
+      # e.g. pages-publish cache-key derivation). The webhook dispatcher
+      # cannot do this itself — it runs before checkout, so there is no
+      # workspace to read. Keeping the extraction in the workflow also means
+      # the source of truth stays in the repo, not in the dispatcher config.
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            set -eu
+            cd /workspace/drawrace
+            V=$(grep -oE 'PHYSICS_VERSION *= *[0-9]+' packages/engine-core/src/version.ts | grep -oE '[0-9]+$')
+            if [ -z "$V" ]; then
+              echo "failed to extract PHYSICS_VERSION from packages/engine-core/src/version.ts" >&2
+              exit 1
+            fi
+            echo -n "$V" > /tmp/physics_version
+      outputs:
+        parameters:
+          - name: physics_version
+            valueFrom: { path: /tmp/physics_version }
     - name: wait-validator-live
       # Polls the prod api's /v1/health until the validator object reports the
       # same physics_version the client bundle was built against. Enforces the
@@ -993,7 +1084,7 @@ spec:
         parameters:
           - { name: expected-physics-version }
           - { name: health-url, value: "https://api.drawrace.example/v1/health" }
-          - { name: timeout-seconds, value: "900" } # 15 min
+          - { name: timeout-seconds, value: "1200" } # 20 min — covers the 2-min api readiness grace (§Multiplayer & Backend 7) plus ArgoCD sync latency
           - { name: poll-interval-seconds, value: "10" }
       container:
         image: ghcr.io/drawrace/ci-wrangler:2026-04-22 # has curl + jq
@@ -1013,9 +1104,44 @@ spec:
               sleep {{inputs.parameters.poll-interval-seconds}}
             done
             echo "validator live at physics_version=$want"
+    - name: rotate-client-key
+      # Atomically writes `previous=<old_current>, current=<new_random_hex>,
+      # rotated_at=now()` to the `drawrace-client-key` ConfigMap via a single
+      # `kubectl apply`. Runs only on main-branch, non-republish builds — see
+      # §Multiplayer & Backend 8 Layer 1. On first-run (previous == ""), still
+      # promotes current → previous; the api verifier treats empty previous
+      # as "ignore" per the verify_hmac pseudocode.
+      container:
+        image: bitnami/kubectl:1.29
+        command: [bash, -lc]
+        args:
+          - |
+            set -euo pipefail
+            OLD=$(kubectl -n drawrace get configmap drawrace-client-key -o jsonpath='{.data.current}')
+            NEW=$(openssl rand -hex 16)
+            NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            kubectl -n drawrace apply -f - <<EOF
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: drawrace-client-key
+              namespace: drawrace
+            data:
+              current: "$NEW"
+              previous: "$OLD"
+              rotated_at: "$NOW"
+            EOF
 ```
 
-Triggered by a webhook from the drawrace repo (existing pattern). GitHub Actions stays off, per convention. The webhook passes `branch=main` on push-to-main and `branch=pr-<number>` on PR synchronize events. On PR branches, only `checkout` and `pages-publish` (preview slot `pr-<n>`) run; the `when:` gates on `buildx`, `buildx-validator`, `bump-manifest`, and `wait-validator-live` suppress image pushes and manifest promotion — PRs never push `drawrace-api` / `drawrace-validator` tags and never bump declarative-config. On `main`, all steps run in order; the `wait-validator-live` step blocks `pages-publish` until ArgoCD has synced the validator Deployment to the cluster and its `/internal/version` endpoint reports the freshly built `physics_version` (see §Multiplayer & Backend 3 and 7 for the endpoint contracts). The `preview-url` output of `pages-publish` is consumed by `drawrace-ci` (§Testing 11) for the phone-smoke step.
+Triggered by a webhook from the drawrace repo (existing pattern). GitHub Actions stays off, per convention. The webhook passes `branch=main` on push-to-main and `branch=pr-<number>` on PR synchronize events, plus `republish_only=true` when an operator triggers a rollback re-publish.
+
+- **PR preview builds** (`branch == pr-<n>`): only `checkout` and `pages-publish` (to preview slot `pr-<n>`) execute. The `when:` gates on `rotate-client-key`, `buildx`, `buildx-validator`, `bump-manifest`, and `wait-validator-live` suppress rotation, image pushes, manifest promotion, and the live-version check. PR previews read the production ConfigMap's `current` at `pages-publish` build time and embed it unmodified; they never mutate production state.
+- **Main-branch releases** (`branch == main && republish_only == false`): every DAG node runs. `rotate-client-key` advances the ConfigMap; `wait-validator-live` blocks until ArgoCD has synced the validator Deployment and its `/internal/version` endpoint reports the freshly built `physics_version` (see §Multiplayer & Backend 3 and 7 for the endpoint contracts); `pages-publish` only then ships the client bundle.
+- **Rollback republish** (`branch == main && republish_only == true`): `rotate-client-key`, `buildx`, `buildx-validator`, `bump-manifest`, and `wait-validator-live` are skipped. `pages-publish` runs against the checked-out git ref, reading the current (un-rotated) ConfigMap key and re-publishing the old bundle. Existing installed clients keep verifying because the live `current` hasn't changed.
+
+**Ordering promise.** Because the top-level template is a DAG (not a sequential `steps:` list), Argo's dependency-resolution skips a task whose dependency failed. If `wait-validator-live` times out on a main-branch release, the workflow is marked Failed and `pages-publish` does not execute — the prior Pages production build remains live. Operators drain the validator deployment issue first, then re-trigger `drawrace-build` (with `republish_only=false` to retry the full rollout, or `republish_only=true` to revert to a known-good ref while the validator is fixed).
+
+The `preview-url` output of `pages-publish` is consumed by `drawrace-ci` (§Testing 11) for the phone-smoke step.
 
 ---
 
@@ -1080,7 +1206,7 @@ The PWA calls itself "offline-playable" (§Overview) and §Testing 5 Layer 4 exe
 
 **Update strategy.** `skipWaiting: false`. A new SW installs in the background and takes over on the **next navigation**, never mid-race. This prevents a half-loaded bundle replacing the running one while the player is drawing or racing.
 
-**Version skew rule.** If the app shell's `PHYSICS_VERSION` differs from the validator's (as reported by `GET /v1/health`, per §Physics versioning at the end of §Gameplay), the SW **forces a reload on next navigation**. This is the backstop for the rollout ordering spec — a client on a stale physics bundle can't submit runs that will fail re-sim.
+**Version skew rule.** The SW forces a reload on next navigation **only** when ALL of the following hold: (a) the cached `/v1/health` response reports `validator.ok == true`; (b) the cached `validator.physics_version` differs from the client's `PHYSICS_VERSION`; (c) the mismatch has persisted across at least **two consecutive health polls spaced 15 s apart** (debounce). If `validator.ok == false`, the SW **defers the decision** — it keeps running the current bundle and retries the poll in 30 s (a restarting validator briefly serving `ok: false` with a stale cached version, per §Multiplayer & Backend 7, must not cause spurious reloads). If `validator.age_seconds > 60`, the SW treats the cached value as unavailable (same path as `ok: false`). This is the backstop for the rollout ordering spec — a client on a stale physics bundle can't submit runs that will fail re-sim — but it is deliberately conservative: false-positive reloads mid-session are worse than a delayed one.
 
 **Offline play.** With a cold IDB, the PWA still ships with **3 bundled tutorial ghosts** as static assets (per §Roadmap Phase 1), so the first-ever race works without network. The first online race populates IDB from `/v1/matchmake`; from that point, the player can race against the last-fetched ghost set indefinitely without network.
 
