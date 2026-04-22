@@ -1,0 +1,50 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: drawrace-deny-ingress
+  namespace: drawrace
+spec:
+  podSelector:
+    matchLabels:
+      app: drawrace-validator
+  policyTypes:
+    - Ingress
+  ingress: []
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: drawrace-allow-api
+  namespace: drawrace
+spec:
+  podSelector:
+    matchLabels:
+      app: drawrace-api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: drawrace-allow-internal
+  namespace: drawrace
+spec:
+  podSelector:
+    matchLabels:
+      app: drawrace-validator
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: drawrace-api
+      ports:
+        - protocol: TCP
+          port: 8080

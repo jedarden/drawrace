@@ -1,21 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { DrawScreen } from "./DrawScreen.js";
+import type { StrokePoint } from "./DrawScreen.js";
 import { RaceScreen } from "./RaceScreen.js";
 import { ResultScreen } from "./ResultScreen.js";
+import { fetchGhosts, type GhostData } from "./api.js";
 import type { DrawResult } from "@drawrace/engine-core";
 
 type Screen = "draw" | "race" | "result";
 
-interface GhostData {
-  id: string;
-  name: string;
-  wheelVertices: Array<{ x: number; y: number }>;
-  finishTimeMs: number;
-  seed: number;
-}
-
 interface TrackData {
   id: string;
+  numeric_id: number;
   world: { gravity: [number, number]; pixelsPerMeter: number };
   terrain: [number, number][];
   obstacles?: Array<{
@@ -33,24 +28,23 @@ interface TrackData {
 export function App() {
   const [screen, setScreen] = useState<Screen>("draw");
   const [drawResult, setDrawResult] = useState<DrawResult | null>(null);
+  const [rawStrokePoints, setRawStrokePoints] = useState<StrokePoint[]>([]);
   const [finishTimeMs, setFinishTimeMs] = useState(0);
   const [track, setTrack] = useState<TrackData | null>(null);
   const [ghosts, setGhosts] = useState<GhostData[]>([]);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/tracks/hills-01.json").then((r) => r.json()),
-      fetch("/ghosts/ghost-dev-001.json").then((r) => r.json()),
-      fetch("/ghosts/ghost-dev-002.json").then((r) => r.json()),
-      fetch("/ghosts/ghost-dev-003.json").then((r) => r.json()),
-    ]).then(([trackData, ...ghostArr]) => {
-      setTrack(trackData);
-      setGhosts(ghostArr);
-    });
+    fetch("/tracks/hills-01.json")
+      .then((r) => r.json())
+      .then((trackData: TrackData) => {
+        setTrack(trackData);
+        fetchGhosts(trackData.numeric_id).then(setGhosts);
+      });
   }, []);
 
-  const handleDrawComplete = useCallback((result: DrawResult) => {
+  const handleDrawComplete = useCallback((result: DrawResult, strokePoints: StrokePoint[]) => {
     setDrawResult(result);
+    setRawStrokePoints(strokePoints);
     setScreen("race");
   }, []);
 
@@ -61,9 +55,13 @@ export function App() {
 
   const handleRetry = useCallback(() => {
     setDrawResult(null);
+    setRawStrokePoints([]);
     setFinishTimeMs(0);
     setScreen("draw");
-  }, []);
+    if (track) {
+      fetchGhosts(track.numeric_id).then(setGhosts);
+    }
+  }, [track]);
 
   if (!track) {
     return (
@@ -101,6 +99,8 @@ export function App() {
         <ResultScreen
           finishTimeMs={finishTimeMs}
           wheelDraw={drawResult}
+          rawStrokePoints={rawStrokePoints}
+          trackId={track.numeric_id}
           ghosts={ghosts.map((g) => ({ name: g.name, finishTimeMs: g.finishTimeMs }))}
           onRetry={handleRetry}
         />

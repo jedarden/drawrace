@@ -1,5 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import type { DrawResult } from "@drawrace/engine-core";
+import type { StrokePoint } from "./DrawScreen.js";
+import { submitGhost, waitForVerdict, isOnline, type SubmissionVerdict } from "./api.js";
 
 interface GhostResult {
   name: string;
@@ -9,6 +11,8 @@ interface GhostResult {
 interface ResultScreenProps {
   finishTimeMs: number;
   wheelDraw: DrawResult;
+  rawStrokePoints: StrokePoint[];
+  trackId: number;
   ghosts: GhostResult[];
   onRetry: () => void;
 }
@@ -21,7 +25,37 @@ function formatTime(ms: number): string {
   return `${min}:${sec.toString().padStart(2, "0")}.${frac.toString().padStart(3, "0")}`;
 }
 
-export function ResultScreen({ finishTimeMs, wheelDraw, ghosts, onRetry }: ResultScreenProps) {
+export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId, ghosts, onRetry }: ResultScreenProps) {
+  const [verdict, setVerdict] = useState<SubmissionVerdict | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const online = isOnline();
+
+  useEffect(() => {
+    if (!online || submitting) return;
+    setSubmitting(true);
+
+    let cancelled = false;
+    (async () => {
+      const submissionId = await submitGhost({
+        trackId,
+        finishTimeMs,
+        wheelVertices: wheelDraw.vertices,
+        rawStrokePoints,
+      });
+      if (!submissionId || cancelled) return;
+
+      const result = await waitForVerdict(submissionId, (v) => {
+        if (!cancelled) setVerdict(v);
+      });
+      if (result && !cancelled) {
+        setVerdict(result);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [online]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const comparisons = useMemo(() => {
     return ghosts.map((g) => {
       const diff = finishTimeMs - g.finishTimeMs;
@@ -55,6 +89,22 @@ export function ResultScreen({ finishTimeMs, wheelDraw, ghosts, onRetry }: Resul
       <div style={{ fontSize: 44, fontWeight: "bold", fontFamily: "monospace" }}>
         {formatTime(finishTimeMs)}
       </div>
+
+      {online && verdict && verdict.status === "pending_validation" && (
+        <div style={{ fontSize: 14, opacity: 0.6 }}>
+          Verifying time...
+        </div>
+      )}
+      {online && verdict && verdict.status === "accepted" && (
+        <div style={{ fontSize: 14, color: "#7CA05C" }}>
+          Rank #{verdict.rank} — {verdict.bucket} {verdict.is_pb ? "(New PB!)" : ""}
+        </div>
+      )}
+      {online && verdict && verdict.status === "rejected" && (
+        <div style={{ fontSize: 14, color: "#D94F3A" }}>
+          Time not accepted
+        </div>
+      )}
 
       <div style={{ fontSize: 16, opacity: 0.7 }}>
         {beaten > 0

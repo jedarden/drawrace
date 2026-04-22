@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: drawrace-validator-secrets
+  namespace: drawrace
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://user:pass@postgres:5432/drawrace"
+  REDIS_URL: "redis://redis:6379"
+  S3_BUCKET: "drawrace-ghosts"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: drawrace-validator
+  namespace: drawrace
+  labels:
+    app: drawrace-validator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: drawrace-validator
+  template:
+    metadata:
+      labels:
+        app: drawrace-validator
+    spec:
+      containers:
+        - name: validator
+          image: ronaldraygun/drawrace-validator:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: internal
+            - containerPort: 8081
+              name: healthz
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: drawrace-validator-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: drawrace-validator-secrets
+                  key: REDIS_URL
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: drawrace-validator-secrets
+                  key: S3_BUCKET
+            - name: RUST_LOG
+              value: info
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: drawrace-validator-hpa
+  namespace: drawrace
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: drawrace-validator
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          name: redis_queue_depth
+        target:
+          type: AverageValue
+          averageValue: "10"

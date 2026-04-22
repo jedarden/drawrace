@@ -1,0 +1,64 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: drawrace-postgres
+  namespace: drawrace
+spec:
+  instances: 1
+  primaryUpdateStrategy: unsupervised
+
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "256MB"
+      effective_cache_size: "1GB"
+      maintenance_work_mem: "64MB"
+      checkpoint_completion_target: "0.9"
+      wal_buffers: "16MB"
+      default_statistics_target: "100"
+      random_page_cost: "1.1"
+      effective_io_concurrency: "200"
+      work_mem: "2621kB"
+      min_wal_size: "1GB"
+      max_wal_size: "4GB"
+
+  bootstrap:
+    initdb:
+      database: drawrace
+      owner: drawrace
+      secret:
+        name: drawrace-postgres-credentials
+
+  storage:
+    size: 2Gi
+    storageClass: longhorn
+
+  serviceAccountTemplate:
+    metadata:
+      annotations:
+        eks.amazonaws.com/role-arn: none
+
+  backup:
+    target: "primary"
+    volumeSnapshot:
+      className: longhorn
+    retentionPolicy: "30d"
+    barmanObjectStore:
+      destinationPath: "s3://drawrace-pg-backups/"
+      endpointURL: "http://garage.ardenone-hub.svc:3900"
+      s3Credentials:
+        accessKeyId:
+          name: drawrace-postgres-backup-s3
+          key: accessKeyId
+        secretAccessKey:
+          name: drawrace-postgres-backup-s3
+          key: secretAccessKey
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+        jobs: 2
+
+  monitoring:
+    enabled: false

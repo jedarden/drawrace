@@ -1,8 +1,12 @@
 import { useRef, useCallback, useEffect, useState } from "react";
 import { processDraw, type DrawResult, type Point } from "@drawrace/engine-core";
 
+export interface StrokePoint extends Point {
+  t: number;
+}
+
 interface DrawScreenProps {
-  onComplete: (result: DrawResult) => void;
+  onComplete: (result: DrawResult, strokePoints: StrokePoint[]) => void;
 }
 
 const CANVAS_SIZE_CSS = 300;
@@ -10,8 +14,9 @@ const CANVAS_SIZE_CSS = 300;
 export function DrawScreen({ onComplete }: DrawScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const offCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const rawPointsRef = useRef<Point[]>([]);
+  const rawPointsRef = useRef<StrokePoint[]>([]);
   const travelRef = useRef(0);
+  const startTimeRef = useRef(0);
   const activePointerRef = useRef<number | null>(null);
   const rafRef = useRef<number>(0);
   const [canRace, setCanRace] = useState(false);
@@ -87,7 +92,8 @@ export function DrawScreen({ onComplete }: DrawScreenProps) {
 
       canvas.setPointerCapture(e.pointerId);
       activePointerRef.current = e.pointerId;
-      rawPointsRef.current = [{ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY }];
+      startTimeRef.current = Date.now();
+      rawPointsRef.current = [{ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY, t: 0 }];
       travelRef.current = 0;
       setCanRace(false);
       setPreviewResult(null);
@@ -113,7 +119,7 @@ export function DrawScreen({ onComplete }: DrawScreenProps) {
           if (d < 1.0) continue;
           travelRef.current += d;
         }
-        pts.push({ x, y });
+        pts.push({ x, y, t: Date.now() - startTimeRef.current });
       }
 
       const travel = travelRef.current;
@@ -129,9 +135,11 @@ export function DrawScreen({ onComplete }: DrawScreenProps) {
   }, []);
 
   const handleRace = useCallback(() => {
-    const result = processDraw(rawPointsRef.current, travelRef.current);
+    const rawPts = rawPointsRef.current;
+    const plainPts: Point[] = rawPts.map(({ x, y }) => ({ x, y }));
+    const result = processDraw(plainPts, travelRef.current);
     if (result) {
-      onComplete(result);
+      onComplete(result, rawPts);
     }
   }, [onComplete]);
 

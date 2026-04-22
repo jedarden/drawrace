@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useState } from "react";
 import { RaceSim } from "@drawrace/engine-core";
 import type { DrawResult, TrackDef } from "@drawrace/engine-core";
 import { createRenderer, createGhostWheelPath } from "./Renderer.js";
