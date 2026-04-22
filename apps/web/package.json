@@ -1,0 +1,17 @@
+{
+  "name": "@drawrace/web",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@drawrace/engine-core": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0",
+    "typescript": "^5.8.2"
+  }
+}

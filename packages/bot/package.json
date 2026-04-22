@@ -1,0 +1,13 @@
+{
+  "name": "@drawrace/bot",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@drawrace/engine-core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  }
+}

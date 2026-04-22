@@ -1,0 +1,30 @@
+{
+  "name": "drawrace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.1",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "lint": "eslint packages/engine-core/src",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "regen-golden": "npx tsx packages/engine-core/scripts/regen-golden.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2",
+    "vitest": "^3.1.1",
+    "eslint": "^9.24.0",
+    "@eslint/js": "^9.24.0",
+    "typescript-eslint": "^8.29.1",
+    "size-limit": "^11.2.0",
+    "tsx": "^4.19.0"
+  },
+  "size-limit": [
+    {
+      "name": "engine-core",
+      "path": "packages/engine-core/dist/index.js",
+      "limit": "100 KB",
+      "gzip": true
+    }
+  ]
+}
