@@ -1201,6 +1201,81 @@ The `preview-url` output of `pages-publish` is consumed by `drawrace-ci` (§Test
 
 ---
 
+### 10a. Cloudflare Pages Bootstrap (one-time setup)
+
+> **Current state (as of Phase 1 completion):** `apps/web/dist/` is built and passing all tests locally. No Cloudflare Pages project exists yet. This section is the authoritative checklist to stand it up before the CI pipeline is wired in Phase 2.
+
+#### Prerequisites
+
+- `CLOUDFLARE_API_TOKEN` in the environment — scoped to **Account: Cloudflare Pages:Edit** only (no DNS, no Workers, no zone access). Store as a sealed-secret in `declarative-config` for CI use; set locally via `.env` or shell export for the one-time bootstrap commands below.
+- `wrangler` available — already a dev-dependency via the monorepo (`npx wrangler`).
+
+#### Step 1 — Add `wrangler.toml` to `apps/web/`
+
+```toml
+# apps/web/wrangler.toml
+name = "drawrace"
+compatibility_date = "2024-09-23"
+pages_build_output_dir = "dist"
+```
+
+No Workers, no KV bindings, no D1 — the frontend is purely static. The `pages_build_output_dir` tells wrangler where Vite writes its output.
+
+#### Step 2 — Add a deploy script to `apps/web/package.json`
+
+```json
+"scripts": {
+  "deploy": "wrangler pages deploy dist/ --project-name=drawrace --branch=main",
+  "deploy:preview": "wrangler pages deploy dist/ --project-name=drawrace"
+}
+```
+
+`deploy` targets the production branch; `deploy:preview` lets wrangler auto-assign a preview URL (used by CI for PR branches).
+
+#### Step 3 — Create the Pages project (one-time, manual)
+
+```bash
+export CLOUDFLARE_API_TOKEN=<token>
+cd apps/web
+npx wrangler pages project create drawrace --production-branch=main
+```
+
+This registers the project in Cloudflare. Subsequent deploys push to it via the token.
+
+#### Step 4 — First manual deploy (Phase 1 handoff)
+
+```bash
+# From repo root — build then deploy
+pnpm --filter apps/web run build
+cd apps/web
+npx wrangler pages deploy dist/ --project-name=drawrace --branch=main
+```
+
+This gets the Phase 1 MVP live immediately, before the Argo CI pipeline exists. The URL will be `drawrace.pages.dev` (or a custom domain once DNS is configured).
+
+#### Step 5 — Custom domain (Phase 4+)
+
+Once a domain is chosen (e.g. `drawrace.jedarden.com` or `drawrace.gg`):
+
+1. Add the domain in the Cloudflare Pages dashboard under the project's **Custom Domains** tab.
+2. Cloudflare handles the TLS certificate automatically.
+3. Update the `api.*` CNAME in the same zone to point at the Rackspace Spot ingress (orange-cloud OFF — see §Multiplayer & Backend 1).
+
+#### Step 6 — Wire into CI (Phase 2)
+
+Once the `CLOUDFLARE_API_TOKEN` sealed-secret is committed to `declarative-config` and the `drawrace-build` WorkflowTemplate is in place, the manual deploy steps above are replaced by the `wrangler-pages` template step in the Argo DAG (§Multiplayer & Backend 10). The sealed-secret mounts the token as `CLOUDFLARE_API_TOKEN` in the `ci-wrangler` pod's environment. From that point, every push to `main` triggers a full CI pipeline deploy and manual deploys are no longer needed.
+
+#### Environment variable summary
+
+| Variable | Where set | Purpose |
+|---|---|---|
+| `CLOUDFLARE_API_TOKEN` | Local shell (bootstrap); sealed-secret (CI) | Authenticates wrangler for deploys |
+| `DRAWRACE_API_URL` | Vite build env (`VITE_API_URL`) | Points the frontend at the correct backend host per environment |
+
+The `VITE_API_URL` is baked at build time by Vite (only `VITE_`-prefixed vars are embedded). PR preview builds use a staging api URL; main-branch builds use the production api URL. Set these as **Pages environment variables** in the Cloudflare dashboard (Settings → Environment variables), not in `wrangler.toml` — keeping them out of source control.
+
+---
+
 ### 11. Observability
 
 - **Metrics** — axum `/metrics` endpoint via `metrics-exporter-prometheus`. Standard histograms: `drawrace_http_request_duration_seconds{route,method,status}`, `drawrace_validator_resim_duration_seconds`, `drawrace_submissions_total{outcome}`, `drawrace_ghost_blob_bytes`, `drawrace_matchmake_bucket_miss_total`. Scraped by whatever Prometheus stack the cluster runs (kube-prometheus-stack convention).
@@ -2137,9 +2212,11 @@ Deliverables:
 - 3 hand-authored tutorial ghosts bundled as assets (recorded via a dev tool that saves ghost blobs from runs).
 - Result Screen with time, basic "beat ghost" feedback, Retry.
 - Service Worker caching shell + assets. Web App Manifest. Installable on iOS and Android.
-- Cloudflare Pages preview deployment from PR branches, via the `pages-publish` step of the `drawrace-build` Argo WorkflowTemplate (§Multiplayer 10) running the `ci-wrangler` image — no GitHub Actions. Production domain parked (not live).
+- Cloudflare Pages project created and first manual deploy executed via §Multiplayer & Backend 10a bootstrap checklist. Production domain parked; preview URL live at `drawrace.pages.dev`. CI-gated deploy (Argo `drawrace-build` WorkflowTemplate) deferred to Phase 2 when the pipeline exists.
 
-**Exit criteria:** install PWA on a Pixel 6; draw a circle; finish the race; see a finish time; retry. 60fps on Pixel 6; 30fps on a Redmi 9 class device (the targeted floor).
+**Exit criteria:** install PWA on a Pixel 6; draw a circle; finish the race; see a finish time; retry. 60fps on Pixel 6; 30fps on a Redmi 9 class device (the targeted floor). `drawrace.pages.dev` resolves and serves the PWA.
+
+> **Status (2026-04-22):** Code complete — all Phase 1 deliverables built and tests passing. Cloudflare Pages project not yet stood up; follow §Multiplayer & Backend 10a to deploy.
 
 ---
 
