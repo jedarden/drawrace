@@ -96,10 +96,31 @@ export function createHeadlessRace(
     }
   }
 
+  // Compute approximate wheel radius from vertices (max distance from centroid)
+  const wv = wheel.vertices;
+  const wcX = wv.reduce((s, v) => s + v[0], 0) / wv.length;
+  const wcY = wv.reduce((s, v) => s + v[1], 0) / wv.length;
+  const wheelRadius = Math.max(...wv.map((v) => Math.hypot(v[0] - wcX, v[1] - wcY)));
+
+  // Find terrain surface Y at start X by linear interpolation
+  const startX = track.start.pos[0];
+  const terrainPts = track.terrain;
+  let terrainY = terrainPts[0][1];
+  for (let i = 0; i < terrainPts.length - 1; i++) {
+    if (terrainPts[i][0] <= startX && startX <= terrainPts[i + 1][0]) {
+      const t = (startX - terrainPts[i][0]) / (terrainPts[i + 1][0] - terrainPts[i][0]);
+      terrainY = terrainPts[i][1] + t * (terrainPts[i + 1][1] - terrainPts[i][1]);
+      break;
+    }
+  }
+
+  // Place wheel center just above terrain surface
+  const wheelSpawnY = terrainY - wheelRadius;
+
   // Create wheel body from polygon vertices
   const wheelVerts = wheel.vertices.map((v) => Vec2(v[0], v[1]));
   const wheelBody = world.createBody({
-    position: Vec2(track.start.pos[0], track.start.pos[1] - 1.5),
+    position: Vec2(startX, wheelSpawnY),
     type: "dynamic",
   });
 
@@ -128,9 +149,12 @@ export function createHeadlessRace(
     }
   }
 
+  // Chassis positioned above wheel, with space for suspension travel
+  const chassisSpawnY = wheelSpawnY - 1.5;
+
   // Create chassis body
   const chassisBody = world.createBody({
-    position: Vec2(track.start.pos[0], track.start.pos[1]),
+    position: Vec2(startX, chassisSpawnY),
     type: "dynamic",
   });
   chassisBody.createFixture(Box(1.2, 0.4), {
@@ -150,7 +174,7 @@ export function createHeadlessRace(
       frequencyHz: SUSPENSION_FREQ_HZ,
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
-      motorSpeed: -MOTOR_SPEED,
+      motorSpeed: MOTOR_SPEED,
       maxMotorTorque: MOTOR_MAX_TORQUE,
     })
   );

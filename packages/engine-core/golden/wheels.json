@@ -1,0 +1,29 @@
+{
+  "physicsVersion": 1,
+  "goldens": [
+    {
+      "seed": 42,
+      "trackId": "hills-01",
+      "finishTicks": 584,
+      "finalX": 39.03914463159442,
+      "streamHash": "978239fb",
+      "physicsVersion": 1
+    },
+    {
+      "seed": 100,
+      "trackId": "hills-01",
+      "finishTicks": 584,
+      "finalX": 39.03914463159442,
+      "streamHash": "978239fb",
+      "physicsVersion": 1
+    },
+    {
+      "seed": 999,
+      "trackId": "hills-01",
+      "finishTicks": 584,
+      "finalX": 39.03914463159442,
+      "streamHash": "978239fb",
+      "physicsVersion": 1
+    }
+  ]
+}

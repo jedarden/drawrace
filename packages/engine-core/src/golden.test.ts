@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 import {
   createHeadlessRace,
   type TrackDef,
@@ -6,24 +9,27 @@ import {
 } from "./headless-race.js";
 import { PHYSICS_VERSION } from "./version.js";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 const TEST_TRACK: TrackDef = {
   id: "hills-01",
   world: { gravity: [0, 10], pixelsPerMeter: 30 },
   terrain: [
-    [0, 0],
-    [5, 0],
-    [8, -0.5],
-    [12, -0.5],
-    [15, -2],
-    [20, -2],
-    [22, 0],
-    [40, 0],
+    [0, 5],
+    [5, 5],
+    [10, 5.3],
+    [15, 5.3],
+    [18, 5.8],
+    [22, 5.8],
+    [25, 5],
+    [30, 5],
+    [35, 5.2],
+    [40, 5.2],
   ],
-  start: { pos: [1.5, -1.5], facing: 1 },
-  finish: { pos: [39, -1.5], width: 0.2 },
+  start: { pos: [1.5, 3.5], facing: 1 },
+  finish: { pos: [39, 3.5], width: 0.2 },
 };
 
-// Approximate circle with 16 vertices, radius ~0.8m
 function makeCircle(radius: number, n: number): [number, number][] {
   const verts: [number, number][] = [];
   for (let i = 0; i < n; i++) {
@@ -38,27 +44,23 @@ function makeCircle(radius: number, n: number): [number, number][] {
 
 const CIRCLE_WHEEL: WheelDef = { vertices: makeCircle(0.8, 16) };
 
-// Regression golden: computed once and pinned.
-// Run `pnpm run regen-golden` to regenerate when PHYSICS_VERSION bumps.
-interface GoldenEntry {
-  seed: number;
-  trackId: string;
-  finishTicks: number;
-  finalX: number;
-  streamHash: string;
+interface GoldenFile {
   physicsVersion: number;
+  goldens: Array<{
+    seed: number;
+    trackId: string;
+    finishTicks: number;
+    finalX: number;
+    streamHash: string;
+    physicsVersion: number;
+  }>;
 }
 
-const GOLDENS: GoldenEntry[] = [
-  {
-    seed: 42,
-    trackId: "hills-01",
-    finishTicks: 0,
-    finalX: 0,
-    streamHash: "",
-    physicsVersion: PHYSICS_VERSION,
-  },
-];
+function loadGoldens(): GoldenFile {
+  const path = join(__dirname, "..", "golden", "wheels.json");
+  const raw = readFileSync(path, "utf-8");
+  return JSON.parse(raw) as GoldenFile;
+}
 
 describe("Physics golden (Layer 2)", () => {
   it("produces identical streamHash across 100 consecutive runs", () => {
@@ -77,21 +79,12 @@ describe("Physics golden (Layer 2)", () => {
     }
   });
 
-  it("matches pinned golden values", () => {
-    // Generate the actual golden if not yet populated
-    if (GOLDENS[0].streamHash === "") {
-      // First run: populate goldens
-      const result = createHeadlessRace({
-        seed: 42,
-        track: TEST_TRACK,
-        wheel: CIRCLE_WHEEL,
-      });
-      GOLDENS[0].finishTicks = result.finishTicks;
-      GOLDENS[0].finalX = result.finalX;
-      GOLDENS[0].streamHash = result.streamHash;
-    }
+  it("matches pinned golden values from golden/wheels.json", () => {
+    const goldenFile = loadGoldens();
 
-    for (const golden of GOLDENS) {
+    expect(goldenFile.physicsVersion).toBe(PHYSICS_VERSION);
+
+    for (const golden of goldenFile.goldens) {
       const result = createHeadlessRace({
         seed: golden.seed,
         track: TEST_TRACK,
