@@ -904,7 +904,37 @@ Under `k8s/iad-acb/drawrace/`:
 
 **CI-side RBAC** — alongside the WorkflowTemplate, `jedarden/declarative-config` also ships `k8s/iad-ci/argo-workflows/drawrace-submitter-rbac.yaml`. This file defines (a) a `ServiceAccount` named `argo-workflow-submitter` in the `argo-workflows` namespace, (b) a namespace-scoped `Role` granting verbs `create,get,list` on resource `workflows` in `apiGroup: argoproj.io`, and (c) a `RoleBinding` binding the Role to the SA. The `drawrace-build` WorkflowTemplate runs in the `argo-workflows` namespace on `iad-ci`; the `submit-drawrace-ci` step's pod assumes the `argo-workflow-submitter` SA, which has the narrow RBAC needed to create downstream Workflow resources in the same namespace. The SA lives on `iad-ci` (alongside the Argo workflow-controller) rather than in the `drawrace` namespace on `iad-acb` because the submitter pod runs wherever `drawrace-build` runs — which is `iad-ci`.
 
-**CI build** — new WorkflowTemplate in `jedarden/declarative-config` at `k8s/iad-ci/argo-workflows/drawrace-build.yaml`, patterned after the existing `container-build` / `kalshi-weather-build`:
+**Frontend deployment (Cloudflare Pages) — reuses `website-build`**
+
+The existing `website-build` WorkflowTemplate on `iad-ci` (`k8s/iad-ci/argo-workflows/website-build-workflowtemplate.yml`) already handles Cloudflare Pages deploys for all static sites. DrawRace's frontend plugs into this directly — no new CI image, no custom wrangler step.
+
+Existing secrets already present on `iad-ci` (no action required):
+- `cloudflare-pages-secret` → `CF_API_TOKEN` — Pages deploy token
+- `github-webhook-secret` → `token` — repo clone auth
+
+`website-build` invocation parameters for DrawRace:
+
+```yaml
+repo: jedarden/drawrace
+branch: main          # or "pr-<n>" for preview branches
+build-dir: "."        # repo root (pnpm workspace)
+build-command: "npm install -g pnpm && pnpm install && pnpm -r run build"
+output-dir: apps/web/dist
+cf-project: drawrace  # Cloudflare Pages project name
+```
+
+Cloudflare account: `e26f015c7ba47a6ad6219385e77072b7`
+
+**One-time bootstrap** (before first CI run):
+```bash
+CLOUDFLARE_API_TOKEN=<token> CLOUDFLARE_ACCOUNT_ID=e26f015c7ba47a6ad6219385e77072b7 \
+  npx wrangler pages project create drawrace --production-branch=main
+```
+This creates the Pages project. Subsequent deploys are fully automated via `website-build`.
+
+**Argo Events sensor** — add `k8s/iad-ci/argo-events/drawrace-sensor.yml` to `jedarden/declarative-config`, modelled after the existing `website-build-sensor.yml`, pointing at the `jedarden/drawrace` GitHub webhook. On `push` to any branch, the sensor submits a `website-build` Workflow with the parameters above. On `main` it deploys to production; on PR branches wrangler automatically creates a preview URL under `*.drawrace.pages.dev`.
+
+**Backend CI build** — new WorkflowTemplate in `jedarden/declarative-config` at `k8s/iad-ci/argo-workflows/drawrace-build.yaml`, patterned after the existing `container-build` / `kalshi-weather-build`, handles only the Rust image builds and manifest bumps (not Pages):
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -2212,7 +2242,7 @@ Deliverables:
 - 3 hand-authored tutorial ghosts bundled as assets (recorded via a dev tool that saves ghost blobs from runs).
 - Result Screen with time, basic "beat ghost" feedback, Retry.
 - Service Worker caching shell + assets. Web App Manifest. Installable on iOS and Android.
-- Cloudflare Pages project created and first manual deploy executed via §Multiplayer & Backend 10a bootstrap checklist. Production domain parked; preview URL live at `drawrace.pages.dev`. CI-gated deploy (Argo `drawrace-build` WorkflowTemplate) deferred to Phase 2 when the pipeline exists.
+- Cloudflare Pages project bootstrapped (`wrangler pages project create drawrace`) and `drawrace-sensor` added to `declarative-config` to trigger `website-build` on push to `jedarden/drawrace`. No new secrets needed — `cloudflare-pages-secret` and `github-webhook-secret` already exist on `iad-ci`. Production domain parked; preview URL live at `drawrace.pages.dev`. See §Multiplayer & Backend 10 for full setup.
 
 **Exit criteria:** install PWA on a Pixel 6; draw a circle; finish the race; see a finish time; retry. 60fps on Pixel 6; 30fps on a Redmi 9 class device (the targeted floor). `drawrace.pages.dev` resolves and serves the PWA.
 
