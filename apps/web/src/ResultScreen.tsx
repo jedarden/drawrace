@@ -2,6 +2,7 @@ import { useMemo, useEffect, useState } from "react";
 import type { DrawResult } from "@drawrace/engine-core";
 import type { StrokePoint } from "./DrawScreen.js";
 import { submitGhost, waitForVerdict, isOnline, type SubmissionVerdict } from "./api.js";
+import { getSoundManager } from "./Sound.js";
 
 interface GhostResult {
   name: string;
@@ -168,7 +169,11 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
       </ul>
 
       <button
-        onClick={onRetry}
+        onClick={() => {
+          getSoundManager().playUiTap();
+          getHaptics().uiTap();
+          onRetry();
+        }}
         aria-label="Try again with a new wheel"
         style={{
           marginTop: 16,

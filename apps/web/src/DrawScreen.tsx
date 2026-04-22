@@ -144,7 +144,11 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
     const plainPts: Point[] = rawPts.map(({ x, y }) => ({ x, y }));
     const result = processDraw(plainPts, travelRef.current);
     if (result) {
-      sound.playUiTap();
+      if (!result.isOpenLoop) {
+        sound.playStrokeClosure();
+      } else {
+        sound.playUiTap();
+      }
       haptics.uiTap();
       onComplete(result, rawPts);
     }
