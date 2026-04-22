@@ -7,5 +7,5 @@
     "module": "ES2022",
     "moduleResolution": "bundler"
   },
-  "include": ["src/index.ts", "src/version.ts", "src/prng.ts", "src/clock.ts", "src/headless-race.ts"]
+  "include": ["src/index.ts", "src/version.ts", "src/prng.ts", "src/clock.ts", "src/headless-race.ts", "src/draw-pipeline.ts"]
 }

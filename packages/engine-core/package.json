@@ -15,10 +15,12 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "planck": "^1.0.5"
+    "planck": "^1.0.5",
+    "poly-decomp-es": "^0.4.2",
+    "simplify-js": "^1.2.4"
   },
   "devDependencies": {
-    "typescript": "^5.8.2",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.2"
   }
 }

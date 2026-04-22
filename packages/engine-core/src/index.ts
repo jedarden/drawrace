@@ -10,3 +10,12 @@ export type {
   HeadlessRaceInput,
   HeadlessRaceResult,
 } from "./headless-race.js";
+export {
+  computeBBox,
+  closeLoop,
+  simplifyStroke,
+  areaCentroid,
+  convexDecompose,
+  processDraw,
+} from "./draw-pipeline.js";
+export type { Point, DrawResult } from "./draw-pipeline.js";
