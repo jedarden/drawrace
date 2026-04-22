@@ -1,0 +1,195 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: drawrace-ci
+  namespace: argo-workflows
+  annotations:
+    workflows.argoproj.io/description: "DrawRace CI - builds API, validator, and publishes to Cloudflare Pages"
+spec:
+  entrypoint: drawrace-ci
+  arguments:
+    parameters:
+      - name: branch
+        value: main
+      - name: repo
+        value: https://github.com/jedarden/drawrace
+      - name: republish_only
+        value: "false"
+  workflowMetadata:
+    labels:
+      app: drawrace
+  templates:
+    - name: drawrace-ci
+      inputs: {}
+      outputs: {}
+      steps:
+        - - name: checkout
+            template: checkout
+        - - name: buildx-api
+            template: docker-buildx
+            arguments:
+              parameters:
+                - name: image
+                  value: ronaldraygun/drawrace-api
+                - name: dockerfile
+                  value: Dockerfile.api
+          - name: buildx-validator
+            template: docker-buildx
+            arguments:
+              parameters:
+                - name: image
+                  value: ronaldraygun/drawrace-validator
+                - name: dockerfile
+                  value: Dockerfile.validator
+        - - name: bump-manifest
+            template: update-declarative-config
+            arguments:
+              parameters:
+                - name: images
+                  value: |
+                    ronaldraygun/drawrace-api:{{steps.buildx-api.outputs.parameters.image-tag}}
+                    ronaldraygun/drawrace-validator:{{steps.buildx-validator.outputs.parameters.image-tag}}
+        - - name: wait-validator-live
+            template: wait-validator-live
+            arguments:
+              parameters:
+                - name: health-url
+                  value: https://api.drawrace.example/v1/health
+        - - name: pages-publish
+            template: wrangler-pages
+            arguments:
+              parameters:
+                - name: project
+                  value: drawrace-pwa
+
+    - name: checkout
+      inputs:
+        artifacts:
+          - name: repo
+            path: /src
+            git:
+              repo: "{{workflow.parameters.repo}}"
+              revision: "{{workflow.parameters.branch}}"
+              depth: 1
+      container:
+        image: alpine/git:latest
+        command: [sh, -c]
+        args:
+          - |
+            git log -1 --pretty=%H > /tmp/git-sha
+            git rev-parse --short HEAD > /tmp/git-short-sha
+        volumeMounts:
+          - name: out
+            mountPath: /tmp
+      outputs:
+        artifacts:
+          - name: src
+            from: "{{steps.checkout.inputs.artifacts.repo.path}}"
+        parameters:
+          - name: git-sha
+            valueFrom:
+              path: /tmp/git-sha
+          - name: git-short-sha
+            valueFrom:
+              path: /tmp/git-short-sha
+
+    - name: docker-buildx
+      inputs:
+        parameters:
+          - name: image
+          - name: dockerfile
+        artifacts:
+          - name: src
+            path: /src
+      container:
+        image: docker:latest
+        command: [sh, -c]
+        args:
+          - |
+            set -ex
+            cd /src
+            TAG=$(git rev-parse --short HEAD)
+            echo "Building {{inputs.parameters.image}}:$TAG"
+            docker buildx build --push --platform linux/amd64 -f {{inputs.parameters.dockerfile}} -t {{inputs.parameters.image}}:$TAG -t {{inputs.parameters.image}}:latest .
+            echo "$TAG" > /tmp/image-tag
+        volumeMounts:
+          - name: out
+            mountPath: /tmp
+        env:
+          - name: DOCKER_HOST
+            value: tcp://docker-dind:2376
+          - name: DOCKER_TLS_CERTDIR
+            value: /certs
+          - name: DOCKER_TLS_VERIFY
+            value: "1"
+          - name: DOCKER_CERT_PATH
+            value: /certs/client
+      outputs:
+        parameters:
+          - name: image-tag
+            valueFrom:
+              path: /tmp/image-tag
+
+    - name: update-declarative-config
+      inputs:
+        parameters:
+          - name: images
+      container:
+        image: alpine/git:latest
+        command: [sh, -c]
+        args:
+          - |
+            set -ex
+            git clone https://github.com/jedarden/declarative-config /tmp/dc
+            cd /tmp/dc
+            echo "{{inputs.parameters.images}}" > k8s/iad-acb/drawrace/images.txt
+            git config user.name "DrawRace CI"
+            git config user.email "ci@drawrace.example"
+            git add k8s/iad-acb/drawrace/images.txt
+            git commit -m "drawrace: update images"
+            git push
+
+    - name: wait-validator-live
+      inputs:
+        parameters:
+          - name: health-url
+          - name: timeout-seconds
+            value: "600"
+          - name: poll-interval-seconds
+            value: "10"
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            set -ex
+            url="{{inputs.parameters.health-url}}"
+            deadline=$(( $(date +%s) + {{inputs.parameters.timeout-seconds}} ))
+            echo "Waiting for validator to be live at $url"
+            while true; do
+              response=$(curl -sf "$url" || echo "{}")
+              validator_ok=$(echo "$response" | jq -r '.validator.ok // false')
+              if [ "$validator_ok" = "true" ]; then
+                echo "Validator is live!"
+                break
+              fi
+              if [ $(date +%s) -ge $deadline ]; then
+                echo "Timeout waiting for validator"
+                exit 1
+              fi
+              sleep {{inputs.parameters.poll-interval-seconds}}
+            done
+
+    - name: wrangler-pages
+      inputs:
+        parameters:
+          - name: project
+      container:
+        image: node:20-alpine
+        command: [sh, -c]
+        args:
+          - |
+            set -ex
+            npm install -g wrangler
+            cd /src
+            wrangler pages deploy ./dist --project-name={{inputs.parameters.project}}

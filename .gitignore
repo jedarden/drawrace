@@ -1,11 +1,11 @@
 # Marathon coding session logs (regenerated each run)
 .marathon/logs/
 
-# Beads database — authoritative source is the JSONL; db is a derived index
-.beads/beads.db
-.beads/beads.db-journal
-.beads/beads.db-shm
-.beads/beads.db-wal
+# Beads — issue tracker database and state
+.beads/
+
+# Needle dispatch state
+.needle-predispatch-sha
 
 # Node / pnpm (Phase 1+)
 node_modules/

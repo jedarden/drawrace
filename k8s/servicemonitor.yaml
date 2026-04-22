@@ -1,0 +1,86 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: drawrace-api
+  namespace: drawrace
+  labels:
+    app: drawrace-api
+spec:
+  selector:
+    matchLabels:
+      app: drawrace-api
+  endpoints:
+    - port: http
+      path: /v1/metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: drawrace-alerts
+  namespace: drawrace
+  labels:
+    app: drawrace
+spec:
+  groups:
+    - name: drawrace-beta
+      rules:
+        - alert: DrawRaceHighRejectionRate
+          expr: |
+            rate(drawrace_submissions_total{outcome="rejected"}[10m])
+            / rate(drawrace_submissions_total[10m]) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DrawRace submission rejection rate above 10%"
+            description: >
+              {{ $value | printf "%.1f" }}% of submissions are being rejected
+              over the last 10 minutes. Check validator logs and physics version alignment.
+
+        - alert: DrawRaceValidatorQueueBacklog
+          expr: drawrace_validator_queue_depth > 100
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DrawRace validator queue depth above 100"
+            description: >
+              Validator queue has {{ $value }} pending jobs for over 5 minutes.
+              Consider scaling up validator replicas.
+
+        - alert: DrawRaceApiUnavailable
+          expr: kube_deployment_status_replicas_available{deployment="drawrace-api"} < 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "DrawRace API has no available replicas"
+            description: >
+              drawrace-api deployment has 0 available replicas for over 2 minutes.
+              Check pod events and logs.
+
+        - alert: DrawRacePostgresConnectionFailures
+          expr: |
+            rate(drawrace_postgres_connection_errors_total[5m]) > 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "DrawRace Postgres connection failures"
+            description: >
+              API is failing to connect to Postgres. Check CloudNativePG cluster status.
+
+        - alert: DrawRaceReplayMismatchSpike
+          expr: |
+            rate(drawrace_submissions_total{outcome="rejected",reason="replay_mismatch"}[10m])
+            / rate(drawrace_submissions_total[10m]) > 0.005
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DrawRace replay mismatch rate above 0.5%"
+            description: >
+              Replay verification mismatch rate is {{ $value | printf "%.3f" }}.
+              This may indicate physics version drift between client and server.

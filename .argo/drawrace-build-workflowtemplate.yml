@@ -1,0 +1,168 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: drawrace-build
+  namespace: argo-workflows
+  labels:
+    app: drawrace-build
+spec:
+  entrypoint: build
+  serviceAccountName: argo-workflow
+  arguments:
+    parameters:
+      - name: git-repo
+        value: jedarden/drawrace
+      - name: branch
+        value: main
+  volumes:
+    - name: docker-config
+      secret:
+        secretName: docker-hub-registry
+        items:
+          - key: .dockerconfigjson
+            path: config.json
+  templates:
+    - name: build
+      steps:
+        - - name: resolve-version
+            template: resolve-version
+        - - name: docker-build-api
+            template: docker-build-api
+            arguments:
+              parameters:
+                - name: version
+                  value: "{{steps.resolve-version.outputs.parameters.version}}"
+        - - name: docker-build-validator
+            template: docker-build-validator
+            arguments:
+              parameters:
+                - name: version
+                  value: "{{steps.resolve-version.outputs.parameters.version}}"
+
+    - name: resolve-version
+      activeDeadlineSeconds: 120
+      script:
+        image: alpine/git
+        command: [sh]
+        source: |
+          set -e
+          git clone --branch {{workflow.parameters.branch}} \
+            "https://x-access-token:${GH_TOKEN}@github.com/{{workflow.parameters.git-repo}}.git" \
+            /tmp/repo
+          cd /tmp/repo
+
+          if [ -f VERSION ]; then
+            VERSION_CHANGED=$(git diff --name-only HEAD~1 HEAD -- VERSION | grep -c '^VERSION$' || true)
+            if [ "$VERSION_CHANGED" -gt 0 ]; then
+              VERSION=$(cat VERSION | tr -d '[:space:]')
+            else
+              CURRENT=$(cat VERSION | tr -d '[:space:]')
+              MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+              MINOR=$(echo "$CURRENT" | cut -d. -f2)
+              PATCH=$(echo "$CURRENT" | cut -d. -f3)
+              PATCH=$((PATCH + 1))
+              VERSION="${MAJOR}.${MINOR}.${PATCH}"
+              echo "$VERSION" > VERSION
+              git config user.email "ci@ardenone.com"
+              git config user.name "Argo Workflows CI"
+              git add VERSION
+              git commit -m "ci: auto-bump version to ${VERSION}"
+              git push
+            fi
+          else
+            VERSION="0.1.0"
+            echo "$VERSION" > VERSION
+            git config user.email "ci@ardenone.com"
+            git config user.name "Argo Workflows CI"
+            git add VERSION
+            git commit -m "ci: initialize VERSION file at ${VERSION}"
+            git push
+          fi
+
+          echo "$VERSION" > /tmp/version
+          echo "Building version: ${VERSION}"
+        env:
+          - name: GH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: github-webhook-secret
+                key: token
+      outputs:
+        parameters:
+          - name: version
+            valueFrom:
+              path: /tmp/version
+
+    - name: docker-build-api
+      inputs:
+        parameters:
+          - name: version
+      activeDeadlineSeconds: 1800
+      retryStrategy:
+        limit: "2"
+        retryPolicy: OnError
+        backoff:
+          duration: 30s
+          factor: "2"
+      container:
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+          - --context=git://github.com/{{workflow.parameters.git-repo}}.git#refs/heads/{{workflow.parameters.branch}}
+          - --dockerfile=Dockerfile.api
+          - --destination=ronaldraygun/drawrace-api:{{inputs.parameters.version}}
+          - --destination=ronaldraygun/drawrace-api:latest
+          - --cache=true
+          - --cache-repo=ronaldraygun/cache
+        env:
+          - name: GIT_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: github-webhook-secret
+                key: token
+        volumeMounts:
+          - name: docker-config
+            mountPath: /kaniko/.docker
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+
+    - name: docker-build-validator
+      inputs:
+        parameters:
+          - name: version
+      activeDeadlineSeconds: 1800
+      retryStrategy:
+        limit: "2"
+        retryPolicy: OnError
+        backoff:
+          duration: 30s
+          factor: "2"
+      container:
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+          - --context=git://github.com/{{workflow.parameters.git-repo}}.git#refs/heads/{{workflow.parameters.branch}}
+          - --dockerfile=Dockerfile.validator
+          - --destination=ronaldraygun/drawrace-validator:{{inputs.parameters.version}}
+          - --destination=ronaldraygun/drawrace-validator:latest
+          - --cache=true
+          - --cache-repo=ronaldraygun/cache
+        env:
+          - name: GIT_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: github-webhook-secret
+                key: token
+        volumeMounts:
+          - name: docker-config
+            mountPath: /kaniko/.docker
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi

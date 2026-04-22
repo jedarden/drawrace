@@ -41,6 +41,28 @@ export interface SubmissionVerdict {
 
 const MATCHMAKE_SEED = 0xcafe;
 
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  retries: number,
+  baseMs: number,
+  isRetryable: (err: unknown) => boolean = () => true,
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= retries || !isRetryable(err)) throw err;
+      const jitter = Math.random() * baseMs * 0.3;
+      const delay = baseMs * Math.pow(2, attempt) + jitter;
+      await sleep(delay);
+    }
+  }
+}
+
+function isTransientHttp(resp: Response): boolean {
+  return resp.status >= 500 || resp.status === 429;
+}
+
 export async function fetchGhosts(trackId: number): Promise<GhostData[]> {
   const apiUrl = getApiUrl();
   const playerUuid = getPlayerUuid();
@@ -51,7 +73,15 @@ export async function fetchGhosts(trackId: number): Promise<GhostData[]> {
 
   try {
     const url = `${apiUrl}/v1/matchmake/${trackId}?player_uuid=${playerUuid}`;
-    const resp = await fetch(url);
+    const resp = await retryWithBackoff(
+      () => fetch(url),
+      2,
+      500,
+      (err) => {
+        if (err instanceof Response) return isTransientHttp(err);
+        return true;
+      },
+    );
     if (!resp.ok) {
       return fetchBundledGhosts();
     }
@@ -93,8 +123,16 @@ async function fetchAndCacheGhost(g: MatchmakeGhost): Promise<Array<{ x: number;
     return decodeGhostBlobVertices(cached.blob);
   }
 
-  // Download from presigned URL
-  const resp = await fetch(g.url);
+  // Download from presigned URL with retry
+  const resp = await retryWithBackoff(
+    async () => {
+      const r = await fetch(g.url);
+      if (!r.ok && isTransientHttp(r)) throw new Error(`ghost download failed: ${r.status}`);
+      return r;
+    },
+    2,
+    400,
+  );
   if (!resp.ok) throw new Error(`ghost download failed: ${resp.status}`);
   const blob = await resp.arrayBuffer();
 
@@ -141,16 +179,24 @@ export async function submitGhost(input: SubmitInput): Promise<string | null> {
 
   const hmac = await computeHmac(blob);
 
-  const resp = await fetch(`${apiUrl}/v1/submissions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/octet-stream",
-      "X-DrawRace-Track": String(input.trackId),
-      "X-DrawRace-Player": playerUuid,
-      "X-DrawRace-ClientHMAC": hmac,
+  const resp = await retryWithBackoff(
+    async () => {
+      const r = await fetch(`${apiUrl}/v1/submissions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-DrawRace-Track": String(input.trackId),
+          "X-DrawRace-Player": playerUuid,
+          "X-DrawRace-ClientHMAC": hmac,
+        },
+        body: blob,
+      });
+      if (isTransientHttp(r)) throw new Error(`transient: ${r.status}`);
+      return r;
     },
-    body: blob,
-  });
+    2,
+    600,
+  );
 
   if (resp.status !== 202) return null;
 

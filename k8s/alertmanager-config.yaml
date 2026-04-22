@@ -1,0 +1,26 @@
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: drawrace-alerts
+  namespace: drawrace
+  labels:
+    app: drawrace
+spec:
+  route:
+    receiver: drawrace-email
+    groupBy: [alertname, namespace]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    matchers:
+      - matchType: "=~"
+        name: alertname
+        value: "DrawRace.*"
+  receivers:
+    - name: drawrace-email
+      emailConfigs:
+        - to: me@jedcabanero.com
+          sendResolved: true
+          headers:
+            Subject: "[DrawRace] {{ .GroupLabels.alertname }}"

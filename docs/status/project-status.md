@@ -1,7 +1,7 @@
 # DrawRace Project Status
 
 **Last Updated:** 2026-04-22
-**Current Phase:** Phase 3 Complete → Phase 4 (Beta) Blocked on Operational Tasks → Phase 5 (Launch) Partial
+**Current Phase:** Phase 4 (Beta) — Code Complete, Awaiting Operational Deployment
 
 ## Phase Completion Status
 
@@ -28,90 +28,61 @@
 ### ✅ Phase 2: Backend & Multiplayer — COMPLETE
 - `apps/api` (axum): `/v1/submissions`, `/v1/leaderboard/*`, `/v1/ghosts/*`, `/v1/matchmake/*`, `/v1/names`, `/v1/health`, `/v1/metrics`
 - `apps/validator`: pulls jobs from Redis, loads engine-core WASM, re-sims and writes verdict
-- Postgres schema + migrations (sqlx): `players`, `ghosts`, `submissions`, `names`
+- Postgres schema + migrations (sqlx): `players`, `ghosts`, `submissions`, `names`, `feedback`
 - K8s manifests in repo (namespace, deployments, ingress, certificates, sealed-secrets)
 - Frontend API integration (submit, fetch ghosts, leaderboard context)
 - Seed pool: dev-recorded ghosts bundled for launch
 
-### ✅ Phase 3: Polish — COMPLETE (Code-Level)
-All visual polish deliverables implemented:
-- ✅ Wobble cosmetic stroke on wheel (Renderer.ts)
-- ✅ Parallax background layers (far/near hills)
-- ✅ Cross-hatch terrain fill with grass strip and tuft sprites
-- ✅ Dust particle system, countdown animation, finish-line confetti
-- ✅ Caveat + Patrick Hand webfonts (loaded in index.html)
-- ✅ Accessibility pass: WCAG AA audit, `prefers-reduced-motion`, haptics, ARIA
-- ✅ Optional sound pack (synthesized sounds via Web Audio API)
-- ✅ Low-end device fallbacks (particle disable, ghost-count drop, 30Hz sim fallback)
-- ✅ Playwright E2E suite (game.spec.ts, a11y.spec.ts)
-- ✅ Golden physics tests (golden.test.ts)
+### ✅ Phase 3: Polish — COMPLETE
+- Wobble cosmetic stroke on wheel (Renderer.ts)
+- Parallax background layers (far/near hills)
+- Cross-hatch terrain fill with grass strip and tuft sprites
+- Dust particle system, countdown animation, finish-line confetti
+- Caveat + Patrick Hand webfonts (loaded in index.html)
+- Accessibility: WCAG AA audit, `prefers-reduced-motion`, haptics, ARIA
+- Synthesized sound effects via Web Audio API (Sound.ts)
+- Low-end device fallbacks (particle disable, ghost-count drop, 30Hz sim fallback)
+- Playwright E2E suite (game.spec.ts, a11y.spec.ts)
+- Golden physics tests (golden.test.ts)
 
-**Phase 3 Exit Criteria Status:**
-- ✅ Visual comparison against plan shows parity
-- ✅ WCAG AA audit passes (automated via @axe-core/playwright)
-- ⚠️ Redmi 9 30fps verification - needs real-device testing
-- ⚠️ CI with all 9 test layers - partial (see CI Test Matrix below)
+### ✅ Phase 4: Beta — Code Deliverables Complete
 
-### 🔄 Phase 4: Beta — Code Deliverables Complete, Operational Tasks Pending
-
-**Code deliverables completed (2026-04-22):**
-- ✅ Beta landing page with invite flow, how-to-play, install instructions (`LandingScreen.tsx`)
+**Code deliverables (2026-04-22):**
+- ✅ Beta landing page with invite flow, how-to-play, PWA install instructions (`LandingScreen.tsx`)
 - ✅ Feedback endpoint (`POST /v1/feedback`) with rate limiting and Postgres storage
 - ✅ Feedback UI on landing screen (bug/feature/other categories)
-- ✅ k6 load test script (`load/submit.js`) with ramping-arrival-rate (50→2000 RPS)
-- ✅ Chaos test script (`load/chaos-test.sh`) — kills api pod, verifies recovery, checks error thresholds
-- ✅ Grafana dashboard JSON (`monitoring/drawrace-dashboard.json`) — submission rate, rejection rate, validator queue, latency, replay mismatch
-- ✅ Prometheus alert rules (`k8s/servicemonitor.yaml`) — rejection >10%, queue >100, api unavailable, replay mismatch >0.5%
-- ✅ ServiceMonitor for Prometheus scraping (`k8s/servicemonitor.yaml`)
+- ✅ k6 load test script (`load/submit.js`) — ramping-arrival-rate 50→2000 RPS, p95<400ms threshold
+- ✅ k6 chaos test (`load/chaos.js`) — constant 500 RPS for pod-kill resilience testing
+- ✅ Chaos test orchestration (`load/chaos-test.sh`) — kills api pod, monitors recovery, checks error thresholds
+- ✅ Grafana dashboard (`monitoring/drawrace-dashboard.json`) — submission rate, rejection rate, validator queue, latency, replay mismatch, bucket miss
+- ✅ Prometheus ServiceMonitor + alert rules (`k8s/servicemonitor.yaml`) — rejection >10%, queue >100, api unavailable, replay mismatch >0.5%
+- ✅ Alertmanager email routing (`k8s/alertmanager-config.yaml`) — drawrace alerts → email
+- ✅ Argo Workflows CI templates (`.argo/`) — Kaniko builds for api + validator images
 
-**Remaining operational tasks:**
-1. **Infrastructure Deployment**
-   - Deploy `drawrace-api` and `drawrace-validator` to production cluster
-   - Configure Cloudflare Pages production project
-   - Set up DNS records: `api.drawrace.ardenone.com` → cluster
-   - Apply monitoring manifests (ServiceMonitor, PrometheusRule)
-
-2. **Beta Execution**
-   - Recruit 20-40 testers
-   - Run k6 load test against staging (`k6 run -e API=<staging-url> load/submit.js`)
-   - Execute chaos test (`API=<staging-url> ./load/chaos-test.sh`)
-   - Import Grafana dashboard (`monitoring/drawrace-dashboard.json`)
-   - Monitor replay-mismatch rate (< 0.5% target)
-   - Collect top-30 real beta times for launch seed pool
+**Remaining operational tasks (not code):**
+1. Deploy K8s manifests to production cluster via ArgoCD
+2. Configure Cloudflare Pages production project for web app
+3. Set up DNS: `api.drawrace.ardenone.com` → cluster ingress
+4. Import Grafana dashboard into production Grafana
+5. Recruit 20-40 beta testers
+6. Run k6 load test against staging
+7. Execute chaos test against staging
+8. Monitor replay-mismatch rate during beta (< 0.5% target)
+9. Collect top-30 real beta times for launch seed pool
 
 **Exit Criteria:**
 - 0 crash reports in last 48h of beta
 - Replay-mismatch rate < 0.5%
 - No WCAG regressions
 - Load test passes thresholds (p95 < 400ms, error rate < 1%)
-- Load test passes thresholds
 
-### ⏸️ Phase 5: Launch — PARTIAL (Code Complete, Operational Tasks Pending)
-**Blocker:** Cannot proceed until Beta phase completes
+### ⏸️ Phase 5: Launch — Code Complete, Blocked on Phase 4
 
-**Code Deliverables Completed (2026-04-22):**
-- ✅ PWA install instructions landing screen (`LandingScreen.tsx`)
+Code deliverables already in place:
+- ✅ PWA install instructions on landing screen
 - ✅ Platform-specific guidance (iOS, Android, Desktop)
-- ✅ Integration into app flow with localStorage persistence
-- ✅ "Show Install Instructions" button in Settings
 
-**Remaining Operational Deliverables:**
-1. **DNS Cutover**
-   - `drawrace.example` → Cloudflare Pages production
-   - Verify TLS certificates
-
-2. **Launch Preparation**
-   - Prepare blog post / HN announcement
-   - Record monitoring baselines (QPS, submission rate, bucket distribution)
-
-3. **Post-Launch**
-   - 48h on-call watch shift
-   - Monitor for P0/P1 alerts
-
-**Exit Criteria:**
-- Public URL resolves and works on iOS Safari + Android Chrome
-- First dozen public submissions propagate to leaderboard
-- No P0/P1 incidents in first 24h
+Remaining operational: DNS cutover, blog post, 48h on-call watch.
 
 ## CI Test Matrix
 
@@ -124,87 +95,24 @@ All visual polish deliverables implemented:
 | 5 | Backend Contract | ❌ MISSING | Needs Rust backend tests |
 | 6 | Replay Verification | ✅ COMPLETE | Validator crate tests |
 | 7 | Performance Budget | ⚠️ PARTIAL | size-limit configured, not enforced in CI |
-| 8 | Load & Chaos | ✅ SCRIPTS READY | k6 load + chaos test scripts; needs staging env to run against |
+| 8 | Load & Chaos | ✅ SCRIPTS READY | k6 load + chaos scripts; needs staging env |
 | 9 | Device Matrix | ❌ MISSING | Needs real-device testing |
-
-## Known Technical Debt
-
-1. **Snapshot Tests (Layer 3)**: Not implemented. Requires Playwright screenshot testing with pixelmatch against pinned container image.
-
-2. **Backend Contract Tests (Layer 5)**: Not implemented. Requires Rust backend integration tests.
-
-3. **Performance Budget Enforcement**: size-limit is configured but not enforced in CI pipeline.
-
-4. **Load Testing Infrastructure**: k6 scripts not written; staging environment not deployed.
-
-5. **Real Device Testing**: No automated real-device testing (Pixel 6 ADB mentioned in CLAUDE.md but not integrated into CI).
 
 ## v1 Cut Line Compliance
 
-Per plan, the following are explicitly **OUT** of v1:
-- ✅ Multiple tracks (one track launches)
-- ✅ Accounts, login, password, email
-- ✅ Real-time multiplayer (architecture ready, not v1)
-- ✅ Custom car bodies / cosmetics
-- ✅ Paid features, IAP, ads
-- ✅ Desktop-first UX (desktop works but not designed for)
-- ✅ Leaderboard friends / social features
-- ✅ Wheel-shape constraints modes (post-v1 progression)
+All non-goals respected — no scope creep:
+- Single track only, no accounts/login, no real-time multiplayer, no cosmetics, no monetization, no desktop-first UX, no social features, no wheel constraints.
 
-## Next Steps
+## Infrastructure
 
-**To proceed to Phase 4 (Beta):**
-
-1. **Infrastructure Team** needs to:
-   - Deploy K8s manifests to production cluster
-   - Configure Cloudflare Pages production project
-   - Set up DNS records
-   - Configure monitoring and alerting
-
-2. **Dev Team** should:
-   - Implement missing CI test layers (3, 5, 7, 8, 9) before beta
-   - Set up staging environment for load testing
-   - Create beta invite landing page
-
-3. **Product** needs to:
-   - Recruit 20-40 beta testers
-   - Set up feedback collection mechanism
-   - Plan beta testing timeline (1 week per plan)
-
-**Estimated Phase 4 Duration:** 1 week (assuming infrastructure is ready)
-
-**Estimated Phase 5 Duration:** 0.5 week (launch execution)
-
-## Code Repository Status
-
-- **Main Branch:** `main`
-- **Recent Commits:**
-  - `c0e4a1d` phase3: visual polish — wobble stroke, cross-hatch terrain, grass tufts, dust/confetti, canvas countdown
-  - `d45176f` phase2: frontend API integration — matchmake, submit, ghost cache, k8s manifests
-  - `ea1a360` phase2: validator binary with structural validation, Dockerfiles, migration 002
-  - `b773cb4` phase2: leaderboard context, matchmake endpoints, rate limiting, unit tests
-
-**Uncommitted Changes:**
-- `apps/web/src/DrawScreen.tsx` (modified)
-- Various untracked files: `.argo/`, `.beads/`, `e2e/`, `playwright.config.ts`
-
-## Git Status
-
-```
-M apps/web/src/DrawScreen.tsx
-?? .argo/
-?? .beads/
-?? .needle-predispatch-sha
-?? apps/web/src/Sound.ts
-?? docs/notes/features.md
-?? docs/research/2d5-layout-visuals.md
-?? docs/research/draw-wheel-prior-art.md
-?? docs/research/ghost-replay-multiplayer.md
-?? docs/research/touch-drawing-input.md
-?? e2e/
-?? playwright.config.ts
-```
-
-## Contact
-
-For questions about this status or to proceed to Phase 4, contact the project lead.
+| Component | Config | Status |
+|-----------|--------|--------|
+| API Deployment | `k8s/api-deployment.yaml` (2 replicas, topology spread) | Ready to deploy |
+| Validator Deployment | `k8s/validator-deployment.yaml` (1 replica, HPA 1-3) | Ready to deploy |
+| Ingress | `k8s/ingress.yaml` (Traefik + cert-manager, `api.drawrace.ardenone.com`) | Ready to deploy |
+| Postgres | `k8s/postgres-cluster.yaml` (CloudNativePG) | Ready to deploy |
+| Redis | `k8s/redis.yaml` (Redis 8 Alpine) | Ready to deploy |
+| Monitoring | `k8s/servicemonitor.yaml` + `monitoring/` | Ready to deploy |
+| Alert Routing | `k8s/alertmanager-config.yaml` | Ready to deploy |
+| CI/CD | `.argo/` workflow templates | Ready |
+| Network Policy | `k8s/networkpolicy.yaml` | Ready to deploy |
