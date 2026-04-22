@@ -1,0 +1,24 @@
+# Marathon coding session logs (regenerated each run)
+.marathon/logs/
+
+# Beads database — authoritative source is the JSONL; db is a derived index
+.beads/beads.db
+.beads/beads.db-journal
+.beads/beads.db-shm
+.beads/beads.db-wal
+
+# Node / pnpm (Phase 1+)
+node_modules/
+dist/
+.pnpm-store/
+
+# Rust (Phase 2+)
+target/
+Cargo.lock.bak
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
