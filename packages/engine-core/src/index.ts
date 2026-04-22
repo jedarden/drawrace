@@ -10,6 +10,8 @@ export type {
   HeadlessRaceInput,
   HeadlessRaceResult,
 } from "./headless-race.js";
+export { RaceSim, DT } from "./race-sim.js";
+export type { RaceSnapshot, SimBody } from "./race-sim.js";
 export {
   computeBBox,
   closeLoop,

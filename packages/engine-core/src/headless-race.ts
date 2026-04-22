@@ -114,7 +114,7 @@ export function createHeadlessRace(
     }
   }
 
-  // Place wheel center just above terrain surface
+  // Place wheel center just below terrain surface; gravity [0,10] pushes it up to rest on surface
   const wheelSpawnY = terrainY - wheelRadius;
 
   // Create wheel body from polygon vertices
@@ -149,7 +149,7 @@ export function createHeadlessRace(
     }
   }
 
-  // Chassis positioned above wheel, with space for suspension travel
+  // Chassis positioned below wheel (lower Y = below in planck gravity [0,10])
   const chassisSpawnY = wheelSpawnY - 1.5;
 
   // Create chassis body
