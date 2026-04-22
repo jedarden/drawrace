@@ -44,6 +44,18 @@ pub fn app(state: Arc<AppState>) -> Router {
             "/v1/ghosts/{ghost_id}",
             axum::routing::get(crate::handlers::ghosts::get_ghost),
         )
+        .route(
+            "/v1/leaderboard/{track_id}/top",
+            axum::routing::get(crate::handlers::leaderboard::get_top),
+        )
+        .route(
+            "/v1/leaderboard/{track_id}/context",
+            axum::routing::get(crate::handlers::leaderboard::get_context),
+        )
+        .route(
+            "/v1/matchmake/{track_id}",
+            axum::routing::get(crate::handlers::matchmake::get_matchmake),
+        )
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
         .with_state(state)

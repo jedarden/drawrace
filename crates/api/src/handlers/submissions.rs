@@ -112,13 +112,14 @@ pub async fn post_submission(
     let s3_key = format!("ghosts/{}/{}/{}.bin", track_id, player_uuid, submission_id);
 
     sqlx::query(
-        "INSERT INTO submissions (submission_id, player_uuid, track_id, physics_version, status)
-         VALUES ($1, $2, $3, $4, 'pending_validation')",
+        "INSERT INTO submissions (submission_id, player_uuid, track_id, physics_version, status, s3_key)
+         VALUES ($1, $2, $3, $4, 'pending_validation', $5)",
     )
     .bind(submission_id)
     .bind(player_uuid)
     .bind(track_id as i16)
     .bind(header.version as i16)
+    .bind(&s3_key)
     .execute(&state.pool)
     .await
     .map_err(|e| ApiError {
@@ -332,6 +333,24 @@ fn bucket_for_rank(rank: i64) -> String {
         "mid".into()
     } else {
         "novice".into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bucket_for_rank_boundaries() {
+        assert_eq!(bucket_for_rank(1), "elite");
+        assert_eq!(bucket_for_rank(2), "advanced");
+        assert_eq!(bucket_for_rank(5), "advanced");
+        assert_eq!(bucket_for_rank(6), "skilled");
+        assert_eq!(bucket_for_rank(20), "skilled");
+        assert_eq!(bucket_for_rank(21), "mid");
+        assert_eq!(bucket_for_rank(50), "mid");
+        assert_eq!(bucket_for_rank(51), "novice");
+        assert_eq!(bucket_for_rank(1000), "novice");
     }
 }
 

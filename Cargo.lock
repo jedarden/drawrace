@@ -1174,6 +1174,23 @@ dependencies = [
 [[package]]
 name = "drawrace-validator"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aws-config",
+ "aws-sdk-s3",
+ "axum 0.8.9",
+ "chrono",
+ "deadpool-redis",
+ "drawrace-api",
+ "redis",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
 
 [[package]]
 name = "dunce"
