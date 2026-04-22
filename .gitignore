@@ -11,6 +11,7 @@
 node_modules/
 dist/
 .pnpm-store/
+*.tsbuildinfo
 
 # Rust (Phase 2+)
 target/
