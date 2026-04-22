@@ -75,7 +75,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
 
       let lastTime = performance.now();
       let accumTime = 0;
-      let motorHumInterval: ReturnType<typeof setInterval> | null = null;
+      let maxObservedSpeed = 1;
 
       function loop() {
         if (cancelled) return;
@@ -96,15 +96,19 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
 
           countdownTick++;
           const newCountdown = 3 - Math.floor(countdownTick / 60);
-          if (newCountdown !== countdownRef.current && newCountdown >= 0) {
+          if (newCountdown !== lastCountdownVal && newCountdown >= 1) {
+            lastCountdownVal = newCountdown;
             countdownRef.current = newCountdown;
+            sound.playCountdown();
           }
 
           if (countdownTick >= COUNTDOWN_TICKS) {
             phaseRef.current = "racing";
             sim.enableMotor();
             ghostSims.forEach((gs) => gs.enableMotor());
-            getHaptics().raceStart();
+            sound.playGo();
+            sound.startMotorHum();
+            haptics.raceStart();
           }
 
           rafId = requestAnimationFrame(loop);
@@ -129,6 +133,9 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
           const speed = Math.hypot(dx, dy) * 60; // approx m/s
           prevWheelPosRef.current = { x: snap.wheel.x, y: snap.wheel.y };
 
+          if (speed > maxObservedSpeed) maxObservedSpeed = speed;
+          sound.updateMotorSpeed(speed / maxObservedSpeed);
+
           // Filter ghosts based on performance
           const maxGhosts = perf.maxGhosts;
           const activeGhostSnaps = ghostSims.slice(0, maxGhosts).map((gs, i) => ({
@@ -151,8 +158,14 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
 
           if (snap.finished && !confettiTriggeredRef.current) {
             confettiTriggeredRef.current = true;
-            getHaptics().finishLine();
-            if (perf.particleLevel !== "none") {
+            sound.stopMotorHum();
+            if (snap.elapsedMs >= 179000) {
+              sound.playDnf();
+            } else {
+              sound.playFinishLine();
+            }
+            haptics.finishLine();
+            if (snap.elapsedMs < 179000 && perf.particleLevel !== "none") {
               const cw = canvasRef.current?.width ?? 400;
               const ch = canvasRef.current?.height ?? 800;
               particles.emitConfetti(cw / 2, ch * 0.4);
@@ -177,6 +190,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
 
     return () => {
       cancelled = true;
+      getSoundManager().stopMotorHum();
       if (rafId) cancelAnimationFrame(rafId);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };

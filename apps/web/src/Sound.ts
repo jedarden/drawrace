@@ -3,6 +3,13 @@ export class SoundManager {
   private context: AudioContext | null = null;
   private reducedMotion: boolean;
 
+  // Motor hum state
+  private motorOsc1: OscillatorNode | null = null;
+  private motorOsc2: OscillatorNode | null = null;
+  private motorGain: GainNode | null = null;
+  private motorBaseFreq = 80;
+  private motorRunning = false;
+
   constructor() {
     this.enabled = false;
     this.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -38,7 +45,7 @@ export class SoundManager {
     return this.context;
   }
 
-  playTone(frequency: number, duration: number, volume: number = 0.3): void {
+  private playTone(frequency: number, duration: number, volume: number = 0.3): void {
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -59,10 +66,6 @@ export class SoundManager {
     oscillator.stop(ctx.currentTime + duration);
   }
 
-  playTick(): void {
-    this.playTone(800, 0.05, 0.2);
-  }
-
   playCountdown(): void {
     this.playTone(600, 0.15, 0.3);
   }
@@ -71,8 +74,6 @@ export class SoundManager {
     const ctx = this.getContext();
     if (!ctx) return;
 
-    // Play a rising arpeggio
-    const now = ctx.currentTime;
     [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
       setTimeout(() => this.playTone(freq, 0.2, 0.3), i * 50);
     });
@@ -82,8 +83,6 @@ export class SoundManager {
     const ctx = this.getContext();
     if (!ctx) return;
 
-    // Victory chord
-    const now = ctx.currentTime;
     [523.25, 659.25, 783.99].forEach((freq, i) => {
       setTimeout(() => this.playTone(freq, 0.4, 0.25), i * 30);
     });
@@ -93,7 +92,6 @@ export class SoundManager {
     const ctx = this.getContext();
     if (!ctx) return;
 
-    // Descending tone
     this.playTone(400, 0.3, 0.3);
     setTimeout(() => this.playTone(300, 0.3, 0.3), 150);
   }
@@ -110,7 +108,6 @@ export class SoundManager {
     const ctx = this.getContext();
     if (!ctx) return;
 
-    // Swishing sound using noise
     const bufferSize = ctx.sampleRate * 0.1;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -136,26 +133,64 @@ export class SoundManager {
     noise.start();
   }
 
-  playMotorHum(): void {
+  startMotorHum(): void {
+    if (this.motorRunning) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
-    // Low frequency drone for motor
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.3);
+    gain.connect(ctx.destination);
 
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
+    const osc1 = ctx.createOscillator();
+    osc1.type = "sawtooth";
+    osc1.frequency.value = this.motorBaseFreq;
+    osc1.connect(gain);
+    osc1.start();
 
-    oscillator.frequency.value = 80;
-    oscillator.type = "sawtooth";
+    const osc2 = ctx.createOscillator();
+    osc2.type = "triangle";
+    osc2.frequency.value = this.motorBaseFreq * 1.5;
+    osc2.connect(gain);
+    osc2.start();
 
-    gainNode.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.1);
-    gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
+    this.motorOsc1 = osc1;
+    this.motorOsc2 = osc2;
+    this.motorGain = gain;
+    this.motorRunning = true;
+  }
 
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.2);
+  updateMotorSpeed(speedRatio: number): void {
+    if (!this.motorRunning || !this.motorOsc1 || !this.motorOsc2) return;
+    const clamped = Math.max(0, Math.min(1, speedRatio));
+    // playbackRate-style modulation: 0.7 at idle, 1.5 at max
+    const rate = 0.7 + clamped * 0.8;
+    this.motorOsc1.frequency.value = this.motorBaseFreq * rate;
+    this.motorOsc2.frequency.value = this.motorBaseFreq * 1.5 * rate;
+  }
+
+  stopMotorHum(): void {
+    if (!this.motorRunning) return;
+
+    const ctx = this.getContext();
+    if (ctx && this.motorGain) {
+      this.motorGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+    }
+
+    const osc1 = this.motorOsc1;
+    const osc2 = this.motorOsc2;
+    this.motorOsc1 = null;
+    this.motorOsc2 = null;
+    this.motorGain = null;
+    this.motorRunning = false;
+
+    if (osc1) {
+      setTimeout(() => { try { osc1.stop(); } catch {} }, 350);
+    }
+    if (osc2) {
+      setTimeout(() => { try { osc2.stop(); } catch {} }, 350);
+    }
   }
 
   get isEnabled(): boolean {
@@ -163,6 +198,7 @@ export class SoundManager {
   }
 
   dispose(): void {
+    this.stopMotorHum();
     if (this.context) {
       this.context.close().catch(() => {});
       this.context = null;
