@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect, useState } from "react";
 import { processDraw, type DrawResult, type Point } from "@drawrace/engine-core";
 import { getHaptics } from "./Haptics.js";
+import { getSoundManager } from "./Sound.js";
 
 export interface StrokePoint extends Point {
   t: number;
@@ -23,6 +24,8 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
   const rafRef = useRef<number>(0);
   const [canRace, setCanRace] = useState(false);
   const [previewResult, setPreviewResult] = useState<DrawResult | null>(null);
+  const sound = getSoundManager();
+  const haptics = getHaptics();
 
   useEffect(() => {
     const offscreen = document.createElement("canvas");
@@ -141,9 +144,11 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
     const plainPts: Point[] = rawPts.map(({ x, y }) => ({ x, y }));
     const result = processDraw(plainPts, travelRef.current);
     if (result) {
+      sound.playUiTap();
+      haptics.uiTap();
       onComplete(result, rawPts);
     }
-  }, [onComplete]);
+  }, [onComplete, sound, haptics]);
 
   const handleClear = useCallback(() => {
     rawPointsRef.current = [];
@@ -151,6 +156,8 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
     activePointerRef.current = null;
     setCanRace(false);
     setPreviewResult(null);
+    sound.playClear();
+    haptics.uiTap();
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext("2d");
@@ -159,7 +166,7 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
     }
-  }, []);
+  }, [sound, haptics]);
 
   return (
     <div
@@ -180,7 +187,11 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", maxWidth: 350 }}>
         <h1 style={{ margin: 0, fontSize: 24 }}>Draw your wheel</h1>
         <button
-          onClick={onOpenSettings}
+          onClick={() => {
+            sound.playUiTap();
+            haptics.uiTap();
+            onOpenSettings();
+          }}
           aria-label="Open settings"
           style={{
             background: "none",
