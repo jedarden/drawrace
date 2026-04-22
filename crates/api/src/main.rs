@@ -82,6 +82,6 @@ async fn main() {
 
 fn s3_config_endpoint_url(endpoint: String) -> aws_config::ConfigLoader {
     aws_config::defaults(BehaviorVersion::latest())
-        .endpoint_url(endpoint)
         .region(aws_sdk_s3::config::Region::new("garage"))
+        .endpoint_url(endpoint)
 }
