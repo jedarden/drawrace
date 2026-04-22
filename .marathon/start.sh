@@ -1,14 +1,15 @@
 #!/bin/bash
-# DrawRace Marathon Launcher
+# DrawRace Marathon Launcher — GLM-5.1 via ZAI Proxy
 #
 # Runs the central marathon-coding skill in a dedicated tmux session against
 # this repo. Each iteration reads .marathon/instruction.md and invokes
-# headless claude-code to make incremental progress on the plan.
+# headless claude-code routed through the ZAI MCP proxy to ZhipuAI's
+# GLM-5.1 model. Mirrors the env var set used by NEEDLE's
+# claude-code-glm-5.1 agent (~/.needle/agents/claude-code-glm-5.1.yaml).
 #
 # Usage:
 #   ./.marathon/start.sh                  # default session name "drawrace"
 #   ./.marathon/start.sh <session-name>   # custom session name
-#   ./.marathon/start.sh <session> glm5   # use GLM-5 via ZAI proxy (cheap mode)
 
 set -euo pipefail
 
@@ -18,7 +19,9 @@ MARATHON_SKILL="/home/coding/claude-config/skills/marathon-coding"
 INSTRUCTION_FILE="$SCRIPT_DIR/instruction.md"
 LOG_DIR="$SCRIPT_DIR/logs"
 SESSION_NAME="${1:-drawrace}"
-MODE="${2:-default}"  # default = normal claude; glm5 = use ZAI proxy
+
+# ZAI proxy endpoint (matches ~/.needle/agents/claude-code-glm-5.1.yaml)
+ZAI_BASE_URL="https://zai-proxy-mcp-ardenone-hub-ts.ardenone.com:8444"
 
 # Sanity checks
 if ! command -v tmux >/dev/null 2>&1; then
@@ -43,38 +46,55 @@ if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     exit 1
 fi
 
-mkdir -p "$LOG_DIR"
-
-# Build the loop command that runs inside tmux
-LOOP_CMD="cd '$REPO_DIR'"
-
-if [ "$MODE" = "glm5" ]; then
-    echo "Mode: GLM-5 via ZAI proxy (cost-optimized)"
-    LOOP_CMD="$LOOP_CMD && \
-        export ANTHROPIC_BASE_URL='http://zai-proxy-hub.tail1b1987.ts.net:8080' && \
-        export ANTHROPIC_AUTH_TOKEN='proxy-handles-auth' && \
-        export ANTHROPIC_DEFAULT_OPUS_MODEL='glm-5' && \
-        export ANTHROPIC_DEFAULT_SONNET_MODEL='glm-5' && \
-        export ANTHROPIC_DEFAULT_HAIKU_MODEL='glm-5' && \
-        export API_TIMEOUT_MS='600000' && \
-        export DISABLE_AUTOUPDATER=1 && \
-        export DISABLE_TELEMETRY=1"
-else
-    echo "Mode: default (system claude-code settings)"
+# Pre-flight: confirm ZAI proxy is reachable so we don't launch into a
+# loop that will just emit connection errors every iteration.
+if ! curl -sk --max-time 8 -o /dev/null -w "%{http_code}" "$ZAI_BASE_URL/health" | grep -q '^2'; then
+    echo "Error: ZAI proxy at $ZAI_BASE_URL is not reachable." >&2
+    echo "       (glm-5.1 routing would fail; aborting before launch.)" >&2
+    echo "       Check Tailscale + proxy pod on ardenone-hub." >&2
+    exit 1
 fi
 
-LOOP_CMD="$LOOP_CMD && '$MARATHON_SKILL/launcher.sh' \
-    --prompt '$INSTRUCTION_FILE' \
-    --delay 10 \
-    --log-dir '$LOG_DIR'"
+mkdir -p "$LOG_DIR"
+
+# Build the loop command that runs inside tmux.
+#
+# Env var set mirrors NEEDLE's claude-code-glm-5.1 agent:
+#   - NODE_TLS_REJECT_UNAUTHORIZED=0 — proxy uses a self-signed cert
+#   - ANTHROPIC_BASE_URL points at the ZAI MCP proxy (not anthropic.com)
+#   - ANTHROPIC_AUTH_TOKEN is a sentinel; proxy handles real auth
+#   - ANTHROPIC_MODEL + the three DEFAULT_*_MODEL overrides + subagent model
+#     all pin to glm-5.1 so every model tier the CLI references resolves
+#     to GLM-5.1 rather than a real Claude model.
+#   - `unset CLAUDECODE` avoids nested-session detection when this script
+#     is itself launched from a Claude Code terminal.
+LOOP_CMD="cd '$REPO_DIR' && \
+    unset CLAUDECODE && \
+    export NODE_TLS_REJECT_UNAUTHORIZED=0 && \
+    export ANTHROPIC_BASE_URL='$ZAI_BASE_URL' && \
+    export ANTHROPIC_AUTH_TOKEN='proxy-handles-auth' && \
+    export ANTHROPIC_MODEL='glm-5.1' && \
+    export ANTHROPIC_DEFAULT_OPUS_MODEL='glm-5.1' && \
+    export ANTHROPIC_DEFAULT_SONNET_MODEL='glm-5.1' && \
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL='glm-5.1' && \
+    export CLAUDE_CODE_SUBAGENT_MODEL='glm-5.1' && \
+    export API_TIMEOUT_MS='900000' && \
+    export DISABLE_AUTOUPDATER=1 && \
+    export DISABLE_TELEMETRY=1 && \
+    '$MARATHON_SKILL/launcher.sh' \
+        --prompt '$INSTRUCTION_FILE' \
+        --delay 10 \
+        --log-dir '$LOG_DIR'"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║               DrawRace Marathon Coding Session               ║"
+echo "║          DrawRace Marathon — claude-code @ GLM-5.1           ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 echo "  Repo:        $REPO_DIR"
 echo "  Instruction: $INSTRUCTION_FILE"
 echo "  Session:     $SESSION_NAME"
+echo "  Model:       glm-5.1 (all tiers — opus, sonnet, haiku, subagent)"
+echo "  Proxy:       $ZAI_BASE_URL"
 echo "  Logs:        $LOG_DIR"
 echo ""
 
