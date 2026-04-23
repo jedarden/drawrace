@@ -27,6 +27,7 @@
     "@size-limit/preset-app": "^12.1.0",
     "@types/pixelmatch": "^5.2.6",
     "eslint": "^9.24.0",
+    "jsdom": "^29.0.2",
     "pixelmatch": "^7.1.0",
     "pngjs": "^7.0.0",
     "size-limit": "^11.2.0",

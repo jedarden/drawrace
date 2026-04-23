@@ -22,7 +22,7 @@ set -euo pipefail
 API="${API:-https://api.drawrace.ardenone.com}"
 KUBECONF="${KUBECONF:-}"
 NS="drawrace"
-ERROR_THRESHOLD=0.5  # max 50% error rate during chaos
+ERROR_THRESHOLD=0.05  # max 5% error rate during chaos
 
 echo "=== DrawRace Chaos Test ==="
 echo "API: $API"
@@ -69,8 +69,7 @@ k6 run \
   --summary-export=/tmp/drawrace-chaos-summary.json \
   --duration 120s \
   --vus 100 \
-  --iterations 60000 \
-  "$(dirname "$0")/submit.js" \
+  "$(dirname "$0")/chaos.js" \
   > /tmp/drawrace-chaos-k6.log 2>&1 &
 K6_PID=$!
 echo "  k6 PID: $K6_PID"

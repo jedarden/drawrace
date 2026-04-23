@@ -54,13 +54,16 @@ spec:
             arguments:
               parameters:
                 - name: health-url
-                  value: https://api.drawrace.example/v1/health
+                  value: https://api.drawrace.ardenone.com/v1/health
         - - name: pages-publish
             template: wrangler-pages
             arguments:
               parameters:
                 - name: project
-                  value: drawrace-pwa
+                  value: drawrace
+              artifacts:
+                - name: src
+                  from: "{{steps.checkout.outputs.artifacts.src}}"
 
     - name: checkout
       inputs:
@@ -184,12 +187,24 @@ spec:
       inputs:
         parameters:
           - name: project
+        artifacts:
+          - name: src
+            path: /src
       container:
         image: node:20-alpine
         command: [sh, -c]
         args:
           - |
             set -ex
-            npm install -g wrangler
+            apk add --no-cache git
+            npm install -g pnpm@10 wrangler
             cd /src
-            wrangler pages deploy ./dist --project-name={{inputs.parameters.project}}
+            pnpm install --frozen-lockfile
+            pnpm --filter @drawrace/web build
+            wrangler pages deploy apps/web/dist --project-name={{inputs.parameters.project}}
+        env:
+          - name: CLOUDFLARE_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: drawrace-cloudflare
+                key: api-token

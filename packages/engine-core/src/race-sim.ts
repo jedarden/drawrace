@@ -104,7 +104,14 @@ export class RaceSim {
     }
 
     // Wheel vertices → physics body
-    const wv = wheelVertices;
+    // Strip trailing duplicate to prevent degenerate triangle in fan decomposition
+    const wv = wheelVertices.length > 1 &&
+      Math.hypot(
+        wheelVertices[0].x - wheelVertices[wheelVertices.length - 1].x,
+        wheelVertices[0].y - wheelVertices[wheelVertices.length - 1].y,
+      ) < 1e-6
+      ? wheelVertices.slice(0, -1)
+      : wheelVertices;
     const wcX = wv.reduce((s, v) => s + v.x, 0) / wv.length;
     const wcY = wv.reduce((s, v) => s + v.y, 0) / wv.length;
     const wheelRadius = Math.max(...wv.map((v) => Math.hypot(v.x - wcX, v.y - wcY)));

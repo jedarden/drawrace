@@ -24,6 +24,10 @@ interface RaceScreenProps {
 
 type RacePhase = "countdown" | "racing" | "done";
 
+// Collision detection thresholds
+const COLLISION_VY_THRESHOLD = 0.5; // m/s vertical velocity change
+const COLLISION_COOLDOWN_TICKS = 15; // ~250ms at 60Hz
+
 export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const phaseRef = useRef<RacePhase>("countdown");
@@ -64,7 +68,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
       particlesRef.current = particles;
 
       const physDraw = { ...wheelDraw, vertices: playerVerts };
-      const render = createRenderer(canvas, track, physDraw);
+      const renderer = createRenderer(canvas, track, physDraw);
       const ghostWheelPaths = ghosts.map((g) => createGhostWheelPath(g.wheelVertices));
       const perf = getPerformanceManager();
       const sound = getSoundManager();
@@ -74,7 +78,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
       const initSnap = sim.snapshot();
       prevWheelPosRef.current = { x: initSnap.wheel.x, y: initSnap.wheel.y };
       const initGhosts = ghostSims.map((gs, i) => ({ snapshot: gs.snapshot(), wheelPath: ghostWheelPaths[i] }));
-      render(initSnap, initGhosts, particles, 3);
+      renderer.render(initSnap, initGhosts, particles, 3);
 
       let countdownTick = 0;
       const COUNTDOWN_TICKS = 180;
@@ -85,6 +89,10 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
       let lastTime = performance.now();
       let accumTime = 0;
       let maxObservedSpeed = 1;
+
+      // Collision detection state
+      let prevWheelY = initSnap.wheel.y;
+      let collisionCooldown = 0;
 
       function loop() {
         if (cancelled) return;
@@ -98,7 +106,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
           const snap = sim.snapshot();
           const ghostSnaps = ghostSims.map((gs, i) => ({ snapshot: gs.snapshot(), wheelPath: ghostWheelPaths[i] }));
           particles.update(1 / 60);
-          render(snap, ghostSnaps, particles, countdownRef.current);
+          renderer.render(snap, ghostSnaps, particles, countdownRef.current);
 
           countdownTick++;
           const newCountdown = 3 - Math.floor(countdownTick / 60);
@@ -135,14 +143,30 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
 
           const snap = sim.snapshot();
 
-          // Compute wheel speed from position delta (SimBody has no vx/vy)
+          // Telemetry log every ~5 seconds (300 ticks at 60Hz)
+          if (snap.tick % 300 === 0 && snap.tick > 0) {
+            console.log(`[RACE] tick=${snap.tick} pos=(${snap.wheel.x.toFixed(1)}, ${snap.wheel.y.toFixed(1)}) finished=${snap.finished}`);
+          }
+
+          // Compute wheel speed from position delta
           const dx = snap.wheel.x - prevWheelPosRef.current.x;
           const dy = snap.wheel.y - prevWheelPosRef.current.y;
-          const speed = Math.hypot(dx, dy) * 60; // approx m/s
+          const speed = Math.hypot(dx, dy) * 60;
           prevWheelPosRef.current = { x: snap.wheel.x, y: snap.wheel.y };
 
           if (speed > maxObservedSpeed) maxObservedSpeed = speed;
           sound.updateMotorSpeed(speed / maxObservedSpeed);
+
+          // Collision detection: detect sudden Y-velocity changes (bounces)
+          if (collisionCooldown > 0) collisionCooldown--;
+          const vy = snap.wheel.y - prevWheelY;
+          if (collisionCooldown === 0 && Math.abs(vy) > COLLISION_VY_THRESHOLD) {
+            renderer.triggerInkFlash(snap.wheel.x, snap.wheel.y);
+            renderer.triggerCameraShake(Math.min(6, Math.abs(vy) * 8));
+            sound.playBounce();
+            collisionCooldown = COLLISION_COOLDOWN_TICKS;
+          }
+          prevWheelY = snap.wheel.y;
 
           // Filter ghosts based on performance
           const maxGhosts = perf.maxGhosts;
@@ -162,7 +186,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
           }
 
           particles.update(1 / 60);
-          render(snap, activeGhostSnaps, particles);
+          renderer.render(snap, activeGhostSnaps, particles);
 
           if (snap.finished && !confettiTriggeredRef.current) {
             confettiTriggeredRef.current = true;

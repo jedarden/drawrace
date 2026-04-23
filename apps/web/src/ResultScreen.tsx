@@ -181,9 +181,10 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
           padding: "14px 48px",
           fontSize: 18,
           fontWeight: 600,
+          fontFamily: "inherit",
           backgroundColor: "#D94F3A",
-          color: "white",
-          border: "none",
+          color: "#2B2118",
+          border: "2px solid #2B2118",
           borderRadius: 8,
           cursor: "pointer",
         }}

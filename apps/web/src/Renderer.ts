@@ -37,8 +37,6 @@ let assetsPreloaded = false;
 
 export async function preloadAssets(): Promise<void> {
   if (assetsPreloaded) return;
-  // Actual asset creation deferred to first createRenderer call where we have a ctx.
-  // This async stub satisfies callers that await preloadAssets().
   assetsPreloaded = true;
 }
 
@@ -94,9 +92,19 @@ function ensureAssets(ctx: CanvasRenderingContext2D): void {
   }
 }
 
+// Ink-flash effect (§Graphics & UX 8: collision impulse > threshold)
+interface InkFlash {
+  x: number;
+  y: number;
+  age: number;
+  maxAge: number;
+}
+
 interface Camera {
   x: number;
   y: number;
+  vx: number;
+  vy: number;
   width: number;
   height: number;
 }
@@ -151,6 +159,29 @@ function buildWobblePath(
   return path;
 }
 
+// Pre-render ink-blot sprite (12px)
+function createInkBlotSprite(): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = 24;
+  c.height = 24;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "rgba(43, 33, 24, 0.7)";
+  ctx.beginPath();
+  // Irregular ink blot using seeded offsets
+  const rng = mulberry32(9999);
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const r = 8 + (rng() - 0.5) * 6;
+    const x = 12 + Math.cos(angle) * r;
+    const y = 12 + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  return c;
+}
+
 export function createRenderer(
   canvas: HTMLCanvasElement,
   track: TrackDef,
@@ -163,7 +194,7 @@ export function createRenderer(
 
   ensureAssets(ctx);
 
-  const camera: Camera = { x: 0, y: 0, width, height };
+  const camera: Camera = { x: 0, y: 0, vx: 0, vy: 0, width, height };
 
   const terrainScreenPts = track.terrain.map(([x, y]) => ({
     wx: x,
@@ -183,6 +214,12 @@ export function createRenderer(
 
   // Wobble cosmetic stroke (§Graphics & UX 4)
   const wobblePath = buildWobblePath(verts, fnvHash("wobble"));
+
+  // Pre-rendered ink blot sprite
+  const inkBlotSprite = createInkBlotSprite();
+
+  // Ink-flash pool
+  const inkFlashes: InkFlash[] = [];
 
   // Pre-compute grass tuft positions (seeded, deterministic)
   const tuftPositions: Array<{ wx: number; wy: number; spriteIdx: number }> = [];
@@ -208,6 +245,11 @@ export function createRenderer(
     }
   }
 
+  // Cache sky gradient
+  const skyGradient = ctx.createLinearGradient(0, 0, 0, height);
+  skyGradient.addColorStop(0, "#C9DDE8");
+  skyGradient.addColorStop(1, "#F4EAD5");
+
   function worldToScreen(wx: number, wy: number): { sx: number; sy: number } {
     return {
       sx: wx * PPM - camera.x,
@@ -215,18 +257,56 @@ export function createRenderer(
     };
   }
 
-  function updateCamera(playerX: number, playerY: number) {
-    const targetSX = playerX * PPM - width * 0.35;
-    const targetSY = -playerY * PPM - height * 0.6;
-    camera.x += (targetSX - camera.x) * 0.08;
-    camera.y += (targetSY - camera.y) * 0.05;
+  // Spring-based camera with look-ahead (§Graphics & UX 8: k=8, d=1.2)
+  let prevPlayerX = 0;
+  let prevPlayerY = 0;
+  const SPRING_K = 8;
+  const SPRING_D = 1.2;
+  // In reduced-motion, use simple lerp (same as before)
+  const LERP_X = 0.08;
+  const LERP_Y = 0.05;
+
+  function updateCamera(playerX: number, playerY: number, dtSec: number) {
+    // Estimate velocity for look-ahead
+    const vx = (playerX - prevPlayerX) / Math.max(dtSec, 1 / 60);
+    const vy = (playerY - prevPlayerY) / Math.max(dtSec, 1 / 60);
+    prevPlayerX = playerX;
+    prevPlayerY = playerY;
+
+    // Look-ahead: offset target by velocity projection
+    const lookAheadX = reducedMotion ? 0 : vx * 0.08 * width * 0.15;
+    const lookAheadY = reducedMotion ? 0 : vy * 0.02 * height * 0.6;
+
+    const targetSX = playerX * PPM - width * 0.35 + lookAheadX;
+    const targetSY = -playerY * PPM - height * 0.6 + lookAheadY;
+
+    if (reducedMotion) {
+      // Simple lerp for reduced-motion (deterministic for snapshots)
+      camera.x += (targetSX - camera.x) * LERP_X;
+      camera.y += (targetSY - camera.y) * LERP_Y;
+    } else {
+      // Spring model: F = -k*(pos-target) - d*vel
+      const fx = -SPRING_K * (camera.x - targetSX) - SPRING_D * camera.vx;
+      const fy = -SPRING_K * (camera.y - targetSY) - SPRING_D * camera.vy;
+      camera.vx += fx * dtSec;
+      camera.vy += fy * dtSec;
+      camera.x += camera.vx * dtSec;
+      camera.y += camera.vy * dtSec;
+    }
+  }
+
+  function triggerInkFlash(worldX: number, worldY: number) {
+    const { sx, sy } = worldToScreen(worldX, worldY);
+    inkFlashes.push({
+      x: sx,
+      y: sy,
+      age: 0,
+      maxAge: 80,
+    });
   }
 
   function drawSky() {
-    const grad = ctx.createLinearGradient(0, 0, 0, height);
-    grad.addColorStop(0, "#C9DDE8");
-    grad.addColorStop(1, "#F4EAD5");
-    ctx.fillStyle = grad;
+    ctx.fillStyle = skyGradient;
     ctx.fillRect(0, 0, width, height);
   }
 
@@ -470,7 +550,6 @@ export function createRenderer(
     if (countdown < 0) return;
     const text = countdown === 0 ? "GO!" : String(countdown);
 
-    // Track when each new countdown number appears for animation
     if (countdown !== lastCountdownVal) {
       lastCountdownVal = countdown;
       countdownStartTime = tickMs;
@@ -540,80 +619,135 @@ export function createRenderer(
     ctx.restore();
   }
 
+  function drawInkFlashes(dtMs: number) {
+    for (let i = inkFlashes.length - 1; i >= 0; i--) {
+      const f = inkFlashes[i];
+      f.age += dtMs;
+      if (f.age >= f.maxAge) {
+        inkFlashes.splice(i, 1);
+        continue;
+      }
+
+      // easeOutExpo fade
+      const t = f.age / f.maxAge;
+      const alpha = 1 - Math.pow(2, -10 * (1 - t));
+      const scale = 0.5 + t * 0.8;
+
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 0.7 * (1 - alpha));
+      ctx.translate(f.x, f.y);
+      ctx.scale(scale, scale);
+      ctx.drawImage(inkBlotSprite, -12, -12, 24, 24);
+      ctx.restore();
+    }
+  }
+
   const REAR_WHEEL_RADIUS = 0.35;
 
   // Camera shake state
   let shakeAmount = 0;
-  let shakeDecay = 0.9;
+  const shakeDecay = 0.9;
+  let shakeRng = mulberry32(42);
 
-  return function render(
-    snapshot: RaceSnapshot,
-    ghosts: Array<{ snapshot: RaceSnapshot; wheelPath: Path2D; name?: string }>,
-    particles: ParticleSystem,
-    countdown?: number
-  ) {
-    updateCamera(snapshot.wheel.x, snapshot.wheel.y);
+  let lastFrameTime = 0;
 
-    ctx.save();
-    // Camera shake
-    if (shakeAmount > 0.5 && !reducedMotion) {
-      const sx = (Math.random() - 0.5) * shakeAmount;
-      const sy = (Math.random() - 0.5) * shakeAmount;
-      ctx.translate(sx, sy);
-      shakeAmount *= shakeDecay;
-    } else {
-      shakeAmount = 0;
-    }
+  return {
+    render(
+      snapshot: RaceSnapshot,
+      ghosts: Array<{ snapshot: RaceSnapshot; wheelPath: Path2D; name?: string }>,
+      particles: ParticleSystem,
+      countdown?: number
+    ) {
+      const now = typeof performance !== "undefined" ? performance.now() : 0;
+      const dtSec = lastFrameTime === 0 ? 1 / 60 : (now - lastFrameTime) / 1000;
+      lastFrameTime = now;
+      const dtMs = dtSec * 1000;
 
-    drawSky();
-    drawFarHills();
-    drawNearHills();
-    drawTerrain();
-    drawFinishLine();
+      updateCamera(snapshot.wheel.x, snapshot.wheel.y, dtSec);
 
-    // Dust particles behind player (layer 5, behind wheel)
-    particles.renderDust(ctx);
+      ctx.save();
+      // Camera shake (deterministic jitter)
+      if (shakeAmount > 0.5 && !reducedMotion) {
+        const sx = (shakeRng() - 0.5) * shakeAmount;
+        const sy = (shakeRng() - 0.5) * shakeAmount;
+        ctx.translate(sx, sy);
+        shakeAmount *= shakeDecay;
+      } else {
+        shakeAmount = 0;
+      }
 
-    // Ghosts (layer 4)
-    for (const ghost of ghosts) {
-      drawWheel(ghost.snapshot.wheel, ghost.wheelPath, null, "#8896A3", 0.6);
-      drawChassis(ghost.snapshot.chassis, 0.6);
-      drawRearWheel(ghost.snapshot.rearWheel, 0.6);
+      drawSky();
+      drawFarHills();
+      drawNearHills();
+      drawTerrain();
+      drawFinishLine();
 
-      // Ghost name tag (floating label above)
-      if (ghost.name) {
-        const gsx = ghost.snapshot.wheel.x * PPM - camera.x;
-        const gsy = -ghost.snapshot.wheel.y * PPM - camera.y;
-        if (gsx > -50 && gsx < width + 50 && gsy > -50 && gsy < height + 50) {
-          ctx.save();
-          ctx.globalAlpha = 0.7;
-          ctx.fillStyle = "#2B2118";
-          ctx.font = '14px "Caveat", system-ui, sans-serif';
-          ctx.textAlign = "center";
-          ctx.textBaseline = "bottom";
-          ctx.fillText(ghost.name, gsx, gsy - 30);
-          ctx.restore();
+      // Dust particles behind player (layer 5, behind wheel)
+      particles.renderDust(ctx);
+
+      // Ghosts (layer 4)
+      for (const ghost of ghosts) {
+        drawWheel(ghost.snapshot.wheel, ghost.wheelPath, null, "#8896A3", 0.6);
+        drawChassis(ghost.snapshot.chassis, 0.6);
+        drawRearWheel(ghost.snapshot.rearWheel, 0.6);
+
+        // Ghost name tag (floating label with ink stroke behind for readability)
+        if (ghost.name) {
+          const gsx = ghost.snapshot.wheel.x * PPM - camera.x;
+          const gsy = -ghost.snapshot.wheel.y * PPM - camera.y;
+          if (gsx > -50 && gsx < width + 50 && gsy > -50 && gsy < height + 50) {
+            ctx.save();
+            ctx.globalAlpha = 0.7;
+            ctx.font = '14px "Caveat", system-ui, sans-serif';
+            ctx.textAlign = "center";
+            ctx.textBaseline = "bottom";
+            // Ink stroke behind text for readability (§Graphics & UX 7)
+            ctx.strokeStyle = "#F4EAD5";
+            ctx.lineWidth = 3;
+            ctx.lineJoin = "round";
+            ctx.strokeText(ghost.name, gsx, gsy - 30);
+            ctx.fillStyle = "#2B2118";
+            ctx.fillText(ghost.name, gsx, gsy - 30);
+            ctx.restore();
+          }
         }
       }
-    }
 
-    // Player (layer 5)
-    drawRearWheel(snapshot.rearWheel, 1);
-    drawWheel(snapshot.wheel, wheelPath, wobblePath, "#D94F3A", 1);
-    drawChassis(snapshot.chassis, 1);
+      // Player (layer 5)
+      drawRearWheel(snapshot.rearWheel, 1);
+      drawWheel(snapshot.wheel, wheelPath, wobblePath, "#D94F3A", 1);
+      drawChassis(snapshot.chassis, 1);
 
-    // Confetti / FX overlay (layer 6)
-    particles.renderConfetti(ctx);
+      // Ink-flash FX (layer 6, behind confetti)
+      if (!reducedMotion) {
+        drawInkFlashes(dtMs);
+      }
 
-    // HUD (layer 7)
-    drawHUD(snapshot.elapsedMs);
+      // Confetti / FX overlay (layer 6)
+      particles.renderConfetti(ctx);
 
-    // Countdown overlay
-    if (countdown !== undefined && countdown >= 0) {
-      drawCountdown(countdown, snapshot.elapsedMs);
-    }
+      // HUD (layer 7)
+      drawHUD(snapshot.elapsedMs);
 
-    ctx.restore();
+      // Countdown overlay
+      if (countdown !== undefined && countdown >= 0) {
+        drawCountdown(countdown, snapshot.elapsedMs);
+      }
+
+      ctx.restore();
+    },
+
+    triggerInkFlash(worldX: number, worldY: number) {
+      if (!reducedMotion) {
+        triggerInkFlash(worldX, worldY);
+      }
+    },
+
+    triggerCameraShake(intensity: number) {
+      if (!reducedMotion) {
+        shakeAmount = Math.max(shakeAmount, intensity);
+      }
+    },
   };
 }
 

@@ -17,20 +17,24 @@ export class PerformanceManager {
       this.frameTimes.shift();
     }
 
-    if (this.frameTimes.length < 30) return;
+    if (this.frameTimes.length < 20) return;
 
-    const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
+    // Use recent average (last 20 frames) for faster reaction
+    const recent = this.frameTimes.slice(-20);
+    const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
 
-    if (avg > 33 && !this.reducedGhosts) {
+    // Thresholds calibrated for 30fps floor on Snapdragon 665 / Redmi 9:
+    // 30fps = 33ms/frame. We degrade well before hitting that.
+    if (avg > 28 && !this.reducedGhosts) {
       this.reducedGhosts = true;
     }
-    if (avg > 25 && this.particleState === "full") {
+    if (avg > 22 && this.particleState === "full") {
       this.particleState = "reduced";
     }
     if (avg > 30 && this.particleState === "reduced") {
       this.particleState = "none";
     }
-    if (avg > 30 && this.simHz === 60) {
+    if (avg > 33 && this.simHz === 60) {
       this.simHz = 30;
     }
   }

@@ -141,6 +141,18 @@ export function processDraw(
     y: p.y - cy,
   }));
 
+  // closeLoop appends the first point to close the polygon; strip the
+  // duplicate to avoid a degenerate zero-area triangle in the physics fan decomposition.
+  if (
+    bodyLocal.length > 1 &&
+    Math.hypot(
+      bodyLocal[0].x - bodyLocal[bodyLocal.length - 1].x,
+      bodyLocal[0].y - bodyLocal[bodyLocal.length - 1].y,
+    ) < 1e-6
+  ) {
+    bodyLocal.pop();
+  }
+
   const convexPieces = convexDecompose(bodyLocal);
 
   return {

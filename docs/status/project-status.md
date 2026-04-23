@@ -76,13 +76,17 @@
 - No WCAG regressions
 - Load test passes thresholds (p95 < 400ms, error rate < 1%)
 
-### ⏸️ Phase 5: Launch — Code Complete, Blocked on Phase 4
+### ✅ Phase 5: Launch — Code Complete
 
-Code deliverables already in place:
+Code deliverables:
 - ✅ PWA install instructions on landing screen
 - ✅ Platform-specific guidance (iOS, Android, Desktop)
+- ✅ `apps/web/wrangler.toml` — Cloudflare Pages config (`pages_build_output_dir = "dist"`)
+- ✅ `wrangler-pages` Argo template — installs pnpm, builds web app, deploys `apps/web/dist` to CF Pages
+- ✅ `CLOUDFLARE_API_TOKEN` injected from `drawrace-cloudflare` K8s sealed-secret
+- ✅ CI artifact wiring — checkout src passed to pages-publish step
 
-Remaining operational: DNS cutover, blog post, 48h on-call watch.
+Remaining operational: DNS CNAME cutover to `drawrace.pages.dev`, public announcement, 24h on-call watch.
 
 ## CI Test Matrix
 

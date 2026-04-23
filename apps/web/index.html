@@ -28,6 +28,25 @@
       background-color: #F4EAD5;
       font-family: "Caveat", "Patrick Hand", "Comic Sans MS", cursive, system-ui, sans-serif;
     }
+    /* WCAG AA focus indicators */
+    :focus-visible {
+      outline: 3px solid #2B2118;
+      outline-offset: 2px;
+    }
+    :focus:not(:focus-visible) {
+      outline: none;
+    }
+    /* Ensure touch targets meet 44x44 minimum */
+    button, [role="switch"], input[type="text"], textarea {
+      min-height: 44px;
+    }
+    /* Reduced motion: disable transitions */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+      }
+    }
   </style>
 </head>
 <body>

@@ -231,8 +231,8 @@ export function LandingScreen({ onStart, dismissed }: LandingScreenProps) {
                   fontSize: 16,
                   fontWeight: 600,
                   backgroundColor: inviteState === "submitting" ? "#6E5F48" : "#D94F3A",
-                  color: "white",
-                  border: "none",
+                  color: "#2B2118",
+                  border: "2px solid #2B2118",
                   borderRadius: 8,
                   cursor: inviteState === "submitting" || !inviteCode.trim() ? "not-allowed" : "pointer",
                   opacity: inviteState === "submitting" || !inviteCode.trim() ? 0.7 : 1,
@@ -300,7 +300,7 @@ export function LandingScreen({ onStart, dismissed }: LandingScreenProps) {
                   border: `2px solid ${feedbackCategory === cat ? "#D94F3A" : "#2B2118"}`,
                   borderRadius: 8,
                   backgroundColor: feedbackCategory === cat ? "#D94F3A" : "transparent",
-                  color: feedbackCategory === cat ? "white" : "#2B2118",
+                  color: "#2B2118",
                   cursor: "pointer",
                 }}
               >
@@ -350,8 +350,8 @@ export function LandingScreen({ onStart, dismissed }: LandingScreenProps) {
                   : feedbackState === "error"
                   ? "#A13A2E"
                   : "#D94F3A",
-              color: "white",
-              border: "none",
+              color: "#2B2118",
+              border: "2px solid #2B2118",
               borderRadius: 8,
               cursor:
                 feedbackState === "submitting" || !feedbackText.trim()

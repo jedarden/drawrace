@@ -235,7 +235,7 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
           onClick={handleClear}
           aria-label="Clear drawing"
           style={{
-            padding: "10px 24px",
+            padding: "12px 24px",
             fontSize: 16,
             backgroundColor: "#2B2118",
             color: "#F4EAD5",
@@ -251,11 +251,13 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
           disabled={!canRace}
           aria-label={canRace ? "Start race" : "Draw a wheel first to enable race"}
           style={{
-            padding: "10px 24px",
+            padding: "12px 24px",
             fontSize: 16,
+            fontWeight: 600,
+            fontFamily: "inherit",
             backgroundColor: canRace ? "#D94F3A" : "#999",
-            color: "white",
-            border: "none",
+            color: canRace ? "#2B2118" : "#666",
+            border: canRace ? "2px solid #2B2118" : "none",
             borderRadius: 8,
             cursor: canRace ? "pointer" : "not-allowed",
           }}
