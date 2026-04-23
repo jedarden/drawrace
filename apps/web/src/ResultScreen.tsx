@@ -83,7 +83,7 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
         justifyContent: "center",
         height: "100%",
         backgroundColor: "#F4EAD5",
-        fontFamily: "system-ui, sans-serif",
+        fontFamily: '"Caveat", "Patrick Hand", "Comic Sans MS", cursive, system-ui, sans-serif',
         color: "#2B2118",
         gap: 16,
         padding: 24,
@@ -95,12 +95,12 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
       </div>
 
       {online && verdict && verdict.status === "pending_validation" && (
-        <div style={{ fontSize: 14, opacity: 0.6 }} role="status" aria-live="polite">
+        <div style={{ fontSize: 14, color: "#6E5F48" }} role="status" aria-live="polite">
           Verifying time...
         </div>
       )}
       {online && verdict && verdict.status === "accepted" && (
-        <div style={{ fontSize: 14, color: "#7CA05C" }} role="status" aria-live="polite">
+        <div style={{ fontSize: 14, color: "#4A7C59" }} role="status" aria-live="polite">
           Rank #{verdict.rank} — {verdict.bucket} {verdict.is_pb ? "(New Personal Best!)" : ""}
         </div>
       )}
@@ -110,7 +110,7 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
         </div>
       )}
 
-      <div style={{ fontSize: 16, opacity: 0.7 }} role="status" aria-live="polite">
+      <div style={{ fontSize: 16, color: "#6E5F48" }} role="status" aria-live="polite">
         {beaten > 0
           ? `Beat ${beaten} of ${ghosts.length} ghosts`
           : ghosts.length > 0
@@ -162,7 +162,7 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
             }}
           >
             <span>{c.beat ? "Beat" : "Lost to"} {c.name}</span>
-            <span style={{ fontFamily: "monospace", color: c.beat ? "#7CA05C" : "#D94F3A" }}>
+            <span style={{ fontFamily: "monospace", color: c.beat ? "#4A7C59" : "#6E5F48" }}>
               {formatTime(c.ghostTime)}
             </span>
           </li>

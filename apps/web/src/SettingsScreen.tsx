@@ -170,7 +170,7 @@ export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) 
                 boxSizing: "border-box",
               }}
             />
-            <p style={{ margin: "4px 0 0 0", fontSize: 12, opacity: 0.7 }}>
+            <p style={{ margin: "4px 0 0 0", fontSize: 12, color: "#6E5F48" }}>
               Saved automatically when you leave the field
             </p>
           </div>
@@ -187,7 +187,7 @@ export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) 
                   padding: "12px",
                   fontSize: 16,
                   fontWeight: 600,
-                  backgroundColor: "#4A7C59",
+                  backgroundColor: "#3D6B4A",
                   color: "#F4EAD5",
                   border: "none",
                   borderRadius: 8,
@@ -196,7 +196,7 @@ export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) 
               >
                 Show Install Instructions
               </button>
-              <p style={{ margin: "8px 0 0 0", fontSize: 12, opacity: 0.7 }}>
+              <p style={{ margin: "8px 0 0 0", fontSize: 12, color: "#6E5F48" }}>
                 Learn how to install DrawRace as an app on your device
               </p>
             </div>
@@ -224,7 +224,7 @@ export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) 
               {displayState === "clearing" && "Clearing..."}
               {displayState === "cleared" && "Data Cleared!"}
             </button>
-            <p style={{ margin: "8px 0 0 0", fontSize: 12, opacity: 0.7 }}>
+            <p style={{ margin: "8px 0 0 0", fontSize: 12, color: "#6E5F48" }}>
               This will clear your display name, settings, and all cached data
             </p>
           </div>
@@ -254,7 +254,7 @@ function SettingRow({ label, description, enabled, onToggle }: SettingRowProps) 
     >
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: "#2B2118" }}>{label}</div>
-        <div style={{ fontSize: 13, opacity: 0.7 }}>{description}</div>
+        <div style={{ fontSize: 13, color: "#6E5F48" }}>{description}</div>
       </div>
       <button
         onClick={onToggle}

@@ -183,7 +183,7 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
         justifyContent: "center",
         height: "100%",
         backgroundColor: "#F4EAD5",
-        fontFamily: "system-ui, sans-serif",
+        fontFamily: '"Caveat", "Patrick Hand", "Comic Sans MS", cursive, system-ui, sans-serif',
         color: "#2B2118",
         gap: 16,
       }}
@@ -265,7 +265,7 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
           Race!
         </button>
       </div>
-      <div style={{ fontSize: 14, opacity: 0.7 }} role="status" aria-live="polite">
+      <div style={{ fontSize: 14, color: "#6E5F48" }} role="status" aria-live="polite">
         {canRace ? "Wheel ready!" : "Draw a complete wheel shape (minimum size and length required)"}
       </div>
     </div>
