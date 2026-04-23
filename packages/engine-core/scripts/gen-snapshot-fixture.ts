@@ -6,10 +6,11 @@
  * 1. Runs a deterministic race simulation
  * 2. Records all frames
  * 3. Extracts snapshot frames at deterministic ticks
- * 4. Writes to fixtures/snapshot-fixture.json
+ * 4. Includes the finish frame
+ * 5. Writes to fixtures/snapshot-fixture.json
  */
 
-import { writeFileSync } from "fs";
+import { writeFileSync, readFileSync } from "fs";
 import { join } from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
@@ -19,23 +20,19 @@ import { extractSnapshotFrames, type ReplayRecording } from "../src/replay-drive
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Load the actual hills-01 track from the public directory
+const trackJsonPath = join(__dirname, "..", "..", "..", "apps", "web", "public", "tracks", "hills-01.json");
+const trackData = JSON.parse(readFileSync(trackJsonPath, "utf-8"));
+
+// Use first 14 terrain points (x=0..39) with finish at x=33.
+// This gives a ~10s race (600+ ticks) so all 5 checkpoints (0,30,120,300,finish)
+// produce distinct frames.
 const TEST_TRACK = {
   id: "hills-01",
-  world: { gravity: [0, 10], pixelsPerMeter: 30 },
-  terrain: [
-    [0, 5],
-    [5, 5],
-    [10, 5.3],
-    [15, 5.3],
-    [18, 5.8],
-    [22, 5.8],
-    [25, 5],
-    [30, 5],
-    [35, 5.2],
-    [40, 5.2],
-  ],
-  start: { pos: [1.5, 3.5], facing: 1 },
-  finish: { pos: [39, 3.5], width: 0.2 },
+  world: trackData.world,
+  terrain: trackData.terrain.slice(0, 14),
+  start: trackData.start,
+  finish: { pos: [33.0, -0.1], width: 0.2 },
 };
 
 function makeCircle(
@@ -101,12 +98,20 @@ frames.push({
   finished: false,
 });
 
-let finishTick: number | null = null;
+let finishFrame: typeof frames[0] | null = null;
 
+// Run simulation until finish or max ticks
 while (!sim.isFinished() && frames.length < 60 * 180) {
   const snap = sim.step();
-  if (snap.finished && finishTick === null) {
-    finishTick = snap.tick;
+  if (snap.finished && finishFrame === null) {
+    finishFrame = {
+      wheel: { ...snap.wheel },
+      chassis: { ...snap.chassis },
+      rearWheel: { ...snap.rearWheel },
+      tick: snap.tick,
+      elapsedMs: snap.elapsedMs,
+      finished: true,
+    };
   }
   frames.push({
     wheel: { ...snap.wheel },
@@ -118,15 +123,27 @@ while (!sim.isFinished() && frames.length < 60 * 180) {
   });
 }
 
-// Create full recording
-const fullRecording: ReplayRecording = {
+// Extract 5 snapshot frames at deterministic ticks
+const SNAPSHOT_TICKS = [0, 30, 120, 300];
+const snapshotFrames = SNAPSHOT_TICKS.map((tick) => {
+  for (const frame of frames) {
+    if (frame.tick >= tick) return frame;
+  }
+  return frames[frames.length - 1];
+});
+
+// Append the finish frame (guaranteed distinct from tick-300)
+if (finishFrame) {
+  snapshotFrames.push(finishFrame);
+} else {
+  snapshotFrames.push(frames[frames.length - 1]);
+}
+
+const snapshotRecording: ReplayRecording = {
   track: TEST_TRACK,
   wheelDraw,
-  frames,
+  frames: snapshotFrames,
 };
-
-// Extract snapshot frames
-const snapshotRecording = extractSnapshotFrames(fullRecording);
 
 // Write both full and snapshot fixtures
 const fixturesDir = join(__dirname, "..", "fixtures");

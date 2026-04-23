@@ -13,12 +13,14 @@ const SNAPSHOTS_DIR = join(__dirname, "snapshots");
 const TOLERANCE = 0.04;
 const MAX_DIFF_AREA = 300;
 const CANVAS_WIDTH = 390;
-const CANVAS_HEIGHT = 844;
+const CANVAS_HEIGHT = 720;
 
 const UPDATE = !!process.env.SNAPSHOT_UPDATE;
 
 test.describe("Layer 3: Rendering Snapshot Tests", () => {
   test.beforeEach(async ({ page }) => {
+    // Enforce reduced motion for deterministic output (disables confetti, parallax, etc.)
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto("/snapshot-test.html");
     await page.waitForFunction(() => (window as any).__drawraceReady === true, { timeout: 15000 });
 
