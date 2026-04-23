@@ -39,7 +39,8 @@ export class ParticleSystem {
     const dc = document.createElement("canvas");
     dc.width = 16;
     dc.height = 16;
-    const dctx = dc.getContext("2d")!;
+    const dctx = dc.getContext("2d");
+    if (!dctx) return;
     const grad = dctx.createRadialGradient(8, 8, 0, 8, 8, 8);
     grad.addColorStop(0, "rgba(214, 192, 154, 0.7)");
     grad.addColorStop(1, "rgba(214, 192, 154, 0)");

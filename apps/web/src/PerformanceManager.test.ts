@@ -20,9 +20,7 @@ const mockMatchMedia = (matches: boolean) => {
 describe("PerformanceManager (Layer 1)", () => {
   beforeEach(() => {
     mockMatchMedia(false);
-    // Reset singleton
-    const mod = require("./PerformanceManager.js");
-    // Access the module-level instance via re-import
+    vi.resetModules();
   });
 
   it("starts at full quality and 60Hz", async () => {

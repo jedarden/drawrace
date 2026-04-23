@@ -58,9 +58,13 @@ export class PerformanceManager {
 
   reset(): void {
     this.frameTimes = [];
-    this.particleState = "full";
     this.reducedGhosts = false;
     this.simHz = 60;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      this.particleState = "none";
+    } else {
+      this.particleState = "full";
+    }
   }
 }
 

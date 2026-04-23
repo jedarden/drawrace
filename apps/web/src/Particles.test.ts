@@ -111,12 +111,20 @@ describe("ParticleSystem (Layer 1)", () => {
     const ps = new ParticleSystem();
     ps.emitDust(100, 200, 5.0);
 
-    const canvas = document.createElement("canvas");
-    canvas.width = 400;
-    canvas.height = 800;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = {
+      save: vi.fn(),
+      restore: vi.fn(),
+      globalAlpha: 1,
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+      beginPath: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      fillStyle: "",
+    } as unknown as CanvasRenderingContext2D;
 
-    // Should not throw
     expect(() => {
       ps.renderDust(ctx);
       ps.renderConfetti(ctx);
@@ -149,10 +157,19 @@ describe("ParticleSystem reduced-motion (Layer 1)", () => {
     const ps = new ParticleSystem();
     ps.emitDust(100, 200, 5.0);
 
-    const canvas = document.createElement("canvas");
-    canvas.width = 400;
-    canvas.height = 800;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = {
+      save: vi.fn(),
+      restore: vi.fn(),
+      globalAlpha: 1,
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+      beginPath: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      fillStyle: "",
+    } as unknown as CanvasRenderingContext2D;
 
     expect(() => ps.renderDust(ctx)).not.toThrow();
   });
