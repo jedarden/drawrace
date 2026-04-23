@@ -9,7 +9,8 @@ export async function computeHmac(blob: ArrayBuffer): Promise<string> {
     false,
     ["sign"],
   );
-  const sig = await crypto.subtle.sign("HMAC", key, blob);
+  const data = blob.byteLength > 0 ? blob : new Uint8Array(0);
+  const sig = await crypto.subtle.sign("HMAC", key, data);
   const bytes = new Uint8Array(sig);
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0"))
