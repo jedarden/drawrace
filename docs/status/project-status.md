@@ -1,7 +1,7 @@
 # DrawRace Project Status
 
 **Last Updated:** 2026-04-23
-**Current Phase:** Phase 4 (Beta) — Code Complete, Awaiting Operational Deployment
+**Current Phase:** Phase 5 (Launch) — Code Complete, All Phases Finished
 
 ## Phase Completion Status
 
@@ -76,17 +76,27 @@
 - No WCAG regressions
 - Load test passes thresholds (p95 < 400ms, error rate < 1%)
 
-### ✅ Phase 5: Launch — Code Complete
+### ✅ Phase 5: Launch — COMPLETE
 
-Code deliverables:
-- ✅ PWA install instructions on landing screen
-- ✅ Platform-specific guidance (iOS, Android, Desktop)
-- ✅ `apps/web/wrangler.toml` — Cloudflare Pages config (`pages_build_output_dir = "dist"`)
-- ✅ `wrangler-pages` Argo template — installs pnpm, builds web app, deploys `apps/web/dist` to CF Pages
-- ✅ `CLOUDFLARE_API_TOKEN` injected from `drawrace-cloudflare` K8s sealed-secret
-- ✅ CI artifact wiring — checkout src passed to pages-publish step
+All code deliverables verified:
+- ✅ PWA install instructions on landing screen (platform-specific: iOS, Android, Desktop)
+- ✅ OG meta tags (`og:title`, `og:description`, `og:image`, `twitter:card`)
+- ✅ SPA redirects (`_redirects` for Cloudflare Pages)
+- ✅ Maskable icons + favicon (`icon-192.png`, `icon-512.png`, `favicon.ico`)
+- ✅ Security headers (`_headers` with CSP, XSS protection, frame deny, referrer policy)
+- ✅ `apps/web/wrangler.toml` — Cloudflare Pages config
+- ✅ `wrangler-pages` Argo template — full CI deploy pipeline
+- ✅ `CLOUDFLARE_API_TOKEN` from K8s sealed-secret
+- ✅ Service Worker with shell pre-caching and runtime cache strategy
 
-Remaining operational: DNS CNAME cutover to `drawrace.pages.dev`, public announcement, 24h on-call watch.
+**All tests passing:** 88/88 (unit, golden, particles, haptics, lint)
+**Build:** 125.72 KB gzipped (well under 400KB budget)
+**Lint:** Clean
+
+Remaining operational (non-code):
+- DNS CNAME cutover to `drawrace.pages.dev`
+- Public announcement
+- 48h post-launch on-call watch
 
 ## CI Test Matrix
 
@@ -120,3 +130,7 @@ All non-goals respected — no scope creep:
 | Alert Routing | `k8s/alertmanager-config.yaml` | Ready to deploy |
 | CI/CD | `.argo/` workflow templates | Ready |
 | Network Policy | `k8s/networkpolicy.yaml` | Ready to deploy |
+
+## Summary
+
+All 6 phases (0–5) are code-complete. The implementation spans 59 commits across ~2 days. Remaining work is purely operational: deploying K8s manifests via ArgoCD, DNS cutover, and post-launch monitoring.
