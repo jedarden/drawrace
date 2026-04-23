@@ -97,5 +97,7 @@ pub async fn post_feedback(
 
     let id: i64 = row.get("id");
 
+    metrics::counter!("drawrace_feedback_total", "category" => payload.category.clone()).increment(1);
+
     Ok((axum::http::StatusCode::CREATED, Json(FeedbackResponse { id })))
 }

@@ -16,11 +16,12 @@ async function drawWheel(page: import("@playwright/test").Page) {
   const centerX = box!.x + box!.width / 2;
   const centerY = box!.y + box!.height / 2;
   const radius = Math.min(box!.width, box!.height) * 0.3;
+  const startAngle = Math.PI * 1.5;
 
-  await page.mouse.move(centerX, centerY + radius);
+  await page.mouse.move(centerX + radius * Math.cos(startAngle), centerY + radius * Math.sin(startAngle));
   await page.mouse.down();
-  for (let i = 0; i <= 360; i += 20) {
-    const angle = (i * Math.PI) / 180;
+  for (let i = 0; i <= 360; i += 15) {
+    const angle = startAngle + (i * Math.PI) / 180;
     await page.mouse.move(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
   }
   await page.mouse.up();

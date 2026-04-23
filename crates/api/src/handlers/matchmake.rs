@@ -146,6 +146,11 @@ pub async fn get_matchmake(
     )
     .await?;
 
+    // Track bucket misses for dashboard alerting
+    if ghosts.len() < 3 {
+        metrics::counter!("drawrace_matchmake_bucket_miss_total", "target_bucket" => target_bucket.clone()).increment(1);
+    }
+
     // Fetch player's shadow ghost (their PB on this track)
     let shadow_ghost = fetch_shadow_ghost(&state, track_id, query.player_uuid).await?;
 

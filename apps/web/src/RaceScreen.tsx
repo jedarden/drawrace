@@ -63,7 +63,8 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
       const particles = new ParticleSystem();
       particlesRef.current = particles;
 
-      const render = createRenderer(canvas, track, wheelDraw);
+      const physDraw = { ...wheelDraw, vertices: playerVerts };
+      const render = createRenderer(canvas, track, physDraw);
       const ghostWheelPaths = ghosts.map((g) => createGhostWheelPath(g.wheelVertices));
       const perf = getPerformanceManager();
       const sound = getSoundManager();
@@ -94,9 +95,6 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
         perf.recordFrame(dt);
 
         if (phaseRef.current === "countdown") {
-          sim.step();
-          ghostSims.forEach((gs) => gs.step());
-
           const snap = sim.snapshot();
           const ghostSnaps = ghostSims.map((gs, i) => ({ snapshot: gs.snapshot(), wheelPath: ghostWheelPaths[i] }));
           particles.update(1 / 60);

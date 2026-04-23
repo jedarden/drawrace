@@ -82,7 +82,57 @@ async fn main() {
         metrics_handle,
     });
 
-    let app = drawrace_api::app::app(state);
+    let app = drawrace_api::app::app(Arc::clone(&state));
+
+    // Background task: poll validator health + measure queue depth
+    {
+        let state_clone = Arc::clone(&state);
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
+            loop {
+                interval.tick().await;
+
+                // Measure validator queue depth
+                if let Ok(mut conn) = state_clone.redis.get().await {
+                    if let Ok(depth) = redis::cmd("LLEN")
+                        .arg("drawrace:validate")
+                        .query_async::<i64>(&mut conn)
+                        .await
+                    {
+                        metrics::gauge!("drawrace_validator_queue_depth").set(depth as f64);
+                    }
+                }
+
+                // Poll validator /internal/version (best-effort)
+                let validator_url = std::env::var("VALIDATOR_URL")
+                    .unwrap_or_else(|_| "http://drawrace-validator:8080".into());
+                if let Ok(resp) = reqwest::get(format!("{}/internal/version", validator_url)).await
+                {
+                    if let Ok(body) = resp.json::<serde_json::Value>().await {
+                        let mut cache = state_clone.validator_cache.write().await;
+                        if let Some(pv) = body.get("physics_version").and_then(|v| v.as_u64()) {
+                            cache.physics_version = pv as u16;
+                        }
+                        if let Some(hash) = body.get("engine_core_wasm_sha256").and_then(|v| v.as_str())
+                        {
+                            cache.engine_core_wasm_sha256 = hash.to_string();
+                        }
+                        cache.ok = true;
+                        cache.last_success = std::time::Instant::now();
+                        state_clone
+                            .readiness
+                            .has_ever_polled
+                            .store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                } else {
+                    let mut cache = state_clone.validator_cache.write().await;
+                    if cache.last_success.elapsed().as_secs() > 30 {
+                        cache.ok = false;
+                    }
+                }
+            }
+        });
+    }
 
     let listener = tokio::net::TcpListener::bind(&listen_addr)
         .await

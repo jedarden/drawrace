@@ -184,6 +184,7 @@ pub async fn post_submission(
     let poll_url = format!("/v1/submissions/{}", submission_id);
 
     metrics::counter!("drawrace_submissions_total", "outcome" => "accepted").increment(1);
+    metrics::gauge!("drawrace_ghost_blob_bytes").set(body.len() as f64);
 
     Ok((
         StatusCode::ACCEPTED,
@@ -338,24 +339,6 @@ fn bucket_for_rank(rank: i64) -> String {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn bucket_for_rank_boundaries() {
-        assert_eq!(bucket_for_rank(1), "elite");
-        assert_eq!(bucket_for_rank(2), "advanced");
-        assert_eq!(bucket_for_rank(5), "advanced");
-        assert_eq!(bucket_for_rank(6), "skilled");
-        assert_eq!(bucket_for_rank(20), "skilled");
-        assert_eq!(bucket_for_rank(21), "mid");
-        assert_eq!(bucket_for_rank(50), "mid");
-        assert_eq!(bucket_for_rank(51), "novice");
-        assert_eq!(bucket_for_rank(1000), "novice");
-    }
-}
-
 fn extract_player_uuid(headers: &axum::http::HeaderMap) -> Result<Uuid, ApiError> {
     let val = headers
         .get("X-DrawRace-Player")
@@ -408,4 +391,22 @@ fn extract_hmac(headers: &axum::http::HeaderMap) -> Result<String, ApiError> {
         })?;
 
     Ok(val.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bucket_for_rank_boundaries() {
+        assert_eq!(bucket_for_rank(1), "elite");
+        assert_eq!(bucket_for_rank(2), "advanced");
+        assert_eq!(bucket_for_rank(5), "advanced");
+        assert_eq!(bucket_for_rank(6), "skilled");
+        assert_eq!(bucket_for_rank(20), "skilled");
+        assert_eq!(bucket_for_rank(21), "mid");
+        assert_eq!(bucket_for_rank(50), "mid");
+        assert_eq!(bucket_for_rank(51), "novice");
+        assert_eq!(bucket_for_rank(1000), "novice");
+    }
 }

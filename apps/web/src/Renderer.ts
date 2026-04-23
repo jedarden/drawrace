@@ -156,7 +156,7 @@ export function createRenderer(
   track: TrackDef,
   wheelDraw: DrawResult
 ) {
-  const ctx = canvas.getContext("2d")!;
+  const ctx = canvas.getContext("2d", { desynchronized: true })!;
   const width = canvas.width;
   const height = canvas.height;
   ctx.imageSmoothingEnabled = true;

@@ -312,7 +312,7 @@ async fn poll_returns_400_without_player_header() {
 
     let app2 = test_app().await;
     let get_req = Request::builder()
-        .uri(&format!("/v1/submissions/{}", submission_id))
+        .uri(format!("/v1/submissions/{}", submission_id))
         .body(Body::empty())
         .unwrap();
 
@@ -335,7 +335,7 @@ async fn poll_returns_200_for_owner_with_pending_status() {
 
     let app2 = test_app_with_pool(pool).await;
     let get_req = Request::builder()
-        .uri(&format!("/v1/submissions/{}", submission_id))
+        .uri(format!("/v1/submissions/{}", submission_id))
         .header("X-DrawRace-Player", TEST_PLAYER_UUID)
         .body(Body::empty())
         .unwrap();
@@ -364,7 +364,7 @@ async fn poll_returns_404_for_different_player_not_403() {
     // Poll with different player B — must be 404 (enumeration-safe), NOT 403
     let app2 = test_app_with_pool(pool).await;
     let get_req = Request::builder()
-        .uri(&format!("/v1/submissions/{}", submission_id))
+        .uri(format!("/v1/submissions/{}", submission_id))
         .header("X-DrawRace-Player", TEST_PLAYER_B_UUID)
         .body(Body::empty())
         .unwrap();
@@ -380,7 +380,7 @@ async fn poll_unknown_submission_returns_404() {
     let unknown_id = Uuid::new_v4();
 
     let get_req = Request::builder()
-        .uri(&format!("/v1/submissions/{}", unknown_id))
+        .uri(format!("/v1/submissions/{}", unknown_id))
         .header("X-DrawRace-Player", TEST_PLAYER_UUID)
         .body(Body::empty())
         .unwrap();
@@ -593,7 +593,7 @@ async fn bucket_assignment_from_seeded_times() {
             .await
             .unwrap();
 
-        let time_ms = 20000 + (i as i32) * 100; // 20100..30000
+        let time_ms = 20000 + i * 100; // 20100..30000
         let s3_key = format!("ghosts/1/{}/seed-{}.bin", player_uuid, i);
         sqlx::query(
             "INSERT INTO ghosts (ghost_id, player_uuid, track_id, physics_version, time_ms, is_pb, is_legacy, s3_key)
