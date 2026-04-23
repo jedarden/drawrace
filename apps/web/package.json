@@ -5,7 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "deploy": "wrangler pages deploy dist/ --project-name=drawrace --branch=main",
+    "deploy:preview": "wrangler pages deploy dist/ --project-name=drawrace"
   },
   "dependencies": {
     "@drawrace/engine-core": "workspace:*",
