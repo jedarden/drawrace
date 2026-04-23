@@ -331,3 +331,133 @@ async fn update_submission_verdict(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use drawrace_api::blob::HEADER_SIZE;
+
+    /// Build a valid DRGH blob with configurable fields.
+    fn make_blob(track_id: u16, finish_time_ms: u32, vertex_count: u8, checkpoints: &[u32]) -> Vec<u8> {
+        let vertex_count = vertex_count.clamp(8, 32);
+        let mut buf = Vec::new();
+        buf.extend_from_slice(b"DRGH");
+        buf.push(1); // version
+        buf.extend_from_slice(&track_id.to_le_bytes());
+        buf.push(0); // flags
+        buf.extend_from_slice(&finish_time_ms.to_le_bytes());
+        buf.extend_from_slice(&1745299200000i64.to_le_bytes()); // submitted_at
+        let uuid = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        buf.extend_from_slice(uuid.as_bytes());
+        buf.push(vertex_count);
+        for i in 0..vertex_count {
+            buf.extend_from_slice(&((i as i16) * 10).to_le_bytes());
+            buf.extend_from_slice(&((i as i16) * 20).to_le_bytes());
+        }
+        buf.push(5u8); // point_count
+        for i in 0..5u8 {
+            buf.extend_from_slice(&(i as i16).to_le_bytes());
+            buf.extend_from_slice(&((i as i16) * 2).to_le_bytes());
+            buf.extend_from_slice(&16u16.to_le_bytes());
+        }
+        buf.push(checkpoints.len() as u8);
+        for &cp in checkpoints {
+            buf.extend_from_slice(&cp.to_le_bytes());
+        }
+        buf
+    }
+
+    fn make_valid_blob() -> Vec<u8> {
+        make_blob(1, 28441, 12, &[5000, 15000, 25000])
+    }
+
+    #[tokio::test]
+    async fn valid_blob_is_accepted() {
+        let blob = make_valid_blob();
+        let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
+        assert_eq!(verdict.status, "accepted");
+        assert!(verdict.ghost_id.is_some());
+        assert_eq!(verdict.time_ms, Some(28441));
+        assert!(verdict.reject_reason.is_none());
+    }
+
+    #[tokio::test]
+    async fn track_id_mismatch_rejected() {
+        let blob = make_blob(1, 28441, 12, &[5000, 15000, 25000]);
+        let verdict = validate_ghost(&blob, 2, "1").await.unwrap();
+        assert_eq!(verdict.status, "rejected");
+        assert_eq!(verdict.reject_reason.as_deref(), Some("track_id mismatch"));
+    }
+
+    #[tokio::test]
+    async fn too_few_vertices_rejected() {
+        let mut blob = make_valid_blob();
+        // Blob parser rejects vertex_count < 8 at parse time, so we can't
+        // construct a blob with <8 vertices via GhostBlob::parse. The validator
+        // layer-2 check is a defense-in-depth that runs after successful parse.
+        // Test the parser rejection instead.
+        blob[HEADER_SIZE] = 4; // vertex_count = 4 (below min 8)
+        let result = validate_ghost(&blob, 1, "1").await;
+        assert!(result.is_err(), "blob with 4 vertices should fail parse");
+    }
+
+    #[tokio::test]
+    async fn too_many_vertices_rejected() {
+        let mut blob = make_valid_blob();
+        // Similarly, parser enforces max 32. Test the parser rejection.
+        blob[HEADER_SIZE] = 40; // vertex_count = 40 (above max 32)
+        let result = validate_ghost(&blob, 1, "1").await;
+        assert!(result.is_err(), "blob with 40 vertices should fail parse");
+    }
+
+    #[tokio::test]
+    async fn non_monotonic_checkpoints_rejected() {
+        let blob = make_blob(1, 28441, 12, &[10000, 5000, 15000]);
+        let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
+        assert_eq!(verdict.status, "rejected");
+        assert_eq!(
+            verdict.reject_reason.as_deref(),
+            Some("checkpoint splits not monotonically increasing")
+        );
+    }
+
+    #[tokio::test]
+    async fn equal_checkpoints_rejected() {
+        let blob = make_blob(1, 28441, 12, &[10000, 10000, 15000]);
+        let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
+        assert_eq!(verdict.status, "rejected");
+        assert_eq!(
+            verdict.reject_reason.as_deref(),
+            Some("checkpoint splits not monotonically increasing")
+        );
+    }
+
+    #[tokio::test]
+    async fn zero_finish_time_rejected() {
+        let blob = make_blob(1, 0, 12, &[5000, 15000, 25000]);
+        let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
+        assert_eq!(verdict.status, "rejected");
+        assert_eq!(verdict.reject_reason.as_deref(), Some("finish_time_ms is zero"));
+    }
+
+    #[tokio::test]
+    async fn single_checkpoint_accepted() {
+        let blob = make_blob(1, 28441, 12, &[15000]);
+        let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
+        assert_eq!(verdict.status, "accepted");
+    }
+
+    #[tokio::test]
+    async fn empty_checkpoints_accepted() {
+        let blob = make_blob(1, 28441, 12, &[]);
+        let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
+        assert_eq!(verdict.status, "accepted");
+    }
+
+    #[tokio::test]
+    async fn malformed_blob_rejected() {
+        let blob = vec![0u8; 20]; // too short
+        let result = validate_ghost(&blob, 1, "1").await;
+        assert!(result.is_err());
+    }
+}
