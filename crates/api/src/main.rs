@@ -34,13 +34,18 @@ async fn main() {
         .await
         .expect("failed to run migrations");
 
-    let redis_pool = drawrace_api::db::create_redis_pool(&redis_url);
-
     let mut s3_config = aws_config::defaults(BehaviorVersion::latest());
     if let Some(endpoint) = s3_endpoint {
         s3_config = s3_config_endpoint_url(endpoint);
     }
     let s3_client = S3Client::new(&s3_config.load().await);
+
+    let redis_pool = drawrace_api::db::create_redis_pool(&redis_url);
+
+    // Load seed ghosts on first startup (idempotent)
+    drawrace_api::seed::load_seeds_if_empty(&pool, &s3_client, &s3_bucket)
+        .await
+        .expect("failed to load seed ghosts");
 
     let state = Arc::new(drawrace_api::AppState {
         pool,
