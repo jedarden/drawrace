@@ -46,6 +46,16 @@ export default defineConfig({
         reducedMotion: "reduce",
       },
     },
+    // Layer 7 perf budget tests — Chromium only with mobile viewport
+    {
+      name: "perf",
+      testDir: "./e2e",
+      testMatch: /perf\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 390, height: 844 },
+      },
+    },
   ],
   webServer: {
     command: "pnpm --filter web dev",

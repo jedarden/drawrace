@@ -13,6 +13,7 @@
     "test:a11y": "playwright test e2e/a11y.spec.ts",
     "test:snapshot": "playwright test e2e/snapshot.spec.ts --project chromium",
     "test:snapshot:update": "SNAPSHOT_UPDATE=1 playwright test e2e/snapshot.spec.ts --project chromium",
+    "test:perf": "playwright test e2e/perf.spec.ts --project perf",
     "snap:docker": "docker-compose -f docker-compose.snapshot.yml run --rm snapshot-test",
     "snap:docker:update": "SNAPSHOT_UPDATE=1 docker-compose -f docker-compose.snapshot.yml run --rm snapshot-test",
     "regen-snapshot-fixture": "npx tsx packages/engine-core/scripts/gen-snapshot-fixture.ts && cp packages/engine-core/fixtures/snapshot-fixture.json apps/web/public/fixtures/",

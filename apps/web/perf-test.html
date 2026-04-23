@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DrawRace Perf Budget Test</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #F4EAD5; overflow: hidden; }
+  canvas#test-canvas { display: block; width: 390px; height: 844px; }
+</style>
+</head>
+<body>
+<canvas id="test-canvas" width="390" height="844"></canvas>
+<script type="module">
+import { RaceSim } from "@drawrace/engine-core";
+import { createRenderer, preloadAssets } from "./src/Renderer.ts";
+import { ParticleSystem } from "./src/Particles.ts";
+
+const canvas = document.getElementById("test-canvas");
+const ctx = canvas.getContext("2d");
+
+// A fixed wheel shape (rough circle) for consistent perf measurement
+const WHEEL_VERTICES = [
+  { x: 0.00, y: 0.35 },
+  { x: 0.25, y: 0.25 },
+  { x: 0.35, y: 0.00 },
+  { x: 0.25, y: -0.25 },
+  { x: 0.00, y: -0.35 },
+  { x: -0.25, y: -0.25 },
+  { x: -0.35, y: 0.00 },
+  { x: -0.25, y: 0.25 },
+];
+
+const WHEEL_DRAW = {
+  vertices: WHEEL_VERTICES,
+  centroid: { x: 0, y: 0 },
+  rawPoints: WHEEL_VERTICES.map(v => ({ ...v })),
+};
+
+async function runPerfTest() {
+  try {
+    const resp = await fetch("/fixtures/snapshot-fixture.json");
+    if (!resp.ok) throw new Error(`Failed to load fixture: ${resp.status}`);
+    const fixture = await resp.json();
+    const track = fixture.track;
+
+    await preloadAssets();
+
+    const sim = new RaceSim(track, WHEEL_VERTICES);
+    sim.enableMotor();
+
+    // 3 ghost sims to match real race load
+    const ghostSims = [
+      new RaceSim(track, WHEEL_VERTICES, 1001),
+      new RaceSim(track, WHEEL_VERTICES, 2002),
+      new RaceSim(track, WHEEL_VERTICES, 3003),
+    ];
+    ghostSims.forEach(g => g.enableMotor());
+
+    const particles = new ParticleSystem();
+    const render = createRenderer(canvas, track, WHEEL_DRAW);
+    const ghostPaths = ghostSims.map(() => {
+      const path = new Path2D();
+      WHEEL_VERTICES.forEach((v, i) => {
+        if (i === 0) path.moveTo(v.x * 30, -v.y * 30);
+        else path.lineTo(v.x * 30, -v.y * 30);
+      });
+      path.closePath();
+      return path;
+    });
+
+    const frameDurations = [];
+    const MAX_FRAMES = 600; // 10 seconds at 60fps
+    let frame = 0;
+
+    while (!sim.isFinished() && frame < MAX_FRAMES) {
+      const t0 = performance.now();
+
+      sim.step();
+      ghostSims.forEach(g => g.step());
+
+      const snap = sim.snapshot();
+      const ghostSnaps = ghostSims.map((gs, i) => ({
+        snapshot: gs.snapshot(),
+        wheelPath: ghostPaths[i],
+      }));
+
+      particles.setParticleLevel("full");
+      const wheelSX = snap.wheel.x * 30 - canvas.width * 0.35;
+      const wheelSY = -snap.wheel.y * 30 - canvas.height * 0.6;
+      const dx = frame > 0 ? 2 : 0;
+      particles.emitDust(wheelSX, wheelSY, dx);
+      particles.update(1 / 60);
+
+      render(snap, ghostSnaps, particles);
+
+      const t1 = performance.now();
+      frameDurations.push(t1 - t0);
+      frame++;
+    }
+
+    // Compute statistics
+    frameDurations.sort((a, b) => a - b);
+    const sum = frameDurations.reduce((s, d) => s + d, 0);
+    const median = frameDurations[Math.floor(frameDurations.length / 2)];
+    const p95 = frameDurations[Math.floor(frameDurations.length * 0.95)];
+    const worst10 = frameDurations.slice(-10);
+
+    window.__perfResults = {
+      totalFrames: frame,
+      medianMs: median,
+      p95Ms: p95,
+      worst10Ms: worst10,
+      avgMs: sum / frameDurations.length,
+    };
+    window.__perfReady = true;
+  } catch (e) {
+    console.error("Perf test failed:", e);
+    window.__perfError = e.message;
+    window.__perfReady = true;
+  }
+}
+
+runPerfTest();
+</script>
+</body>
+</html>
