@@ -23,6 +23,9 @@ async fn test_app() -> Router {
     let s3_client =
         S3Client::new(&aws_config::defaults(BehaviorVersion::latest()).load().await);
 
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+    let metrics_handle = recorder.handle();
+
     let state = Arc::new(drawrace_api::AppState {
         pool,
         redis: redis_pool,
@@ -45,6 +48,7 @@ async fn test_app() -> Router {
             has_ever_polled: std::sync::atomic::AtomicBool::new(false),
             boot_instant: std::time::Instant::now(),
         },
+        metrics_handle,
     });
 
     app::app(state)

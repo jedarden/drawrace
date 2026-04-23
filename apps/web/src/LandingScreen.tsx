@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { submitFeedback } from "./api.js";
+import { useState, useEffect } from "react";
+import { submitFeedback, redeemInvite, checkInviteStatus } from "./api.js";
 
 interface LandingScreenProps {
   onStart: () => void;
@@ -12,6 +12,45 @@ export function LandingScreen({ onStart, dismissed }: LandingScreenProps) {
   const [feedbackCategory, setFeedbackCategory] = useState<"bug" | "feature" | "other">("bug");
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackState, setFeedbackState] = useState<FeedbackState>("idle");
+
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteState, setInviteState] = useState<"unknown" | "checking" | "granted" | "needed" | "submitting" | "invalid">("unknown");
+
+  useEffect(() => {
+    // Check if player already has beta access
+    const cached = localStorage.getItem("drawrace_invite_access");
+    if (cached === "true") {
+      setInviteState("granted");
+      return;
+    }
+    checkInviteStatus().then((hasAccess) => {
+      if (hasAccess) {
+        localStorage.setItem("drawrace_invite_access", "true");
+        setInviteState("granted");
+      } else {
+        setInviteState("needed");
+      }
+    }).catch(() => {
+      // Offline or API unavailable — check cache
+      if (cached === "true") {
+        setInviteState("granted");
+      } else {
+        setInviteState("needed");
+      }
+    });
+  }, []);
+
+  const handleRedeemInvite = async () => {
+    if (!inviteCode.trim()) return;
+    setInviteState("submitting");
+    const valid = await redeemInvite(inviteCode.trim());
+    if (valid) {
+      localStorage.setItem("drawrace_invite_access", "true");
+      setInviteState("granted");
+    } else {
+      setInviteState("invalid");
+    }
+  };
 
   if (dismissed) {
     return null;
@@ -151,18 +190,79 @@ export function LandingScreen({ onStart, dismissed }: LandingScreenProps) {
           </div>
         )}
 
+        {inviteState !== "granted" && inviteState !== "unknown" && (
+          <div style={{
+            backgroundColor: "#FFF3E0",
+            borderRadius: 8,
+            padding: 16,
+            marginBottom: 24,
+            fontSize: 16,
+            border: "2px solid #E8B64C",
+          }}>
+            <strong style={{ display: "block", marginBottom: 8 }}>Beta Access</strong>
+            <p style={{ margin: "0 0 12px 0", fontSize: 14, color: "#6E5F48", lineHeight: 1.4 }}>
+              DrawRace is in beta. Enter your invite code to play.
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => { setInviteCode(e.target.value.toUpperCase()); setInviteState("needed"); }}
+                placeholder="BETA-DRAW-001"
+                maxLength={32}
+                aria-label="Invite code"
+                style={{
+                  flex: 1,
+                  padding: "8px 12px",
+                  fontSize: 16,
+                  border: `2px solid ${inviteState === "invalid" ? "#A13A2E" : "#2B2118"}`,
+                  borderRadius: 8,
+                  backgroundColor: "#FBF4E3",
+                  color: "#2B2118",
+                  fontFamily: "inherit",
+                  textTransform: "uppercase" as const,
+                }}
+              />
+              <button
+                onClick={handleRedeemInvite}
+                disabled={inviteState === "submitting" || !inviteCode.trim()}
+                style={{
+                  padding: "8px 16px",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  backgroundColor: inviteState === "submitting" ? "#6E5F48" : "#D94F3A",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: inviteState === "submitting" || !inviteCode.trim() ? "not-allowed" : "pointer",
+                  opacity: inviteState === "submitting" || !inviteCode.trim() ? 0.7 : 1,
+                }}
+              >
+                {inviteState === "submitting" ? "..." : "Go"}
+              </button>
+            </div>
+            {inviteState === "invalid" && (
+              <p style={{ margin: "8px 0 0 0", fontSize: 14, color: "#A13A2E" }}>
+                Invalid or expired code. Try again.
+              </p>
+            )}
+          </div>
+        )}
+
         <button
           onClick={onStart}
+          disabled={inviteState !== "granted" && inviteState !== "unknown"}
           style={{
             width: "100%",
             padding: "16px 32px",
             fontSize: 24,
             fontFamily: "inherit",
-            backgroundColor: "#4A7C59",
+            backgroundColor: inviteState !== "granted" && inviteState !== "unknown" ? "#6E5F48" : "#4A7C59",
             color: "#F4EAD5",
             border: "none",
             borderRadius: 12,
-            cursor: "pointer",
+            cursor: inviteState !== "granted" && inviteState !== "unknown" ? "not-allowed" : "pointer",
+            opacity: inviteState !== "granted" && inviteState !== "unknown" ? 0.6 : 1,
             transition: "transform 0.1s, backgroundColor 0.1s",
           }}
           onMouseDown={(e) => {

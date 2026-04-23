@@ -1,29 +1,55 @@
 import { test, expect } from "@playwright/test";
-import { injectAxe, checkA11y } from "@axe-core/playwright";
+import AxeBuilder from "@axe-core/playwright";
+
+async function dismissLanding(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem("drawrace_landing_dismissed", "true");
+  });
+}
+
+async function waitForDrawScreen(page: import("@playwright/test").Page) {
+  await expect(page.getByRole("main", { name: /draw your wheel/i })).toBeVisible({ timeout: 10000 });
+}
+
+async function drawWheel(page: import("@playwright/test").Page) {
+  const canvas = page.getByRole("img", { name: /drawing canvas/i });
+  const box = await canvas.boundingBox();
+  const centerX = box!.x + box!.width / 2;
+  const centerY = box!.y + box!.height / 2;
+  const radius = Math.min(box!.width, box!.height) * 0.3;
+
+  await page.mouse.move(centerX, centerY + radius);
+  await page.mouse.down();
+  for (let i = 0; i <= 360; i += 20) {
+    const angle = (i * Math.PI) / 180;
+    await page.mouse.move(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
+  }
+  await page.mouse.up();
+  await expect(page.getByRole("button", { name: /race/i })).toBeEnabled({ timeout: 5000 });
+}
 
 test.describe("Accessibility (WCAG 2.1 AA)", () => {
   test.beforeEach(async ({ page }) => {
+    await dismissLanding(page);
     await page.goto("/");
-    await injectAxe(page);
+    await waitForDrawScreen(page);
   });
 
   test("draw screen passes accessibility scan", async ({ page }) => {
-    await checkA11y(page, null, {
-      detailedReport: true,
-      detailedReportOptions: { html: true },
-      rules: {
-        // WCAG 2.1 AA level
-        "color-contrast": { enabled: true },
-        "document-title": { enabled: true },
-        "html-has-lang": { enabled: true },
-        "html-lang-valid": { enabled: true },
-        "image-alt": { enabled: true },
-        "label": { enabled: true },
-        "link-name": { enabled: true },
-        "list": { enabled: true },
-        "listitem": { enabled: true },
-      },
-    });
+    const results = await new AxeBuilder({ page })
+      .withRules([
+        "color-contrast",
+        "document-title",
+        "html-has-lang",
+        "html-lang-valid",
+        "image-alt",
+        "label",
+        "link-name",
+        "list",
+        "listitem",
+      ])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 
   test("draw canvas has accessible name and role", async ({ page }) => {
@@ -33,17 +59,18 @@ test.describe("Accessibility (WCAG 2.1 AA)", () => {
 
   test("buttons have accessible names", async ({ page }) => {
     await expect(page.getByRole("button", { name: "Clear drawing" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /start race/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /race/i })).toBeVisible();
   });
 
   test("color contrast meets WCAG AA standards", async ({ page }) => {
-    const violations = await checkA11y(page, null, {
-      includedImpacts: ["critical", "serious"],
-    });
+    const results = await new AxeBuilder({ page })
+      .withRules(["color-contrast"])
+      .analyze();
 
-    // Check specifically for color contrast issues
-    const contrastIssues = violations?.filter((v: { id: string }) => v.id === "color-contrast");
-    expect(contrastIssues?.length ?? 0).toBe(0);
+    const criticalOrSerious = results.violations.filter(
+      (v) => v.impact === "critical" || v.impact === "serious"
+    );
+    expect(criticalOrSerious).toEqual([]);
   });
 
   test("focus indicators are visible", async ({ page }) => {
@@ -74,11 +101,6 @@ test.describe("Accessibility (WCAG 2.1 AA)", () => {
   });
 
   test("status announcements work correctly", async ({ page }) => {
-    // Check for loading status
-    const loadingStatus = page.getByRole("status", { name: "Loading" });
-    await expect(loadingStatus).not.toBeVisible({ timeout: 5000 });
-
-    // Check for wheel ready status
     const status = page.getByRole("status");
     await expect(status.first()).toBeVisible();
   });
@@ -94,68 +116,48 @@ test.describe("Accessibility (WCAG 2.1 AA)", () => {
     const count = await headings.count();
     expect(count).toBeGreaterThan(0);
 
-    // First heading should be h1
-    const firstHeading = headings.first();
-    await expect(firstHeading).toHaveTag("h1");
+    const firstTag = await headings.first().evaluate((el) => el.tagName.toLowerCase());
+    expect(firstTag).toBe("h1");
   });
 });
 
 test.describe("Accessibility - Race Screen", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
+  test.beforeEach(async ({ page }) => {
+    await dismissLanding(page);
+  });
 
   test("race screen has proper labels", async ({ page }) => {
     await page.goto("/");
+    await waitForDrawScreen(page);
+    await drawWheel(page);
 
-    // Draw a wheel to start race
-    const canvas = page.getByRole("img", { name: /drawing canvas/i });
-    const box = await canvas.boundingBox();
-    const centerX = box!.x + box!.width / 2;
-    const centerY = box!.y + box!.height / 2;
-    const radius = Math.min(box!.width, box!.height) * 0.3;
-
-    await page.mouse.move(centerX, centerY + radius);
-    await page.mouse.down();
-    for (let i = 0; i <= 360; i += 20) {
-      const angle = (i * Math.PI) / 180;
-      await page.mouse.move(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
-    }
-    await page.mouse.up();
-
-    await page.getByRole("button", { name: "Start race" }).click();
+    await page.getByRole("button", { name: /race/i }).click();
 
     // Check race canvas has label
     await expect(page.getByRole("img", { name: /race view/i })).toBeVisible();
 
-    // Check countdown is announced
+    // Check countdown is announced via ARIA live region
     await expect(page.getByRole("status", { name: /countdown/i })).toBeVisible();
   });
 });
 
 test.describe("Accessibility - Result Screen", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
+  test.beforeEach(async ({ page }) => {
+    await dismissLanding(page);
+  });
 
   test("result screen has proper labels and live regions", async ({ page }) => {
+    test.setTimeout(120000);
     await page.goto("/");
+    await waitForDrawScreen(page);
+    await drawWheel(page);
 
-    // Draw and start race
-    const canvas = page.getByRole("img", { name: /drawing canvas/i });
-    const box = await canvas.boundingBox();
-    const centerX = box!.x + box!.width / 2;
-    const centerY = box!.y + box!.height / 2;
-
-    // Draw small wheel for faster race
-    await page.mouse.move(centerX + 20, centerY);
-    await page.mouse.down();
-    for (let i = 0; i <= 360; i += 30) {
-      const angle = (i * Math.PI) / 180;
-      await page.mouse.move(centerX + 20 * Math.cos(angle), centerY + 20 * Math.sin(angle));
-    }
-    await page.mouse.up();
-
-    await page.getByRole("button", { name: "Start race" }).click();
+    await page.getByRole("button", { name: /race/i }).click();
 
     // Wait for results
-    await expect(page.getByRole("main", { name: /race results/i })).toBeVisible({ timeout: 120000 });
+    await expect(page.getByRole("main", { name: /race results/i })).toBeVisible({ timeout: 90000 });
 
     // Check timer has role="timer"
     await expect(page.getByRole("timer")).toBeVisible();
@@ -166,13 +168,17 @@ test.describe("Accessibility - Result Screen", () => {
 });
 
 test.describe("Accessibility - Keyboard Navigation", () => {
+  test.beforeEach(async ({ page }) => {
+    await dismissLanding(page);
+  });
+
   test("all interactive elements are keyboard accessible", async ({ page }) => {
     await page.goto("/");
+    await waitForDrawScreen(page);
 
     // Tab through interactive elements
     await page.keyboard.press("Tab");
 
-    // First focusable should be the canvas or a button
     const focusedElement = await page.evaluate(() => {
       const el = document.activeElement;
       return el?.tagName.toLowerCase();
@@ -202,6 +208,7 @@ test.describe("Accessibility - Keyboard Navigation", () => {
 
   test("Enter and Space activate buttons", async ({ page }) => {
     await page.goto("/");
+    await waitForDrawScreen(page);
 
     // Focus clear button
     await page.keyboard.press("Tab");

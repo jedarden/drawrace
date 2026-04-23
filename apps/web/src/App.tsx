@@ -5,7 +5,7 @@ import { RaceScreen } from "./RaceScreen.js";
 import { ResultScreen } from "./ResultScreen.js";
 import { SettingsScreen } from "./SettingsScreen.js";
 import { LandingScreen } from "./LandingScreen.js";
-import { fetchGhosts, type GhostData } from "./api.js";
+import { fetchGhosts, submitCrashReport, type GhostData } from "./api.js";
 import { getHaptics } from "./Haptics.js";
 import type { DrawResult } from "@drawrace/engine-core";
 
@@ -45,6 +45,33 @@ export function App() {
     getHaptics();
     const dismissed = localStorage.getItem(LANDING_DISMISSED_KEY) === "true";
     setShowLanding(!dismissed);
+  }, []);
+
+  // Global crash reporter — captures unhandled errors and submits to /v1/crash
+  useEffect(() => {
+    const handleError = (ev: ErrorEvent) => {
+      submitCrashReport({
+        message: ev.message,
+        stack: ev.error?.stack,
+        url: ev.filename,
+        line: ev.lineno,
+        column: ev.colno,
+      });
+    };
+    const handleRejection = (ev: PromiseRejectionEvent) => {
+      const reason = ev.reason;
+      submitCrashReport({
+        message: reason instanceof Error ? reason.message : String(reason),
+        stack: reason instanceof Error ? reason.stack : undefined,
+        metadata: { type: "unhandledrejection" },
+      });
+    };
+    window.addEventListener("error", handleError);
+    window.addEventListener("unhandledrejection", handleRejection);
+    return () => {
+      window.removeEventListener("error", handleError);
+      window.removeEventListener("unhandledrejection", handleRejection);
+    };
   }, []);
 
   useEffect(() => {

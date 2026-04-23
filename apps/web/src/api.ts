@@ -268,4 +268,81 @@ export async function submitFeedback(
   }
 }
 
+export interface CrashReportPayload {
+  message: string;
+  stack?: string;
+  url?: string;
+  line?: number;
+  column?: number;
+  userAgent?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export async function submitCrashReport(payload: CrashReportPayload): Promise<boolean> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return false;
+
+  const playerUuid = getPlayerUuid();
+
+  try {
+    const resp = await fetch(`${apiUrl}/v1/crash`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-DrawRace-Player": playerUuid,
+      },
+      body: JSON.stringify({
+        message: payload.message,
+        stack: payload.stack,
+        url: payload.url,
+        line: payload.line,
+        column: payload.column,
+        user_agent: payload.userAgent ?? navigator.userAgent,
+        metadata: payload.metadata,
+      }),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function redeemInvite(code: string): Promise<boolean> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return false;
+
+  const playerUuid = getPlayerUuid();
+
+  try {
+    const resp = await fetch(`${apiUrl}/v1/invites/redeem`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, player_uuid: playerUuid }),
+    });
+    if (!resp.ok) return false;
+    const data = await resp.json();
+    return data.valid === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function checkInviteStatus(): Promise<boolean> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return false;
+
+  const playerUuid = getPlayerUuid();
+
+  try {
+    const resp = await fetch(`${apiUrl}/v1/invites/status`, {
+      headers: { "X-DrawRace-Player": playerUuid },
+    });
+    if (!resp.ok) return false;
+    const data = await resp.json();
+    return data.has_access === true;
+  } catch {
+    return false;
+  }
+}
+
 export { isOnline };

@@ -1,5 +1,6 @@
 use aws_sdk_s3::Client as S3Client;
 use axum::Router;
+use metrics_exporter_prometheus::PrometheusHandle;
 use sqlx::PgPool;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -19,6 +20,7 @@ pub struct AppState {
     pub hmac_config: tokio::sync::RwLock<HmacConfig>,
     pub validator_cache: tokio::sync::RwLock<CachedValidator>,
     pub readiness: ReadinessState,
+    pub metrics_handle: PrometheusHandle,
 }
 
 pub fn app(state: Arc<AppState>) -> Router {
@@ -27,6 +29,10 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route(
             "/v1/health/ready",
             axum::routing::get(health::ready_handler),
+        )
+        .route(
+            "/v1/metrics",
+            axum::routing::get(crate::handlers::metrics::metrics_handler),
         )
         .route(
             "/v1/submissions",
@@ -59,6 +65,18 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route(
             "/v1/feedback",
             axum::routing::post(crate::handlers::feedback::post_feedback),
+        )
+        .route(
+            "/v1/crash",
+            axum::routing::post(crate::handlers::crash::post_crash_report),
+        )
+        .route(
+            "/v1/invites/redeem",
+            axum::routing::post(crate::handlers::invites::post_redeem_invite),
+        )
+        .route(
+            "/v1/invites/status",
+            axum::routing::get(crate::handlers::invites::get_invite_status),
         )
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())

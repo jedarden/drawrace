@@ -1,7 +1,10 @@
+pub mod crash;
 pub mod feedback;
 pub mod ghosts;
 pub mod health;
+pub mod invites;
 pub mod leaderboard;
 pub mod matchmake;
+pub mod metrics;
 pub mod names;
 pub mod submissions;

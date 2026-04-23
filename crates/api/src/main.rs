@@ -13,6 +13,12 @@ async fn main() {
         )
         .init();
 
+    // Install Prometheus metrics exporter (in-process, /v1/metrics scrapes it)
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new()
+        .build_recorder();
+    let metrics_handle = recorder.handle();
+    metrics::set_global_recorder(recorder).expect("failed to install metrics recorder");
+
     let database_url =
         std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let redis_url =
@@ -73,6 +79,7 @@ async fn main() {
             has_ever_polled: std::sync::atomic::AtomicBool::new(false),
             boot_instant: std::time::Instant::now(),
         },
+        metrics_handle,
     });
 
     let app = drawrace_api::app::app(state);

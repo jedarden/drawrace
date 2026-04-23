@@ -183,6 +183,8 @@ pub async fn post_submission(
 
     let poll_url = format!("/v1/submissions/{}", submission_id);
 
+    metrics::counter!("drawrace_submissions_total", "outcome" => "accepted").increment(1);
+
     Ok((
         StatusCode::ACCEPTED,
         Json(SubmissionAccepted {

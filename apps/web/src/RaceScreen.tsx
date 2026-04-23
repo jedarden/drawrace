@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { RaceSim } from "@drawrace/engine-core";
 import type { DrawResult, TrackDef } from "@drawrace/engine-core";
 import { createRenderer, createGhostWheelPath, preloadAssets } from "./Renderer.js";
@@ -33,6 +33,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
   const particlesRef = useRef<ParticleSystem | null>(null);
   const confettiTriggeredRef = useRef(false);
   const prevWheelPosRef = useRef({ x: 0, y: 0 });
+  const [ariaAnnouncement, setAriaAnnouncement] = useState("Race starting. Countdown: 3");
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -49,7 +50,9 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
       await preloadAssets();
       if (cancelled) return;
 
-      const sim = new RaceSim(track, wheelDraw.vertices);
+      const ppm = track.world.pixelsPerMeter;
+      const playerVerts = wheelDraw.vertices.map((v) => ({ x: v.x / ppm, y: v.y / ppm }));
+      const sim = new RaceSim(track, playerVerts);
       const ghostSims = ghosts.map((g) => new RaceSim(track, g.wheelVertices, g.seed));
 
       const particles = new ParticleSystem();
@@ -100,6 +103,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
             lastCountdownVal = newCountdown;
             countdownRef.current = newCountdown;
             sound.playCountdown();
+            setAriaAnnouncement(`Countdown: ${newCountdown}`);
           }
 
           if (countdownTick >= COUNTDOWN_TICKS) {
@@ -109,6 +113,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
             sound.playGo();
             sound.startMotorHum();
             haptics.raceStart();
+            setAriaAnnouncement("GO! Race started");
           }
 
           rafId = requestAnimationFrame(loop);
@@ -204,6 +209,14 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
         aria-label="Race view. Your wheel is shown in red, ghosts in gray."
         style={{ width: "100%", height: "100%", display: "block" }}
       />
+      <div
+        role="status"
+        aria-label="Countdown"
+        aria-live="assertive"
+        style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}
+      >
+        {ariaAnnouncement}
+      </div>
     </div>
   );
 }

@@ -50,6 +50,9 @@ async fn test_app() -> Router {
     };
     let s3_client = S3Client::new(&s3_config.load().await);
 
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+    let metrics_handle = recorder.handle();
+
     let state = Arc::new(drawrace_api::AppState {
         pool,
         redis: redis_pool,
@@ -72,6 +75,7 @@ async fn test_app() -> Router {
             has_ever_polled: std::sync::atomic::AtomicBool::new(false),
             boot_instant: std::time::Instant::now(),
         },
+        metrics_handle,
     });
 
     app::app(state)
@@ -93,6 +97,9 @@ async fn test_app_with_pool(pool: PgPool) -> Router {
     };
     let s3_client = S3Client::new(&s3_config.load().await);
 
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+    let metrics_handle = recorder.handle();
+
     let state = Arc::new(drawrace_api::AppState {
         pool,
         redis: redis_pool,
@@ -115,6 +122,7 @@ async fn test_app_with_pool(pool: PgPool) -> Router {
             has_ever_polled: std::sync::atomic::AtomicBool::new(false),
             boot_instant: std::time::Instant::now(),
         },
+        metrics_handle,
     });
 
     app::app(state)
@@ -926,4 +934,73 @@ async fn submission_creates_player_and_persists() {
     .unwrap();
     assert!(row.is_some());
     assert_eq!(row.unwrap().0, "pending_validation");
+}
+
+// ===========================================================================
+// 8. Crash report endpoint
+// ===========================================================================
+
+#[tokio::test]
+async fn crash_report_rejects_empty_message() {
+    let app = test_app().await;
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/crash")
+        .header("X-DrawRace-Player", TEST_PLAYER_UUID)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"message":""}#))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn crash_report_rejects_missing_body() {
+    let app = test_app().await;
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/crash")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{}"#))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    // Empty-string message triggers the handler's 400 check, not a JSON deserialization error
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+// ===========================================================================
+// 9. Invite code endpoint
+// ===========================================================================
+
+#[tokio::test]
+async fn invite_redeem_rejects_empty_code() {
+    let app = test_app().await;
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/invites/redeem")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"code":"","player_uuid":"550e8400-e29b-41d4-a716-446655440000"}"#,
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn invite_status_returns_false_without_player_header() {
+    let app = test_app().await;
+    let req = Request::builder()
+        .uri("/v1/invites/status")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json = read_json(resp).await;
+    assert_eq!(json["has_access"], false);
 }
