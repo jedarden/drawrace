@@ -29,6 +29,9 @@ spec:
         tasks:
           - name: checkout
             template: git-checkout
+          - name: pnpm-install
+            template: pnpm-setup
+            dependencies: [checkout]
           - name: lint-api
             template: cargo-lint
             dependencies: [checkout]
@@ -43,6 +46,13 @@ spec:
               parameters:
                 - name: crate
                   value: validator
+          - name: lint-js
+            template: pnpm-ci-step
+            dependencies: [pnpm-install]
+            arguments:
+              parameters:
+                - name: command
+                  value: pnpm lint
           - name: test-api
             template: cargo-test
             dependencies: [checkout]
@@ -57,9 +67,23 @@ spec:
               parameters:
                 - name: crate
                   value: validator
+          - name: test-js
+            template: pnpm-ci-step
+            dependencies: [pnpm-install]
+            arguments:
+              parameters:
+                - name: command
+                  value: pnpm vitest run
+          - name: size-limit
+            template: pnpm-ci-step
+            dependencies: [pnpm-install]
+            arguments:
+              parameters:
+                - name: command
+                  value: pnpm build && npx size-limit
           - name: build-api
             template: docker-build
-            dependencies: [lint-api, test-api]
+            dependencies: [lint-api, test-api, test-js, lint-js]
             arguments:
               parameters:
                 - name: binary
@@ -68,7 +92,7 @@ spec:
                   value: ronaldraygun/drawrace-api
           - name: build-validator
             template: docker-build
-            dependencies: [lint-validator, test-validator]
+            dependencies: [lint-validator, test-validator, test-js, lint-js]
             arguments:
               parameters:
                 - name: binary
@@ -153,6 +177,53 @@ spec:
             cd /workspace
             export CARGO_TARGET_DIR=/workspace/target-test
             cargo test -p drawrace-{{inputs.parameters.crate}}
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+
+    - name: pnpm-setup
+      activeDeadlineSeconds: 300
+      container:
+        image: node:20-alpine
+        command: [sh, -c]
+        args:
+          - |
+            set -e
+            corepack enable
+            cd /workspace
+            pnpm install --frozen-lockfile
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+
+    - name: pnpm-ci-step
+      inputs:
+        parameters:
+          - name: command
+      activeDeadlineSeconds: 600
+      container:
+        image: node:20-alpine
+        command: [sh, -c]
+        args:
+          - |
+            set -e
+            corepack enable
+            cd /workspace
+            {{inputs.parameters.command}}
         volumeMounts:
           - name: workspace
             mountPath: /workspace
