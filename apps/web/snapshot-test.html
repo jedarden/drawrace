@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DrawRace Snapshot Test Fixture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #F4EAD5; overflow: hidden; }
+  canvas#test-canvas { display: block; width: 390px; height: 844px; }
+</style>
+</head>
+<body>
+<canvas id="test-canvas" width="390" height="844"></canvas>
+<script type="module">
+import { createRenderer } from "./src/Renderer.ts";
+import { createReplayDriver } from "@drawrace/engine-core";
+import { ParticleSystem } from "./src/Particles.ts";
+
+const canvas = document.getElementById("test-canvas");
+const ctx = canvas.getContext("2d");
+
+let driver = null;
+let renderer = null;
+let particles = null;
+
+async function init() {
+  try {
+    // Load the snapshot fixture
+    const resp = await fetch("/fixtures/snapshot-fixture.json");
+    if (!resp.ok) {
+      throw new Error(`Failed to load fixture: ${resp.status} ${resp.statusText}`);
+    }
+    const fixture = await resp.json();
+
+    // Create replay driver from fixture
+    driver = createReplayDriver(fixture);
+
+    // Create renderer
+    renderer = createRenderer(canvas, driver.track, driver.wheelDraw);
+    particles = new ParticleSystem();
+
+    // Expose test interface
+    window.__drawrace = {
+      checkpoints: [0, 30, 120, 300, "finish"],
+      ready: true,
+      renderCheckpoint(checkpoint) {
+        if (checkpoint === "finish") {
+          // Render the last frame in the recording
+          const frame = driver.getFrame(driver.totalFrames - 1);
+          renderer(frame, [], particles);
+          return true;
+        }
+        const tick = typeof checkpoint === "number" ? checkpoint : parseInt(checkpoint, 10);
+        const frame = driver.getFrame(tick);
+        renderer(frame, [], particles);
+        return true;
+      },
+    };
+
+    window.__drawraceReady = true;
+  } catch (e) {
+    console.error("Snapshot fixture init failed:", e);
+    window.__drawraceError = e.message;
+    window.__drawraceReady = true; // Signal that init is complete (even if failed)
+  }
+}
+
+init();
+</script>
+</body>
+</html>

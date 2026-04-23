@@ -1,0 +1,16 @@
+# Docker Compose for running Layer 3 snapshot tests locally
+# Usage: docker-compose -f docker-compose.snapshot.yml run --rm snapshot-test
+services:
+  snapshot-test:
+    image: ghcr.io/drawrace/ci-snap:2026-04-21
+    volumes:
+      - .:/work
+    working_dir: /work
+    environment:
+      - SNAPSHOT_UPDATE=${SNAPSHOT_UPDATE:-}
+      - CI=true
+    command: sh -c "pnpm install && pnpm exec playwright install --with-deps chromium && pnpm test:snapshot"
+    # Keep container running for debugging (uncomment to use)
+    # tty: true
+    # stdin_open: true
+    # command: /bin/bash

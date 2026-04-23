@@ -21,3 +21,10 @@ export {
   processDraw,
 } from "./draw-pipeline.js";
 export type { Point, DrawResult } from "./draw-pipeline.js";
+export {
+  createReplayDriver,
+  recordRaceSim,
+  extractSnapshotFrames,
+  SNAPSHOT_TICKS,
+} from "./replay-driver.js";
+export type { ReplayFrame, ReplayRecording } from "./replay-driver.js";
