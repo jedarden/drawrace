@@ -35,9 +35,47 @@ let crossHatchPattern: CanvasPattern | null = null;
 const tuftSprites: HTMLCanvasElement[] = [];
 let assetsPreloaded = false;
 
+// SVG hill silhouettes (loaded as ImageBitmap)
+let farHillsBitmap: ImageBitmap | HTMLCanvasElement | null = null;
+let nearHillsBitmap: ImageBitmap | HTMLCanvasElement | null = null;
+
+async function loadHillSvg(path: string): Promise<ImageBitmap | HTMLCanvasElement | null> {
+  try {
+    const resp = await fetch(path);
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    if (typeof createImageBitmap === "function") {
+      return createImageBitmap(blob);
+    }
+    // Fallback: draw SVG onto an offscreen canvas
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject();
+      img.src = url;
+    });
+    const c = document.createElement("canvas");
+    c.width = 1024;
+    c.height = 256;
+    const cctx = c.getContext("2d")!;
+    cctx.drawImage(img, 0, 0, 1024, 256);
+    URL.revokeObjectURL(url);
+    return c;
+  } catch {
+    return null;
+  }
+}
+
 export async function preloadAssets(): Promise<void> {
   if (assetsPreloaded) return;
   assetsPreloaded = true;
+  const [far, near] = await Promise.all([
+    loadHillSvg("/assets/far-hills.svg"),
+    loadHillSvg("/assets/near-hills.svg"),
+  ]);
+  farHillsBitmap = far;
+  nearHillsBitmap = near;
 }
 
 function ensureAssets(ctx: CanvasRenderingContext2D): void {
@@ -310,46 +348,52 @@ export function createRenderer(
     ctx.fillRect(0, 0, width, height);
   }
 
-  function drawFarHills() {
-    ctx.fillStyle = "#8BA9BA";
-    ctx.beginPath();
-    ctx.moveTo(0, height * 0.35);
-    const parallaxFar = reducedMotion ? 1.0 : 0.1;
-    const offset = -(camera.x * parallaxFar) % width;
-    for (let i = -1; i <= 2; i++) {
-      const baseX = offset + i * (width / 2);
-      ctx.lineTo(baseX + width * 0.1, height * 0.28);
-      ctx.lineTo(baseX + width * 0.25, height * 0.22);
-      ctx.lineTo(baseX + width * 0.4, height * 0.3);
-      ctx.lineTo(baseX + width * 0.5, height * 0.25);
-      ctx.lineTo(baseX + width * 0.5, height * 0.35);
+  function drawHillLayer(
+    bitmap: ImageBitmap | HTMLCanvasElement | null,
+    color: string,
+    parallax: number,
+    topFrac: number,
+    // Procedural fallback profile points (fraction of tile width → fraction of top region height)
+    profile: number[]
+  ) {
+    const eff = reducedMotion ? 1.0 : parallax;
+    const offset = -(camera.x * eff);
+    const tileW = width / 2;
+    const topY = height * topFrac;
+    const drawH = height - topY;
+
+    if (bitmap) {
+      const startX = ((offset % tileW) + tileW) % tileW - tileW;
+      for (let x = startX; x < width + tileW; x += tileW) {
+        ctx.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height, x, topY, tileW, drawH);
+      }
+    } else {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(0, topY + drawH * 0.6);
+      for (let i = -1; i <= Math.ceil(width / tileW) + 1; i++) {
+        const baseX = offset + i * tileW;
+        for (let p = 0; p < profile.length; p += 2) {
+          ctx.lineTo(baseX + profile[p] * tileW, topY + profile[p + 1] * drawH);
+        }
+      }
+      ctx.lineTo(width, topY + drawH * 0.6);
+      ctx.lineTo(width, height);
+      ctx.lineTo(0, height);
+      ctx.closePath();
+      ctx.fill();
     }
-    ctx.lineTo(width, height * 0.35);
-    ctx.lineTo(width, height);
-    ctx.lineTo(0, height);
-    ctx.closePath();
-    ctx.fill();
+  }
+
+  const FAR_HILL_PROFILE = [0.2, 0.15, 0.5, 0.0, 0.8, 0.1, 1.0, 0.6];
+  const NEAR_HILL_PROFILE = [0.1, 0.15, 0.3, 0.0, 0.6, 0.1, 0.8, 0.2, 1.0, 0.6];
+
+  function drawFarHills() {
+    drawHillLayer(farHillsBitmap, "#8BA9BA", 0.1, 0.15, FAR_HILL_PROFILE);
   }
 
   function drawNearHills() {
-    ctx.fillStyle = "#A9BFAB";
-    ctx.beginPath();
-    ctx.moveTo(0, height * 0.45);
-    const parallaxNear = reducedMotion ? 1.0 : 0.3;
-    const offset = -(camera.x * parallaxNear) % width;
-    for (let i = -1; i <= 2; i++) {
-      const baseX = offset + i * (width / 2);
-      ctx.lineTo(baseX + width * 0.05, height * 0.4);
-      ctx.lineTo(baseX + width * 0.15, height * 0.35);
-      ctx.lineTo(baseX + width * 0.3, height * 0.42);
-      ctx.lineTo(baseX + width * 0.4, height * 0.38);
-      ctx.lineTo(baseX + width * 0.5, height * 0.45);
-    }
-    ctx.lineTo(width, height * 0.45);
-    ctx.lineTo(width, height);
-    ctx.lineTo(0, height);
-    ctx.closePath();
-    ctx.fill();
+    drawHillLayer(nearHillsBitmap, "#A9BFAB", 0.3, 0.28, NEAR_HILL_PROFILE);
   }
 
   function drawTerrain() {

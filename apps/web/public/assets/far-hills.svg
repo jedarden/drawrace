@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 256" width="1024" height="256">
+  <!-- Far hill silhouette: gentle, low-detail distant mountains
+       Sketch-style wobbly ridgeline, sage/blue-gray fill.
+       Designed to tile seamlessly horizontally (y=192 at x=0 and x=1024). -->
+  <path d="M 0 192
+    C 30 189, 65 170, 110 155
+    C 155 140, 175 148, 220 158
+    C 265 168, 285 140, 340 122
+    C 395 104, 415 118, 460 132
+    C 505 146, 530 128, 575 112
+    C 620 96, 645 108, 690 125
+    C 735 142, 760 120, 810 105
+    C 860 90, 885 115, 930 138
+    C 960 152, 990 175, 1024 192
+    L 1024 256 L 0 256 Z" fill="#8BA9BA"/>
+</svg>

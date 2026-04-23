@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 256" width="1024" height="256">
+  <!-- Near hill silhouette: bushier with tiny tree bumps on ridgeline
+       More pronounced peaks than far hills, sage-green fill.
+       Designed to tile seamlessly horizontally (y=178 at x=0 and x=1024). -->
+  <path d="M 0 178
+    C 20 174, 45 148, 80 125
+    C 95 116, 102 100, 112 106
+    C 122 112, 128 124, 155 138
+    C 185 155, 200 128, 240 108
+    C 255 100, 262 82, 272 88
+    C 282 94, 288 106, 320 120
+    C 355 138, 375 108, 415 88
+    C 430 80, 438 64, 448 70
+    C 458 76, 464 88, 495 102
+    C 530 120, 555 92, 595 75
+    C 610 68, 618 52, 628 58
+    C 638 64, 644 76, 675 92
+    C 710 110, 735 85, 775 68
+    C 790 62, 798 48, 808 54
+    C 818 60, 824 72, 855 88
+    C 890 108, 920 130, 950 148
+    C 975 162, 1000 172, 1024 178
+    L 1024 256 L 0 256 Z" fill="#A9BFAB"/>
+</svg>
