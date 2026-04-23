@@ -345,4 +345,60 @@ export async function checkInviteStatus(): Promise<boolean> {
   }
 }
 
+export interface LeaderboardEntry {
+  rank: number;
+  name: string;
+  time_ms: number;
+  ghost_id: string;
+  is_self?: boolean;
+}
+
+export interface LeaderboardTopResponse {
+  track_id: number;
+  entries: LeaderboardEntry[];
+}
+
+export interface LeaderboardContextResponse {
+  track_id: number;
+  player_rank: number | null;
+  entries: LeaderboardEntry[];
+}
+
+export async function fetchLeaderboardTop(
+  trackId: number,
+  limit = 20,
+): Promise<LeaderboardTopResponse | null> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return null;
+
+  try {
+    const resp = await fetch(
+      `${apiUrl}/v1/leaderboard/${trackId}/top?limit=${limit}`,
+    );
+    if (!resp.ok) return null;
+    return resp.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchLeaderboardContext(
+  trackId: number,
+  window = 5,
+): Promise<LeaderboardContextResponse | null> {
+  const apiUrl = getApiUrl();
+  const playerUuid = getPlayerUuid();
+  if (!apiUrl) return null;
+
+  try {
+    const resp = await fetch(
+      `${apiUrl}/v1/leaderboard/${trackId}/context?player_uuid=${playerUuid}&window=${window}`,
+    );
+    if (!resp.ok) return null;
+    return resp.json();
+  } catch {
+    return null;
+  }
+}
+
 export { isOnline };

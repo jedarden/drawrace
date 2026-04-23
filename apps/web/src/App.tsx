@@ -5,6 +5,7 @@ import { RaceScreen } from "./RaceScreen.js";
 import { ResultScreen } from "./ResultScreen.js";
 import { SettingsScreen } from "./SettingsScreen.js";
 import { LandingScreen } from "./LandingScreen.js";
+import { LeaderboardScreen } from "./LeaderboardScreen.js";
 import { fetchGhosts, submitCrashReport, type GhostData } from "./api.js";
 import { getHaptics } from "./Haptics.js";
 import type { DrawResult } from "@drawrace/engine-core";
@@ -39,6 +40,7 @@ export function App() {
   const [ghosts, setGhosts] = useState<GhostData[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showLanding, setShowLanding] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   // Initialize haptics and check landing screen
   useEffect(() => {
@@ -161,10 +163,17 @@ export function App() {
           trackId={track.numeric_id}
           ghosts={ghosts.map((g) => ({ name: g.name, finishTimeMs: g.finishTimeMs }))}
           onRetry={handleRetry}
+          onShowLeaderboard={() => setShowLeaderboard(true)}
         />
       )}
       {settingsOpen && (
         <SettingsScreen onClose={() => setSettingsOpen(false)} onShowLanding={handleShowLanding} />
+      )}
+      {showLeaderboard && track && (
+        <LeaderboardScreen
+          trackId={track.numeric_id}
+          onClose={() => setShowLeaderboard(false)}
+        />
       )}
     </div>
   );

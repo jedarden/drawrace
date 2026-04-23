@@ -17,6 +17,7 @@ interface ResultScreenProps {
   trackId: number;
   ghosts: GhostResult[];
   onRetry: () => void;
+  onShowLeaderboard: () => void;
 }
 
 function formatTime(ms: number): string {
@@ -27,7 +28,7 @@ function formatTime(ms: number): string {
   return `${min}:${sec.toString().padStart(2, "0")}.${frac.toString().padStart(3, "0")}`;
 }
 
-export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId, ghosts, onRetry }: ResultScreenProps) {
+export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId, ghosts, onRetry, onShowLeaderboard }: ResultScreenProps) {
   const [verdict, setVerdict] = useState<SubmissionVerdict | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -191,6 +192,30 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
       >
         Try Again
       </button>
+
+      {online && (
+        <button
+          onClick={() => {
+            getSoundManager().playUiTap();
+            getHaptics().uiTap();
+            onShowLeaderboard();
+          }}
+          aria-label="View leaderboard"
+          style={{
+            padding: "10px 32px",
+            fontSize: 16,
+            fontWeight: 600,
+            fontFamily: "inherit",
+            backgroundColor: "transparent",
+            color: "#2B2118",
+            border: "2px solid #2B2118",
+            borderRadius: 8,
+            cursor: "pointer",
+          }}
+        >
+          Leaderboard
+        </button>
+      )}
     </div>
   );
 }
