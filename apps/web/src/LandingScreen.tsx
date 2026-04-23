@@ -24,7 +24,7 @@ export function LandingScreen({ onStart, dismissed }: LandingScreenProps) {
     if (!feedbackText.trim()) return;
     setFeedbackState("submitting");
     const ok = await submitFeedback(feedbackCategory, feedbackText, {
-      source: "beta-landing",
+      source: "landing",
       timestamp: new Date().toISOString(),
     });
     setFeedbackState(ok ? "sent" : "error");
@@ -77,19 +77,6 @@ export function LandingScreen({ onStart, dismissed }: LandingScreenProps) {
           >
             DrawRace
           </h1>
-          <span
-            style={{
-              display: "inline-block",
-              padding: "4px 12px",
-              backgroundColor: "#D94F3A",
-              color: "white",
-              borderRadius: 4,
-              fontSize: 13,
-              fontWeight: 600,
-            }}
-          >
-            BETA
-          </span>
         </div>
 
         <p style={{ fontSize: 20, margin: "0 0 24px 0", textAlign: "center", lineHeight: 1.4 }}>
