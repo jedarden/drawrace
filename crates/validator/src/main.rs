@@ -143,6 +143,7 @@ async fn process_one_submission(
         &state.pool,
         submission_id,
         &verdict,
+        &s3_key,
     ).await?;
 
     Ok(Some(submission_id))
@@ -248,11 +249,15 @@ async fn update_submission_verdict(
     pool: &PgPool,
     submission_id: Uuid,
     verdict: &Verdict,
+    s3_key: &str,
 ) -> anyhow::Result<()> {
     match verdict.status.as_str() {
         "accepted" => {
             let ghost_id = verdict.ghost_id.context("Missing ghost_id for accepted verdict")?;
             let time_ms = verdict.time_ms.context("Missing time_ms for accepted verdict")?;
+
+            // Begin transaction
+            let mut tx = pool.begin().await?;
 
             // Check if this is a PB for the player
             let is_pb: bool = sqlx::query_scalar(
@@ -264,22 +269,33 @@ async fn update_submission_verdict(
             )
             .bind(submission_id)
             .bind(time_ms)
-            .fetch_one(pool)
+            .fetch_one(&mut *tx)
             .await
             .unwrap_or(true);
 
-            // Begin transaction
-            let mut tx = pool.begin().await?;
+            // Unflag previous PBs for this player/track before inserting new one
+            if is_pb {
+                sqlx::query(
+                    "UPDATE ghosts SET is_pb = false
+                     WHERE player_uuid = (SELECT player_uuid FROM submissions WHERE submission_id = $1)
+                       AND track_id = (SELECT track_id FROM submissions WHERE submission_id = $1)
+                       AND is_pb = true",
+                )
+                .bind(submission_id)
+                .execute(&mut *tx)
+                .await?;
+            }
 
-            // Insert ghost
+            // Insert ghost with actual s3_key from submission
             sqlx::query(
                 "INSERT INTO ghosts (ghost_id, player_uuid, track_id, physics_version, time_ms, is_pb, s3_key)
-                 SELECT $1, player_uuid, track_id, physics_version, $2, $3, 'stub-key'
-                 FROM submissions WHERE submission_id = $4",
+                 SELECT $1, player_uuid, track_id, physics_version, $2, $3, $4
+                 FROM submissions WHERE submission_id = $5",
             )
             .bind(ghost_id)
             .bind(time_ms)
             .bind(is_pb)
+            .bind(s3_key)
             .bind(submission_id)
             .execute(&mut *tx)
             .await?;
