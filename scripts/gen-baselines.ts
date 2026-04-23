@@ -38,7 +38,7 @@ async function generateBaselines() {
   await page.goto("http://localhost:5173/snapshot-fixture.html?snapshotMode=1");
 
   // Wait for the snapshot driver to be available
-  await page.waitForFunction(() => typeof window.snapshotDriver !== "undefined", { timeout: 10000 });
+  await page.waitForFunction(() => typeof (window as any).snapshotDriver !== "undefined", { timeout: 10000 });
 
   console.log("Generating baselines for ticks:", SNAPSHOT_TICKS);
 
@@ -47,7 +47,7 @@ async function generateBaselines() {
 
     // Jump to the specific tick
     await page.evaluate(({ tick }) => {
-      window.snapshotDriver.gotoTick(tick);
+      (window as any).snapshotDriver.gotoTick(tick);
     }, { tick });
 
     // Wait for render to complete

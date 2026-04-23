@@ -42,8 +42,6 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         // Fixed viewport for snapshot consistency
         viewport: { width: 390, height: 844 },
-        // Force reduced motion
-        reducedMotion: "reduce",
       },
     },
     // Layer 7 perf budget tests — Chromium only with mobile viewport

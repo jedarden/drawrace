@@ -32,7 +32,7 @@ const TEST_TRACK = {
   world: trackData.world,
   terrain: trackData.terrain.slice(0, 14),
   start: trackData.start,
-  finish: { pos: [33.0, -0.1], width: 0.2 },
+  finish: { pos: [33.0, -0.1] as [number, number], width: 0.2 },
 };
 
 function makeCircle(
