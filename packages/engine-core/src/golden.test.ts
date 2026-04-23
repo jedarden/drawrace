@@ -30,25 +30,13 @@ const TEST_TRACK: TrackDef = {
   finish: { pos: [39, 3.5], width: 0.2 },
 };
 
-function makeCircle(radius: number, n: number): [number, number][] {
-  const verts: [number, number][] = [];
-  for (let i = 0; i < n; i++) {
-    const angle = (2 * Math.PI * i) / n;
-    verts.push([
-      Math.round(radius * Math.cos(angle) * 1000) / 1000,
-      Math.round(radius * Math.sin(angle) * 1000) / 1000,
-    ]);
-  }
-  return verts;
-}
-
-const CIRCLE_WHEEL: WheelDef = { vertices: makeCircle(0.8, 16) };
-
 interface GoldenFile {
   physicsVersion: number;
   goldens: Array<{
+    id: string;
     seed: number;
     trackId: string;
+    wheel: WheelDef;
     finishTicks: number;
     finalX: number;
     streamHash: string;
@@ -64,12 +52,14 @@ function loadGoldens(): GoldenFile {
 
 describe("Physics golden (Layer 2)", () => {
   it("produces identical streamHash across 100 consecutive runs", () => {
+    const goldenFile = loadGoldens();
+    const entry = goldenFile.goldens[0];
     const results: string[] = [];
     for (let i = 0; i < 100; i++) {
       const result = createHeadlessRace({
-        seed: 42,
+        seed: entry.seed,
         track: TEST_TRACK,
-        wheel: CIRCLE_WHEEL,
+        wheel: entry.wheel,
       });
       results.push(result.streamHash);
     }
@@ -88,7 +78,7 @@ describe("Physics golden (Layer 2)", () => {
       const result = createHeadlessRace({
         seed: golden.seed,
         track: TEST_TRACK,
-        wheel: CIRCLE_WHEEL,
+        wheel: golden.wheel,
       });
       expect(result.streamHash).toBe(golden.streamHash);
       expect(result.finishTicks).toBe(golden.finishTicks);
