@@ -17,6 +17,10 @@ dist/
 target/
 Cargo.lock.bak
 
+# Playwright
+playwright-report/
+test-results/
+
 # Editor / OS
 .DS_Store
 .vscode/

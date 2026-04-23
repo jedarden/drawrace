@@ -33,6 +33,19 @@ export default defineConfig({
       name: "Mobile Safari",
       use: { ...devices["iPhone 12"] },
     },
+    // Layer 3 snapshot tests run only on Chromium with pinned config
+    {
+      name: "snapshot",
+      testDir: "./e2e",
+      testMatch: /snapshot\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        // Fixed viewport for snapshot consistency
+        viewport: { width: 390, height: 844 },
+        // Force reduced motion
+        reducedMotion: "reduce",
+      },
+    },
   ],
   webServer: {
     command: "pnpm --filter web dev",
