@@ -51,7 +51,12 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
       if (cancelled) return;
 
       const ppm = track.world.pixelsPerMeter;
-      const playerVerts = wheelDraw.vertices.map((v) => ({ x: v.x / ppm, y: v.y / ppm }));
+      const rawVerts = wheelDraw.vertices.map((v) => ({ x: v.x / ppm, y: v.y / ppm }));
+      const maxR = Math.max(...rawVerts.map((v) => Math.hypot(v.x, v.y)));
+      const MIN_R = 0.3;
+      const MAX_R = 1.0;
+      const scale = maxR < MIN_R ? MIN_R / maxR : maxR > MAX_R ? MAX_R / maxR : 1;
+      const playerVerts = rawVerts.map((v) => ({ x: v.x * scale, y: v.y * scale }));
       const sim = new RaceSim(track, playerVerts);
       const ghostSims = ghosts.map((g) => new RaceSim(track, g.wheelVertices, g.seed));
 

@@ -41,7 +41,7 @@ export class Haptics {
   }
 
   finishLine(): void {
-    this.pattern([40, 30, 40]);
+    this.pattern([40, 20, 40]);
   }
 
   dnf(): void {

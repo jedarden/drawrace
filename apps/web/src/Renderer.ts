@@ -234,7 +234,8 @@ export function createRenderer(
     ctx.fillStyle = "#8BA9BA";
     ctx.beginPath();
     ctx.moveTo(0, height * 0.35);
-    const offset = -(camera.x * 0.1) % width;
+    const parallaxFar = reducedMotion ? 1.0 : 0.1;
+    const offset = -(camera.x * parallaxFar) % width;
     for (let i = -1; i <= 2; i++) {
       const baseX = offset + i * (width / 2);
       ctx.lineTo(baseX + width * 0.1, height * 0.28);
@@ -254,7 +255,8 @@ export function createRenderer(
     ctx.fillStyle = "#A9BFAB";
     ctx.beginPath();
     ctx.moveTo(0, height * 0.45);
-    const offset = -(camera.x * 0.3) % width;
+    const parallaxNear = reducedMotion ? 1.0 : 0.3;
+    const offset = -(camera.x * parallaxNear) % width;
     for (let i = -1; i <= 2; i++) {
       const baseX = offset + i * (width / 2);
       ctx.lineTo(baseX + width * 0.05, height * 0.4);
@@ -446,6 +448,13 @@ export function createRenderer(
       ctx.beginPath();
       ctx.ellipse(bw * 0.05, -bh * 0.1, 5, 6, 0, 0, Math.PI * 2);
       ctx.fill();
+
+      // Grinning mouth
+      ctx.strokeStyle = "#2B2118";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(bw * 0.05, -bh * 0.02, 3, 0, Math.PI);
+      ctx.stroke();
     }
 
     ctx.fillStyle = alpha < 1 ? "rgba(0,0,0,0.1)" : "#E9DEC3";
@@ -454,15 +463,42 @@ export function createRenderer(
     ctx.restore();
   }
 
-  function drawCountdown(countdown: number) {
+  let countdownStartTime = 0;
+  let lastCountdownVal = -1;
+
+  function drawCountdown(countdown: number, tickMs: number) {
     if (countdown < 0) return;
     const text = countdown === 0 ? "GO!" : String(countdown);
-    const scale = countdown === 0 ? 1.15 : 1;
+
+    // Track when each new countdown number appears for animation
+    if (countdown !== lastCountdownVal) {
+      lastCountdownVal = countdown;
+      countdownStartTime = tickMs;
+    }
+
+    const age = tickMs - countdownStartTime;
+    const maxAge = 1000;
+
+    // easeOutBack spring scale-in
+    let scale = 1;
+    if (!reducedMotion) {
+      const t = Math.min(1, age / 300);
+      const c1 = 1.70158;
+      const c3 = c1 + 1;
+      scale = 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    }
+
+    // easeInCubic fade-out in last 200ms
+    let alpha = 0.9;
+    if (!reducedMotion && age > maxAge - 200) {
+      const fadeT = (age - (maxAge - 200)) / 200;
+      alpha = 0.9 * (1 - fadeT * fadeT * fadeT);
+    }
 
     ctx.save();
-    ctx.globalAlpha = 0.9;
+    ctx.globalAlpha = alpha;
     ctx.fillStyle = countdown === 0 ? "#D94F3A" : "#2B2118";
-    ctx.font = `bold ${Math.round(96 * scale)}px system-ui, sans-serif`;
+    ctx.font = `bold ${Math.round(96 * scale)}px "Caveat", "Patrick Hand SC", system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.translate(width / 2, height / 2);
@@ -484,7 +520,7 @@ export function createRenderer(
     ctx.save();
     ctx.globalAlpha = 0.8;
     ctx.fillStyle = "#2B2118";
-    ctx.font = "bold 20px monospace";
+    ctx.font = 'bold 20px "Patrick Hand SC", monospace';
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     ctx.fillText(timeStr, 16, 16);
@@ -506,13 +542,28 @@ export function createRenderer(
 
   const REAR_WHEEL_RADIUS = 0.35;
 
+  // Camera shake state
+  let shakeAmount = 0;
+  let shakeDecay = 0.9;
+
   return function render(
     snapshot: RaceSnapshot,
-    ghosts: Array<{ snapshot: RaceSnapshot; wheelPath: Path2D }>,
+    ghosts: Array<{ snapshot: RaceSnapshot; wheelPath: Path2D; name?: string }>,
     particles: ParticleSystem,
     countdown?: number
   ) {
     updateCamera(snapshot.wheel.x, snapshot.wheel.y);
+
+    ctx.save();
+    // Camera shake
+    if (shakeAmount > 0.5 && !reducedMotion) {
+      const sx = (Math.random() - 0.5) * shakeAmount;
+      const sy = (Math.random() - 0.5) * shakeAmount;
+      ctx.translate(sx, sy);
+      shakeAmount *= shakeDecay;
+    } else {
+      shakeAmount = 0;
+    }
 
     drawSky();
     drawFarHills();
@@ -520,11 +571,30 @@ export function createRenderer(
     drawTerrain();
     drawFinishLine();
 
+    // Dust particles behind player (layer 5, behind wheel)
+    particles.renderDust(ctx);
+
     // Ghosts (layer 4)
     for (const ghost of ghosts) {
       drawWheel(ghost.snapshot.wheel, ghost.wheelPath, null, "#8896A3", 0.6);
       drawChassis(ghost.snapshot.chassis, 0.6);
       drawRearWheel(ghost.snapshot.rearWheel, 0.6);
+
+      // Ghost name tag (floating label above)
+      if (ghost.name) {
+        const gsx = ghost.snapshot.wheel.x * PPM - camera.x;
+        const gsy = -ghost.snapshot.wheel.y * PPM - camera.y;
+        if (gsx > -50 && gsx < width + 50 && gsy > -50 && gsy < height + 50) {
+          ctx.save();
+          ctx.globalAlpha = 0.7;
+          ctx.fillStyle = "#2B2118";
+          ctx.font = '14px "Caveat", system-ui, sans-serif';
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(ghost.name, gsx, gsy - 30);
+          ctx.restore();
+        }
+      }
     }
 
     // Player (layer 5)
@@ -532,16 +602,18 @@ export function createRenderer(
     drawWheel(snapshot.wheel, wheelPath, wobblePath, "#D94F3A", 1);
     drawChassis(snapshot.chassis, 1);
 
-    // Particles (layer 6)
-    particles.render(ctx);
+    // Confetti / FX overlay (layer 6)
+    particles.renderConfetti(ctx);
 
     // HUD (layer 7)
     drawHUD(snapshot.elapsedMs);
 
     // Countdown overlay
     if (countdown !== undefined && countdown >= 0) {
-      drawCountdown(countdown);
+      drawCountdown(countdown, snapshot.elapsedMs);
     }
+
+    ctx.restore();
   };
 }
 

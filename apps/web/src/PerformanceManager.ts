@@ -1,12 +1,14 @@
 export class PerformanceManager {
   private frameTimes: number[] = [];
   private maxSamples = 60;
-  private reducedParticles = false;
+  private particleState: "full" | "reduced" | "none" = "full";
   private reducedGhosts = false;
   private simHz = 60;
 
   constructor() {
-    this.reducedParticles = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      this.particleState = "none";
+    }
   }
 
   recordFrame(dtMs: number): void {
@@ -22,8 +24,11 @@ export class PerformanceManager {
     if (avg > 33 && !this.reducedGhosts) {
       this.reducedGhosts = true;
     }
-    if (avg > 25 && !this.reducedParticles) {
-      this.reducedParticles = true;
+    if (avg > 25 && this.particleState === "full") {
+      this.particleState = "reduced";
+    }
+    if (avg > 30 && this.particleState === "reduced") {
+      this.particleState = "none";
     }
     if (avg > 30 && this.simHz === 60) {
       this.simHz = 30;
@@ -31,8 +36,7 @@ export class PerformanceManager {
   }
 
   get particleLevel(): "full" | "reduced" | "none" {
-    if (this.reducedParticles) return "none";
-    return "full";
+    return this.particleState;
   }
 
   get maxGhosts(): number {
@@ -50,7 +54,7 @@ export class PerformanceManager {
 
   reset(): void {
     this.frameTimes = [];
-    this.reducedParticles = false;
+    this.particleState = "full";
     this.reducedGhosts = false;
     this.simHz = 60;
   }

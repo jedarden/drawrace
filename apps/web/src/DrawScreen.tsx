@@ -42,7 +42,7 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
     const off = offCanvasRef.current;
     if (!canvas || !off) return;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { desynchronized: true });
     const offCtx = off.getContext("2d");
     if (!ctx || !offCtx) return;
 

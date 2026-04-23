@@ -103,6 +103,46 @@ export class SoundManager {
     this.playTone(1200, 0.08, 0.15);
   }
 
+  playBounce(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    // Pitch-shifted short thud
+    const pitchShift = 0.85 + Math.random() * 0.3;
+    this.playTone(200 * pitchShift, 0.1, 0.2);
+  }
+
+  playWhoosh(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const bufferSize = Math.floor(ctx.sampleRate * 0.3);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++) {
+      const t = i / bufferSize;
+      data[i] = (Math.random() * 2 - 1) * (1 - t) * Math.sin(t * Math.PI);
+    }
+
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 800;
+    filter.Q.value = 0.5;
+
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 0.15;
+
+    noise.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    noise.start();
+  }
+
   playUiTap(): void {
     this.playTone(1000, 0.04, 0.1);
   }

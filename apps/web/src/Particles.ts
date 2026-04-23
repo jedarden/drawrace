@@ -22,6 +22,11 @@ export class ParticleSystem {
   private reducedMotion: boolean;
   private particleLevel: "full" | "reduced" | "none" = "full";
   private dustSprite: HTMLCanvasElement | null = null;
+  private staticDustActive = false;
+  private staticDustAlpha = 0.6;
+  private staticDustX = 0;
+  private staticDustY = 0;
+  private staticConfettiAlpha = 0;
 
   constructor() {
     this.reducedMotion =
@@ -48,7 +53,17 @@ export class ParticleSystem {
   }
 
   emitDust(screenX: number, screenY: number, speed: number): void {
-    if (this.reducedMotion || this.particleLevel === "none") return;
+    if (this.particleLevel === "none") return;
+
+    if (this.reducedMotion) {
+      // Static puff that fades over 200ms
+      this.staticDustActive = true;
+      this.staticDustAlpha = 0.6;
+      this.staticDustX = screenX;
+      this.staticDustY = screenY;
+      return;
+    }
+
     const dustCount = this.particles.filter((p) => p.type === "dust").length;
     if (dustCount >= DUST_POOL_MAX) return;
     if (speed < 2.0) return;
@@ -73,7 +88,16 @@ export class ParticleSystem {
   }
 
   emitConfetti(screenX: number, screenY: number): void {
-    if (this.reducedMotion || this.particleLevel === "none") return;
+    if (this.particleLevel === "none") return;
+
+    if (this.reducedMotion) {
+      // Static burst image that fades
+      this.staticConfettiAlpha = 0.8;
+      this.staticDustX = screenX;
+      this.staticDustY = screenY;
+      return;
+    }
+
     const count = this.particleLevel === "reduced" ? 20 : CONFETTI_COUNT;
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
@@ -96,6 +120,23 @@ export class ParticleSystem {
 
   update(dtSec: number): void {
     const dtMs = dtSec * 1000;
+
+    // Fade static alternatives in reduced-motion
+    if (this.reducedMotion) {
+      if (this.staticDustActive) {
+        this.staticDustAlpha -= dtMs / 200;
+        if (this.staticDustAlpha <= 0) {
+          this.staticDustActive = false;
+          this.staticDustAlpha = 0;
+        }
+      }
+      if (this.staticConfettiAlpha > 0) {
+        this.staticConfettiAlpha -= dtMs / 1500;
+        if (this.staticConfettiAlpha < 0) this.staticConfettiAlpha = 0;
+      }
+      return;
+    }
+
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.life -= dtMs;
@@ -107,38 +148,81 @@ export class ParticleSystem {
       if (p.type === "confetti") {
         p.x += p.vx * dtSec;
         p.y += p.vy * dtSec;
-        p.vy += 800 * dtSec; // 800 px/s² gravity
+        p.vy += 800 * dtSec;
         p.rotation += p.rotationSpeed * dtSec;
       } else {
         p.x += p.vx * dtSec;
         p.y += p.vy * dtSec;
-        p.vy += 20 * dtSec; // slight gravity on dust
+        p.vy += 20 * dtSec;
       }
     }
   }
 
-  render(ctx: CanvasRenderingContext2D): void {
-    for (const p of this.particles) {
-      const t = p.life / p.maxLife;
+  renderDust(ctx: CanvasRenderingContext2D): void {
+    if (this.reducedMotion) {
+      if (this.staticDustActive && this.dustSprite) {
+        ctx.save();
+        ctx.globalAlpha = this.staticDustAlpha;
+        ctx.drawImage(this.dustSprite, this.staticDustX - 12, this.staticDustY - 12, 24, 24);
+        ctx.restore();
+      }
+      return;
+    }
 
+    for (const p of this.particles) {
+      if (p.type !== "dust") continue;
+      const t = p.life / p.maxLife;
       ctx.save();
-      if (p.type === "confetti") {
-        ctx.globalAlpha = t;
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.rotation);
-        ctx.fillStyle = p.color;
-        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
-      } else {
-        // Dust: pre-rendered sprite with easeOutQuad fade
-        const alpha = t * t * 0.6;
-        ctx.globalAlpha = alpha;
-        const drawSize = p.size * (1.5 - t * 0.5);
-        if (this.dustSprite) {
-          ctx.drawImage(this.dustSprite, p.x - drawSize / 2, p.y - drawSize / 2, drawSize, drawSize);
-        }
+      const alpha = t * t * 0.6;
+      ctx.globalAlpha = alpha;
+      const drawSize = p.size * (1.5 - t * 0.5);
+      if (this.dustSprite) {
+        ctx.drawImage(this.dustSprite, p.x - drawSize / 2, p.y - drawSize / 2, drawSize, drawSize);
       }
       ctx.restore();
     }
+  }
+
+  renderConfetti(ctx: CanvasRenderingContext2D): void {
+    if (this.reducedMotion) {
+      if (this.staticConfettiAlpha > 0) {
+        ctx.save();
+        ctx.globalAlpha = this.staticConfettiAlpha;
+        // Static burst: simple colored circles
+        const colors = CONFETTI_COLORS;
+        for (let i = 0; i < 8; i++) {
+          const angle = (i / 8) * Math.PI * 2;
+          const r = 30;
+          ctx.fillStyle = colors[i % colors.length];
+          ctx.beginPath();
+          ctx.arc(
+            this.staticDustX + Math.cos(angle) * r,
+            this.staticDustY + Math.sin(angle) * r,
+            5, 0, Math.PI * 2
+          );
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      return;
+    }
+
+    for (const p of this.particles) {
+      if (p.type !== "confetti") continue;
+      const t = p.life / p.maxLife;
+      ctx.save();
+      ctx.globalAlpha = t;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+      ctx.restore();
+    }
+  }
+
+  render(ctx: CanvasRenderingContext2D): void {
+    this.renderDust(ctx);
+    this.renderConfetti(ctx);
   }
 
   clear(): void {
