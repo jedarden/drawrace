@@ -1,11 +1,16 @@
 //! Layer 5 — Backend Contract Tests
 //!
 //! Exercises the full axum app against real Postgres, Redis, and S3 (MinIO/Garage).
-//! Run with:
+//!
+//! Tests that hit the database are marked `#[ignore]` and require infrastructure.
+//! Run all tests (unit-only, no infra needed):
+//!   cargo test -p drawrace-api --test contract_test
+//!
+//! Run integration tests (requires Postgres + Redis + S3):
 //!   DATABASE_URL=postgres://test:test@localhost:5432/drawrace_test \
 //!   REDIS_URL=redis://127.0.0.1:6333 \
 //!   S3_ENDPOINT=http://127.0.0.1:9000 \
-//!   cargo test -p drawrace-api --test contract_test
+//!   cargo test -p drawrace-api --test contract_test -- --include-ignored
 
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::Client as S3Client;
@@ -234,6 +239,7 @@ async fn read_json(resp: axum::response::Response) -> serde_json::Value {
 // ===========================================================================
 
 #[tokio::test]
+#[ignore] // requires Postgres + Redis + S3
 async fn golden_submission_response_structure() {
     let app = test_app().await;
     let body = make_test_blob(TEST_PLAYER_UUID, 1);
@@ -285,6 +291,7 @@ async fn golden_submission_rejects_mismatched_track_header() {
 // ===========================================================================
 
 #[tokio::test]
+#[ignore] // requires Postgres + Redis + S3
 async fn poll_returns_400_without_player_header() {
     let app = test_app().await;
     let body = make_test_blob(TEST_PLAYER_UUID, 1);
@@ -306,6 +313,7 @@ async fn poll_returns_400_without_player_header() {
 }
 
 #[tokio::test]
+#[ignore] // requires Postgres + Redis + S3
 async fn poll_returns_200_for_owner_with_pending_status() {
     let pool = setup_db().await;
     let app = test_app_with_pool(pool.clone()).await;
@@ -333,6 +341,7 @@ async fn poll_returns_200_for_owner_with_pending_status() {
 }
 
 #[tokio::test]
+#[ignore] // requires Postgres + Redis + S3
 async fn poll_returns_404_for_different_player_not_403() {
     let pool = setup_db().await;
     let app = test_app_with_pool(pool.clone()).await;
@@ -357,6 +366,7 @@ async fn poll_returns_404_for_different_player_not_403() {
 }
 
 #[tokio::test]
+#[ignore] // requires Postgres + Redis + S3
 async fn poll_unknown_submission_returns_404() {
     let app = test_app().await;
     let unknown_id = Uuid::new_v4();
@@ -376,6 +386,7 @@ async fn poll_unknown_submission_returns_404() {
 // ===========================================================================
 
 #[tokio::test]
+#[ignore] // requires Postgres + Redis + S3
 async fn hmac_accepts_valid_signature() {
     let app = test_app().await;
     let body = make_test_blob(TEST_PLAYER_UUID, 1);
@@ -415,6 +426,7 @@ async fn hmac_rejects_flipped_byte_in_mac() {
 }
 
 #[tokio::test]
+#[ignore] // requires Postgres + Redis + S3
 async fn hmac_rejects_flipped_byte_in_body() {
     let app = test_app().await;
     let original_body = make_test_blob(TEST_PLAYER_UUID, 1);
@@ -478,6 +490,7 @@ async fn hmac_rejects_missing_hmac_header() {
 }
 
 #[tokio::test]
+#[ignore] // requires Postgres + Redis + S3
 async fn hmac_rejects_wrong_key() {
     let app = test_app().await;
     let body = make_test_blob(TEST_PLAYER_UUID, 1);
@@ -559,6 +572,7 @@ fn blob_with_custom_time_roundtrips() {
 // ===========================================================================
 
 #[tokio::test]
+#[ignore] // requires Postgres
 async fn bucket_assignment_from_seeded_times() {
     let pool = setup_db().await;
 
@@ -879,6 +893,7 @@ async fn rejected_verdict_has_exact_fields() {
 // ===========================================================================
 
 #[tokio::test]
+#[ignore] // requires Postgres + Redis + S3
 async fn submission_creates_player_and_persists() {
     let pool = setup_db().await;
     let app = test_app_with_pool(pool.clone()).await;
