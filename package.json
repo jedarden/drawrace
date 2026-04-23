@@ -17,12 +17,14 @@
     "snap:docker": "docker-compose -f docker-compose.snapshot.yml run --rm snapshot-test",
     "snap:docker:update": "SNAPSHOT_UPDATE=1 docker-compose -f docker-compose.snapshot.yml run --rm snapshot-test",
     "regen-snapshot-fixture": "npx tsx packages/engine-core/scripts/gen-snapshot-fixture.ts && cp packages/engine-core/fixtures/snapshot-fixture.json apps/web/public/fixtures/",
-    "regen-golden": "npx tsx packages/engine-core/scripts/regen-golden.ts"
+    "regen-golden": "npx tsx packages/engine-core/scripts/regen-golden.ts",
+    "size": "size-limit"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
     "@eslint/js": "^9.24.0",
     "@playwright/test": "^1.59.1",
+    "@size-limit/preset-app": "^12.1.0",
     "@types/pixelmatch": "^5.2.6",
     "eslint": "^9.24.0",
     "pixelmatch": "^7.1.0",
@@ -38,6 +40,12 @@
       "name": "engine-core",
       "path": "packages/engine-core/dist/index.js",
       "limit": "100 KB",
+      "gzip": true
+    },
+    {
+      "name": "web-app",
+      "path": "apps/web/dist/assets/*.js",
+      "limit": "400 KB",
       "gzip": true
     }
   ]
