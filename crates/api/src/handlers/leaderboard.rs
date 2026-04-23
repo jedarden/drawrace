@@ -90,10 +90,7 @@ pub async fn get_top(
 
     Ok((
         StatusCode::OK,
-        Json(LeaderboardTopResponse {
-            track_id,
-            entries,
-        }),
+        Json(LeaderboardTopResponse { track_id, entries }),
     ))
 }
 

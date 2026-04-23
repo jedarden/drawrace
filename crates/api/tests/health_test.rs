@@ -15,13 +15,11 @@ async fn test_app() -> Router {
         .connect_lazy("postgres://test:test@localhost:5432/drawrace_test")
         .expect("pool");
 
-    let redis_pool =
-        deadpool_redis::Config::from_url("redis://127.0.0.1:6333")
-            .create_pool(Some(deadpool_redis::Runtime::Tokio1))
-            .expect("redis pool");
+    let redis_pool = deadpool_redis::Config::from_url("redis://127.0.0.1:6333")
+        .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+        .expect("redis pool");
 
-    let s3_client =
-        S3Client::new(&aws_config::defaults(BehaviorVersion::latest()).load().await);
+    let s3_client = S3Client::new(&aws_config::defaults(BehaviorVersion::latest()).load().await);
 
     let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
     let metrics_handle = recorder.handle();
@@ -87,8 +85,7 @@ async fn health_response_structure() {
         .unwrap();
 
     let resp = app.oneshot(req).await.unwrap();
-    let body =
-        axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["api"]["ok"], true);

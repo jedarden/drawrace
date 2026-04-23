@@ -137,14 +137,8 @@ pub async fn get_matchmake(
     };
 
     // Fetch 3 ghosts from target bucket (with fallback chain)
-    let ghosts = fetch_ghosts_with_fallback(
-        &state,
-        track_id,
-        &target_bucket,
-        query.player_uuid,
-        3,
-    )
-    .await?;
+    let ghosts =
+        fetch_ghosts_with_fallback(&state, track_id, &target_bucket, query.player_uuid, 3).await?;
 
     // Track bucket misses for dashboard alerting
     if ghosts.len() < 3 {
@@ -201,8 +195,8 @@ async fn fetch_ghosts_with_fallback(
             break;
         }
         let bucket = BUCKET_ORDER[bucket_idx];
-        let fetched = fetch_ghosts_from_bucket(state, track_id, bucket, exclude_player, remaining)
-            .await?;
+        let fetched =
+            fetch_ghosts_from_bucket(state, track_id, bucket, exclude_player, remaining).await?;
         remaining -= fetched.len() as i64;
         ghosts.extend(fetched);
     }

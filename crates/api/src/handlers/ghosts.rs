@@ -14,16 +14,14 @@ pub async fn get_ghost(
     axum::extract::Path(ghost_id): axum::extract::Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Look up the ghost to get its S3 key
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT s3_key FROM ghosts WHERE ghost_id = $1",
-    )
-    .bind(ghost_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| ApiError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("db error: {e}"),
-    })?;
+    let row: Option<(String,)> = sqlx::query_as("SELECT s3_key FROM ghosts WHERE ghost_id = $1")
+        .bind(ghost_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: format!("db error: {e}"),
+        })?;
 
     let s3_key = match row {
         Some((key,)) => key,

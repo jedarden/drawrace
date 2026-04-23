@@ -61,9 +61,8 @@ impl BlobHeader {
         let submitted_at = i64::from_le_bytes([
             buf[12], buf[13], buf[14], buf[15], buf[16], buf[17], buf[18], buf[19],
         ]);
-        let player_uuid = Uuid::from_bytes(
-            buf[20..36].try_into().expect("36-20=16 bytes for UUID"),
-        );
+        let player_uuid =
+            Uuid::from_bytes(buf[20..36].try_into().expect("36-20=16 bytes for UUID"));
 
         Ok(Self {
             version,
@@ -260,7 +259,10 @@ mod tests {
     #[test]
     fn reject_too_short() {
         let buf = vec![0u8; 20];
-        assert!(matches!(BlobHeader::parse(&buf), Err(BlobError::TooShort(20))));
+        assert!(matches!(
+            BlobHeader::parse(&buf),
+            Err(BlobError::TooShort(20))
+        ));
     }
 
     #[test]

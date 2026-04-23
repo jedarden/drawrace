@@ -1,5 +1,6 @@
 use anyhow::Context;
 use aws_config::BehaviorVersion;
+use aws_sdk_s3::config::Region;
 use drawrace_api::blob::{BlobHeader, GhostBlob};
 use serde_json::json;
 use sqlx::PgPool;
@@ -22,12 +23,9 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let database_url = std::env::var("DATABASE_URL")
-        .context("DATABASE_URL must be set")?;
-    let redis_url = std::env::var("REDIS_URL")
-        .context("REDIS_URL must be set")?;
-    let s3_bucket = std::env::var("S3_BUCKET")
-        .unwrap_or_else(|_| "drawrace-ghosts".to_string());
+    let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?;
+    let redis_url = std::env::var("REDIS_URL").context("REDIS_URL must be set")?;
+    let s3_bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "drawrace-ghosts".to_string());
 
     // Postgres connection
     let pool = PgPool::connect(&database_url)
@@ -40,9 +38,14 @@ async fn main() -> anyhow::Result<()> {
         .create_pool(Some(deadpool_redis::Runtime::Tokio1))
         .context("Failed to create Redis pool")?;
 
-    // S3 client
-    let s3_config = aws_config::defaults(BehaviorVersion::latest());
-    let s3 = aws_sdk_s3::Client::new(&s3_config.load().await);
+    // S3 client — support custom endpoint for Garage S3
+    let region = std::env::var("S3_REGION").unwrap_or_else(|_| "garage".to_string());
+    let mut s3_config_builder =
+        aws_config::defaults(BehaviorVersion::latest()).region(Region::new(region));
+    if let Ok(endpoint) = std::env::var("S3_ENDPOINT") {
+        s3_config_builder = s3_config_builder.endpoint_url(endpoint);
+    }
+    let s3 = aws_sdk_s3::Client::new(&s3_config_builder.load().await);
 
     let state = Arc::new(ValidatorState {
         pool,
@@ -51,10 +54,31 @@ async fn main() -> anyhow::Result<()> {
         redis,
     });
 
-    // Start health check server
+    // Port 8080: /internal/version — used by API pod for readiness-cache poll,
+    // restricted by NetworkPolicy to pods labeled app=drawrace-api.
+    let internal_state = state.clone();
+    tokio::spawn(async move {
+        let app = axum::Router::new()
+            .route("/internal/version", axum::routing::get(version_handler))
+            .with_state(internal_state);
+        let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
+            .await
+            .expect("bind :8080");
+        tracing::info!("Internal server listening on :8080");
+        axum::serve(listener, app).await.expect("serve :8080");
+    });
+
+    // Port 8081: /healthz — kubelet readiness/liveness probe, unrestricted.
     let health_state = state.clone();
     tokio::spawn(async move {
-        health_server(health_state).await;
+        let app = axum::Router::new()
+            .route("/healthz", axum::routing::get(healthz_handler))
+            .with_state(health_state);
+        let listener = tokio::net::TcpListener::bind("0.0.0.0:8081")
+            .await
+            .expect("bind :8081");
+        tracing::info!("Health server listening on :8081");
+        axum::serve(listener, app).await.expect("serve :8081");
     });
 
     tracing::info!("DrawRace validator starting");
@@ -75,20 +99,6 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn health_server(state: Arc<ValidatorState>) {
-    let app = axum::Router::new()
-        .route("/healthz", axum::routing::get(healthz_handler))
-        .route("/internal/version", axum::routing::get(version_handler))
-        .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8081")
-        .await
-        .unwrap();
-
-    tracing::info!("Health server listening on :8081");
-    axum::serve(listener, app).await.unwrap();
-}
-
 async fn healthz_handler() -> &'static str {
     "ok"
 }
@@ -101,9 +111,7 @@ async fn version_handler() -> axum::Json<serde_json::Value> {
     }))
 }
 
-async fn process_one_submission(
-    state: &ValidatorState,
-) -> anyhow::Result<Option<Uuid>> {
+async fn process_one_submission(state: &ValidatorState) -> anyhow::Result<Option<Uuid>> {
     // BRPOP with 5 second timeout
     let mut conn = state.redis.get().await?;
     let (_queue_name, submission_id_str): (String, String) = redis::cmd("BRPOP")
@@ -112,8 +120,8 @@ async fn process_one_submission(
         .query_async(&mut *conn)
         .await?;
 
-    let submission_id = Uuid::parse_str(&submission_id_str)
-        .context("Invalid submission ID in queue")?;
+    let submission_id =
+        Uuid::parse_str(&submission_id_str).context("Invalid submission ID in queue")?;
 
     tracing::info!(submission_id = %submission_id, "Processing submission");
 
@@ -139,21 +147,14 @@ async fn process_one_submission(
     let verdict = validate_ghost(&blob, track_id as u16, &physics_version).await?;
 
     // Update Postgres with verdict
-    update_submission_verdict(
-        &state.pool,
-        submission_id,
-        &verdict,
-        &s3_key,
-    ).await?;
+    update_submission_verdict(&state.pool, submission_id, &verdict, &s3_key).await?;
 
     Ok(Some(submission_id))
 }
 
-async fn download_ghost_blob(
-    state: &ValidatorState,
-    s3_key: &str,
-) -> anyhow::Result<Vec<u8>> {
-    let resp = state.s3
+async fn download_ghost_blob(state: &ValidatorState, s3_key: &str) -> anyhow::Result<Vec<u8>> {
+    let resp = state
+        .s3
         .get_object()
         .bucket(&state.s3_bucket)
         .key(s3_key)
@@ -179,8 +180,7 @@ async fn validate_ghost(
     _physics_version: &str,
 ) -> anyhow::Result<Verdict> {
     // Parse blob header
-    let header = BlobHeader::parse(blob)
-        .context("Failed to parse blob header")?;
+    let header = BlobHeader::parse(blob).context("Failed to parse blob header")?;
 
     // Basic validation
     if header.track_id != expected_track_id {
@@ -193,8 +193,7 @@ async fn validate_ghost(
     }
 
     // Parse full blob for structural validation
-    let ghost = GhostBlob::parse(blob)
-        .context("Failed to parse ghost blob")?;
+    let ghost = GhostBlob::parse(blob).context("Failed to parse ghost blob")?;
 
     // Layer 2 structural checks
     if ghost.polygon_vertices.len() < 8 || ghost.polygon_vertices.len() > 32 {
@@ -253,8 +252,12 @@ async fn update_submission_verdict(
 ) -> anyhow::Result<()> {
     match verdict.status.as_str() {
         "accepted" => {
-            let ghost_id = verdict.ghost_id.context("Missing ghost_id for accepted verdict")?;
-            let time_ms = verdict.time_ms.context("Missing time_ms for accepted verdict")?;
+            let ghost_id = verdict
+                .ghost_id
+                .context("Missing ghost_id for accepted verdict")?;
+            let time_ms = verdict
+                .time_ms
+                .context("Missing time_ms for accepted verdict")?;
 
             // Begin transaction
             let mut tx = pool.begin().await?;
@@ -338,7 +341,12 @@ mod tests {
     use drawrace_api::blob::HEADER_SIZE;
 
     /// Build a valid DRGH blob with configurable fields.
-    fn make_blob(track_id: u16, finish_time_ms: u32, vertex_count: u8, checkpoints: &[u32]) -> Vec<u8> {
+    fn make_blob(
+        track_id: u16,
+        finish_time_ms: u32,
+        vertex_count: u8,
+        checkpoints: &[u32],
+    ) -> Vec<u8> {
         let vertex_count = vertex_count.clamp(8, 32);
         let mut buf = Vec::new();
         buf.extend_from_slice(b"DRGH");
@@ -437,7 +445,10 @@ mod tests {
         let blob = make_blob(1, 0, 12, &[5000, 15000, 25000]);
         let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
         assert_eq!(verdict.status, "rejected");
-        assert_eq!(verdict.reject_reason.as_deref(), Some("finish_time_ms is zero"));
+        assert_eq!(
+            verdict.reject_reason.as_deref(),
+            Some("finish_time_ms is zero")
+        );
     }
 
     #[tokio::test]

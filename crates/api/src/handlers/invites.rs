@@ -63,16 +63,15 @@ pub async fn post_redeem_invite(
     }
 
     // Check if this player already redeemed any code
-    let already_redeemed: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM player_invites WHERE player_uuid = $1)",
-    )
-    .bind(body.player_uuid)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| ApiError {
-        status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("db error: {e}"),
-    })?;
+    let already_redeemed: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM player_invites WHERE player_uuid = $1)")
+            .bind(body.player_uuid)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| ApiError {
+                status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                message: format!("db error: {e}"),
+            })?;
 
     if already_redeemed {
         // Player already has access — idempotent success
@@ -109,17 +108,15 @@ pub async fn post_redeem_invite(
         ));
     }
 
-    sqlx::query(
-        "INSERT INTO player_invites (player_uuid, invite_code) VALUES ($1, $2)",
-    )
-    .bind(body.player_uuid)
-    .bind(&code)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError {
-        status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("db error: {e}"),
-    })?;
+    sqlx::query("INSERT INTO player_invites (player_uuid, invite_code) VALUES ($1, $2)")
+        .bind(body.player_uuid)
+        .bind(&code)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError {
+            status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            message: format!("db error: {e}"),
+        })?;
 
     tx.commit().await.map_err(|e| ApiError {
         status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -151,16 +148,15 @@ pub async fn get_invite_status(
         ));
     };
 
-    let has_access: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM player_invites WHERE player_uuid = $1)",
-    )
-    .bind(uuid)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| ApiError {
-        status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("db error: {e}"),
-    })?;
+    let has_access: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM player_invites WHERE player_uuid = $1)")
+            .bind(uuid)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| ApiError {
+                status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                message: format!("db error: {e}"),
+            })?;
 
     Ok((
         axum::http::StatusCode::OK,

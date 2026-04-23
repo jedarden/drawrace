@@ -247,13 +247,12 @@ pub async fn get_submission(
 
                 let bucket = bucket_for_rank(rank);
 
-                let is_pb: bool = sqlx::query_scalar(
-                    "SELECT is_pb FROM ghosts WHERE ghost_id = $1",
-                )
-                .bind(gid)
-                .fetch_one(&state.pool)
-                .await
-                .unwrap_or(false);
+                let is_pb: bool =
+                    sqlx::query_scalar("SELECT is_pb FROM ghosts WHERE ghost_id = $1")
+                        .bind(gid)
+                        .fetch_one(&state.pool)
+                        .await
+                        .unwrap_or(false);
 
                 Ok((
                     StatusCode::OK,

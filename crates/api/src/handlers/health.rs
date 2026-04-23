@@ -59,9 +59,7 @@ pub async fn health_handler(State(state): State<Arc<AppState>>) -> Json<HealthRe
     })
 }
 
-pub async fn ready_handler(
-    State(state): State<Arc<AppState>>,
-) -> Result<&'static str, StatusCode> {
+pub async fn ready_handler(State(state): State<Arc<AppState>>) -> Result<&'static str, StatusCode> {
     let readiness = &state.readiness;
     let elapsed = readiness.boot_instant.elapsed().as_secs();
     let has_polled = readiness.has_ever_polled.load(Ordering::Relaxed);

@@ -11,7 +11,9 @@ pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
 }
 
 pub async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::migrate::MigrateError> {
-    sqlx::migrate!("../../crates/api/migrations").run(pool).await
+    sqlx::migrate!("../../crates/api/migrations")
+        .run(pool)
+        .await
 }
 
 pub fn create_redis_pool(redis_url: &str) -> deadpool_redis::Pool {

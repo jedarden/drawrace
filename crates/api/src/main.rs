@@ -8,28 +8,20 @@ use tracing_subscriber::EnvFilter;
 async fn main() {
     tracing_subscriber::fmt()
         .json()
-        .with_env_filter(
-            EnvFilter::from_default_env().add_directive("info".parse().unwrap()),
-        )
+        .with_env_filter(EnvFilter::from_default_env().add_directive("info".parse().unwrap()))
         .init();
 
     // Install Prometheus metrics exporter (in-process, /v1/metrics scrapes it)
-    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new()
-        .build_recorder();
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
     let metrics_handle = recorder.handle();
     metrics::set_global_recorder(recorder).expect("failed to install metrics recorder");
 
-    let database_url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let redis_url =
-        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
-    let listen_addr =
-        std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".into());
-    let s3_bucket =
-        std::env::var("S3_BUCKET").unwrap_or_else(|_| "drawrace-ghosts".into());
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
+    let listen_addr = std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".into());
+    let s3_bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "drawrace-ghosts".into());
     let s3_endpoint = std::env::var("S3_ENDPOINT").ok();
-    let hmac_current =
-        std::env::var("HMAC_CURRENT_KEY").expect("HMAC_CURRENT_KEY must be set");
+    let hmac_current = std::env::var("HMAC_CURRENT_KEY").expect("HMAC_CURRENT_KEY must be set");
     let hmac_previous = std::env::var("HMAC_PREVIOUS_KEY").unwrap_or_default();
 
     let pool = drawrace_api::db::create_pool(&database_url)
@@ -113,7 +105,8 @@ async fn main() {
                         if let Some(pv) = body.get("physics_version").and_then(|v| v.as_u64()) {
                             cache.physics_version = pv as u16;
                         }
-                        if let Some(hash) = body.get("engine_core_wasm_sha256").and_then(|v| v.as_str())
+                        if let Some(hash) =
+                            body.get("engine_core_wasm_sha256").and_then(|v| v.as_str())
                         {
                             cache.engine_core_wasm_sha256 = hash.to_string();
                         }

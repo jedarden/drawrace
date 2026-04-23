@@ -8,6 +8,8 @@ stringData:
   DATABASE_URL: "postgresql://user:pass@postgres:5432/drawrace"
   REDIS_URL: "redis://redis:6379"
   S3_BUCKET: "drawrace-ghosts"
+  S3_ENDPOINT: "http://garage.ardenone-hub.svc:3900"
+  S3_REGION: "garage"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -51,6 +53,16 @@ spec:
                 secretKeyRef:
                   name: drawrace-validator-secrets
                   key: S3_BUCKET
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: drawrace-validator-secrets
+                  key: S3_ENDPOINT
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: drawrace-validator-secrets
+                  key: S3_REGION
             - name: RUST_LOG
               value: info
           livenessProbe:

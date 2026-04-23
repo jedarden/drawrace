@@ -99,5 +99,8 @@ pub async fn post_crash_report(
 
     metrics::counter!("drawrace_crash_reports_total").increment(1);
 
-    Ok((axum::http::StatusCode::CREATED, Json(CrashReportResponse { id })))
+    Ok((
+        axum::http::StatusCode::CREATED,
+        Json(CrashReportResponse { id }),
+    ))
 }

@@ -36,10 +36,9 @@ async fn test_app() -> Router {
         .connect_lazy("postgres://test:test@localhost:5432/drawrace_test")
         .expect("pool");
 
-    let redis_pool =
-        deadpool_redis::Config::from_url("redis://127.0.0.1:6333")
-            .create_pool(Some(deadpool_redis::Runtime::Tokio1))
-            .expect("redis pool");
+    let redis_pool = deadpool_redis::Config::from_url("redis://127.0.0.1:6333")
+        .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+        .expect("redis pool");
 
     let s3_config = {
         let endpoint =
@@ -83,10 +82,9 @@ async fn test_app() -> Router {
 
 /// Build a test app with a specific PgPool (for tests that need DB setup/cleanup).
 async fn test_app_with_pool(pool: PgPool) -> Router {
-    let redis_pool =
-        deadpool_redis::Config::from_url("redis://127.0.0.1:6333")
-            .create_pool(Some(deadpool_redis::Runtime::Tokio1))
-            .expect("redis pool");
+    let redis_pool = deadpool_redis::Config::from_url("redis://127.0.0.1:6333")
+        .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+        .expect("redis pool");
 
     let s3_config = {
         let endpoint =
@@ -138,8 +136,14 @@ async fn setup_db() -> PgPool {
         .await
         .expect("connect to test database");
 
-    sqlx::query("DELETE FROM submissions").execute(&pool).await.ok();
-    sqlx::query("DELETE FROM feedback").execute(&pool).await.ok();
+    sqlx::query("DELETE FROM submissions")
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM feedback")
+        .execute(&pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ghosts").execute(&pool).await.ok();
     sqlx::query("DELETE FROM names").execute(&pool).await.ok();
     sqlx::query("DELETE FROM players").execute(&pool).await.ok();
@@ -226,7 +230,12 @@ fn compute_hmac(body: &[u8]) -> String {
     hex::encode(hmac)
 }
 
-fn submission_request(blob: &[u8], player_uuid: &str, track_id: u16, hmac_hex: &str) -> Request<Body> {
+fn submission_request(
+    blob: &[u8],
+    player_uuid: &str,
+    track_id: u16,
+    hmac_hex: &str,
+) -> Request<Body> {
     Request::builder()
         .method("POST")
         .uri("/v1/submissions")
@@ -619,7 +628,7 @@ async fn bucket_assignment_from_seeded_times() {
 
     // Fastest ghost (time 20100): rank 1 = elite
     let count_better: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ghosts WHERE track_id = 1 AND is_pb = true AND time_ms < 20100"
+        "SELECT COUNT(*) FROM ghosts WHERE track_id = 1 AND is_pb = true AND time_ms < 20100",
     )
     .fetch_one(&pool)
     .await
@@ -629,27 +638,35 @@ async fn bucket_assignment_from_seeded_times() {
 
     // Time 20500: rank 2-5 = advanced
     let count_20500: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ghosts WHERE track_id = 1 AND is_pb = true AND time_ms < 20500"
+        "SELECT COUNT(*) FROM ghosts WHERE track_id = 1 AND is_pb = true AND time_ms < 20500",
     )
     .fetch_one(&pool)
     .await
     .unwrap();
     let rank_20500 = count_20500 + 1;
-    assert!((2..=5).contains(&rank_20500), "rank {} should be advanced (2-5)", rank_20500);
+    assert!(
+        (2..=5).contains(&rank_20500),
+        "rank {} should be advanced (2-5)",
+        rank_20500
+    );
 
     // Time 25000: rank 6-20 = skilled
     let count_25000: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ghosts WHERE track_id = 1 AND is_pb = true AND time_ms < 25000"
+        "SELECT COUNT(*) FROM ghosts WHERE track_id = 1 AND is_pb = true AND time_ms < 25000",
     )
     .fetch_one(&pool)
     .await
     .unwrap();
     let rank_25000 = count_25000 + 1;
-    assert!((6..=20).contains(&rank_25000), "rank {} should be skilled (6-20)", rank_25000);
+    assert!(
+        (6..=20).contains(&rank_25000),
+        "rank {} should be skilled (6-20)",
+        rank_25000
+    );
 
     // Time 29000: rank > 20 = mid or novice
     let count_29000: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ghosts WHERE track_id = 1 AND is_pb = true AND time_ms < 29000"
+        "SELECT COUNT(*) FROM ghosts WHERE track_id = 1 AND is_pb = true AND time_ms < 29000",
     )
     .fetch_one(&pool)
     .await
@@ -925,13 +942,12 @@ async fn submission_creates_player_and_persists() {
     assert!(exists);
 
     // Submission row exists
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT status FROM submissions WHERE submission_id = $1",
-    )
-    .bind(Uuid::parse_str(submission_id).unwrap())
-    .fetch_optional(&pool)
-    .await
-    .unwrap();
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT status FROM submissions WHERE submission_id = $1")
+            .bind(Uuid::parse_str(submission_id).unwrap())
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
     assert!(row.is_some());
     assert_eq!(row.unwrap().0, "pending_validation");
 }
@@ -948,7 +964,8 @@ async fn crash_report_rejects_empty_message() {
         .uri("/v1/crash")
         .header("X-DrawRace-Player", TEST_PLAYER_UUID)
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"message":""}#))
+        .body(Body::from(
+            r#"{"message":""}#))
         .unwrap();
 
     let resp = app.oneshot(req).await.unwrap();
@@ -962,7 +979,8 @@ async fn crash_report_rejects_missing_body() {
         .method("POST")
         .uri("/v1/crash")
         .header("content-type", "application/json")
-        .body(Body::from(r#"{}"#))
+        .body(Body::from(r#"{}"#,
+        ))
         .unwrap();
 
     let resp = app.oneshot(req).await.unwrap();

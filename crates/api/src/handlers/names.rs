@@ -70,16 +70,15 @@ pub async fn post_name(
     }
 
     // Ensure player exists
-    let player_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM players WHERE player_uuid = $1)",
-    )
-    .bind(body.player_uuid)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| ApiError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("db error: {e}"),
-    })?;
+    let player_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM players WHERE player_uuid = $1)")
+            .bind(body.player_uuid)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| ApiError {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: format!("db error: {e}"),
+            })?;
 
     if !player_exists {
         return Err(ApiError {
@@ -128,14 +127,17 @@ pub async fn post_name(
         });
     }
 
-    Ok((StatusCode::OK, Json(ClaimNameResponse { name: name.into() })))
+    Ok((
+        StatusCode::OK,
+        Json(ClaimNameResponse { name: name.into() }),
+    ))
 }
 
 fn contains_profanity(name: &str) -> bool {
     let lower = name.to_lowercase();
     const BLOCKLIST: &[&str] = &[
-        "fuck", "shit", "ass", "bitch", "cunt", "dick", "nigger", "nazi",
-        "hitler", "rape", "pedo", "kill", "die",
+        "fuck", "shit", "ass", "bitch", "cunt", "dick", "nigger", "nazi", "hitler", "rape", "pedo",
+        "kill", "die",
     ];
     BLOCKLIST.iter().any(|w| lower.contains(w))
 }
