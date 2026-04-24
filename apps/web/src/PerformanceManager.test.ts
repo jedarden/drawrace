@@ -86,7 +86,7 @@ describe("PerformanceManager (Layer 1)", () => {
     expect(pm.maxGhosts).toBe(1);
   });
 
-  it("drops to 30Hz when frames are consistently slow", async () => {
+  it("keeps sim at fixed 60Hz even under sustained load", async () => {
     vi.resetModules();
     const { getPerformanceManager } = await import("./PerformanceManager.js");
     const pm = getPerformanceManager();
@@ -95,8 +95,8 @@ describe("PerformanceManager (Layer 1)", () => {
     for (let i = 0; i < 25; i++) {
       pm.recordFrame(40);
     }
-    expect(pm.simFrequency).toBe(30);
-    expect(pm.simDt).toBeCloseTo(1 / 30, 6);
+    expect(pm.simFrequency).toBe(60);
+    expect(pm.simDt).toBeCloseTo(1 / 60, 6);
   });
 
   it("reset restores full quality", async () => {
@@ -114,6 +114,7 @@ describe("PerformanceManager (Layer 1)", () => {
     expect(pm.particleLevel).toBe("full");
     expect(pm.maxGhosts).toBe(3);
     expect(pm.simFrequency).toBe(60);
+    expect(pm.simDt).toBeCloseTo(1 / 60, 6);
   });
 
   it("starts with no particles in reduced-motion mode", async () => {
