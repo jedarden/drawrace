@@ -93,7 +93,7 @@ async function runPerfTest() {
       particles.emitDust(wheelSX, wheelSY, dx);
       particles.update(1 / 60);
 
-      render(snap, ghostSnaps, particles);
+      render.render(snap, ghostSnaps, particles);
 
       const t1 = performance.now();
       frameDurations.push(t1 - t0);

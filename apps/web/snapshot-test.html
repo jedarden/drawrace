@@ -48,12 +48,12 @@ async function init() {
         if (checkpoint === "finish") {
           // Render the last frame in the recording
           const frame = driver.getFrame(driver.totalFrames - 1);
-          renderer(frame, [], particles);
+          renderer.render(frame, [], particles);
           return true;
         }
         const tick = typeof checkpoint === "number" ? checkpoint : parseInt(checkpoint, 10);
         const frame = driver.getFrame(tick);
-        renderer(frame, [], particles);
+        renderer.render(frame, [], particles);
         return true;
       },
     };
