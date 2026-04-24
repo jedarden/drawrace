@@ -1,89 +1,138 @@
-# DrawRace — Marathon Coding Instruction
+# DrawRace — Marathon Coding Instruction (Playability Pass)
 
-You are the sole implementation agent for **DrawRace**, a mobile-first wheel-drawing racing PWA. Each iteration, you pick up where the last left off and make concrete, committed progress toward a shippable v1.
+You are the implementation agent for **DrawRace**, a mobile-first wheel-drawing racing PWA. The codebase already reached a self-declared "all phases code-complete" state on 2026-04-23. A real-device audit the same day found that **the game does not actually play on a real phone** — despite every unit/integration/E2E test showing green. Your job now is to close that gap.
+
+## Current state, honestly
+
+- ✅ 88/88 Vitest, 13 Rust tests, 19/19 Playwright E2E pass.
+- ✅ `pnpm build` succeeds; bundle is 126 KB gz (plan cap 400 KB).
+- ✅ Phase 0 determinism exit criteria pass (100/100 identical `streamHash`; `Math.random` lint).
+- ❌ On a real Android Chrome over HTTP, `crypto.randomUUID` throws, the Race canvas never draws a pixel, the countdown stalls at "3".
+- ❌ **Layer 9 (Pixel-6 ADB phone-smoke)** — which the plan calls the *first-class* mobile target — was never built. That's why the bug shipped.
+- ❌ Several round-3/4/5 plan decisions never landed: `rotate-client-key`, `wait-validator-live`, validator 8080/8081 port split + NetworkPolicy, snapshot pinned image.
 
 ## Authoritative Sources
 
-- **Plan:** `/home/coding/drawrace/docs/plan/plan.md` — the consolidated implementation plan. It is the source of truth for architecture, physics, backend, graphics, testing, roadmap, and all the gap-fix decisions from five rounds of review. Read it.
-- **Supporting notes:** `/home/coding/drawrace/docs/notes/features.md` (original design feel)
-- **Research:** `/home/coding/drawrace/docs/research/*.md` (prior art, touch-drawing ergonomics, ghost-replay patterns, layout research)
-- **Environment conventions:** `/home/coding/CLAUDE.md` — kubectl access, ArgoCD, Argo Workflows, beads, ADB/Pixel 6 setup
-- **GitHub remote:** `https://github.com/jedarden/drawrace` (push approved on every iteration)
+- **Plan (FROZEN):** `/home/coding/drawrace/docs/plan/plan.md` — do not edit. If you find a real gap, open a new bead `plan-gap: <title>` and move on.
+- **PROGRESS.md** (at repo root) — needs to be corrected to reflect the audit findings.
+- **Environment conventions:** `/home/coding/CLAUDE.md` — kubectl access, Argo, beads, **ADB/Pixel 6 setup** (critical for this pass).
+- **GitHub remote:** `https://github.com/jedarden/drawrace` — push on every iteration.
 
 ## Working Directory
 
 `/home/coding/drawrace`
 
-## Beads Tracking
+## The work queue (beads to burn down)
 
-Use `br` (beads_rust) at `~/.local/bin/br` for phase/task tracking. On first iteration if `.beads/` does not exist:
+All pending work is tracked under epic **`drawrace-vgn.7` — Real-device playability**. Eight open beads, priorities P0→P3:
 
-1. Run `br init` in the repo root.
-2. Create a **genesis bead** (`br create --type genesis`) titled `Genesis: DrawRace Implementation` with body referencing `docs/plan/plan.md` and a progress checklist for Phases 0–5 (see Roadmap & Delivery Plan section of plan.md).
-3. Create one **epic bead per phase** that blocks the genesis bead. Use the phase exit criteria from `plan.md` as the bead's acceptance criteria.
-4. Inside each epic, decompose into task-level beads as you actually start the phase — do not pre-plan every task.
+| Bead | Priority | What |
+|---|---|---|
+| `drawrace-vgn.7.4` | P0 | Build the Layer-9 phone-smoke ADB+CDP harness (this is the force-multiplier — do it early) |
+| `drawrace-vgn.7.1` | P0 | `crypto.randomUUID` polyfill for non-secure contexts |
+| `drawrace-vgn.7.2` | P0 | Race canvas stays blank on real Android Chrome |
+| `drawrace-vgn.7.3` | P1 | Draw canvas shows no live stroke preview on real Android Chrome |
+| `drawrace-vgn.7.5` | P1 | First-run Private-mode + `ephemeral` flag (plan §Graphics 13, §Multiplayer 5/8) |
+| `drawrace-vgn.7.6` | P2 | Round-3/4/5 `drawrace-build` WorkflowTemplate features |
+| `drawrace-vgn.7.7` | P2 | Validator 8080/8081 port split + NetworkPolicy |
+| `drawrace-vgn.7.8` | P3 | Snapshot tests pinned CI container image |
 
-On every subsequent iteration: `br list --status open --no-pager` first to see the work queue, pick the next ready (unblocked) bead, move it to `in_progress`, work it, close it when done.
+Run `~/.local/bin/br list --status open` at the top of every iteration to see the current state (other agents or humans may have added to the queue).
 
-If `br` reports `database disk image is malformed`, run `br doctor --repair` once; if that fails, `rm .beads/beads.db && br sync --import` to rebuild from the JSONL. Never trust `br doctor` alone — cross-check with `sqlite3 .beads/beads.db "PRAGMA integrity_check;"` if suspicious.
+**Prioritisation: build `drawrace-vgn.7.4` (phone-smoke) first.** It's the only thing that will detect whether any of the other fixes actually worked. A "green" phone-smoke is the gate for closing every playability bead.
 
-## Phase Discipline
+## ADB is wired to a real Pixel 6 on this host — use it
 
-Work the phases in order. Do not skip ahead.
+A Google Pixel 6 is connected to this coding host via ADB over Tailscale:
 
-- **Phase 0 — Foundation** (start here): pnpm workspace monorepo with `apps/web`, `packages/engine-core`, `packages/bot`, `crates/api`, `crates/validator`. Seeded PRNG (sfc32), injected clock, fixed 1/60s timestep, Planck.js loaded. Lint rule banning `Math.random` / real-time APIs in engine code. Vitest running Layer 1 (unit) + Layer 2 (physics golden) in <1 minute. `PHYSICS_VERSION` constant + golden regeneration script. Minimal Argo `drawrace-ci` WorkflowTemplate in `declarative-config`. **Exit criteria:** pure-Node test reproduces identical `streamHash` 100/100 runs; `Math.random` in engine code fails lint.
+- **Device Tailscale IP:** `100.88.10.113`
+- **This host's Tailscale IP:** `100.72.170.64` (the phone reaches us here for fetching the dev bundle)
+- **ADB binary:** `adb` (in PATH via `~/.local/bin/adb`)
+- **Health check:** `adb-check` (prints `connected` if paired; prints `disconnected — port may have changed` and requires a human to run `adb-connect <port>` otherwise)
+- **Screen:** 1080×2400, portrait
+- **Chrome package:** `com.android.chrome`
 
-- **Phase 1 — Playable MVP** (only after Phase 0 exit criteria pass): `apps/web` Vite+React, draw pipeline → physics → single race vs 3 bundled tutorial ghosts, canvas-2D renderer with scene layers, track `hills-01` authored, Result Screen + Retry, Service Worker shell cache, PWA installable. **Exit criteria:** install PWA on a Pixel 6, draw a circle, finish a race.
+Key ADB recipes (more in CLAUDE.md):
 
-- **Phase 2 — Backend & Multiplayer**, **Phase 3 — Polish**, **Phase 4 — Beta**, **Phase 5 — Launch**: see plan.md. Don't scope-creep past the v1 cut line in the roadmap.
+```bash
+# Screenshot → copy to host → read as image
+adb shell screencap -p > /tmp/phone.png
 
-## Per-Iteration Workflow
+# Open a URL in Chrome via deep link (preferred over navigating by taps)
+adb shell am start -a android.intent.action.VIEW -d 'http://100.72.170.64:5180/?v=2' com.android.chrome
 
-1. `cd /home/coding/drawrace && git pull --ff-only` (sync with origin).
-2. `br list --status open --no-pager` — see the work queue. On very first iteration, bootstrap beads per the section above.
-3. Pick the next unblocked bead in the current phase. `br update <id> --status in_progress --assignee marathon`.
-4. Do the work. Write code. Run the relevant tests.
-5. Run the linters/tests the phase requires (`pnpm lint`, `pnpm vitest run`, `cargo test -p <crate>` etc. depending on scope).
-6. `git add <specific paths> && git commit -m "<scope>: <what changed>"`. Include the bead ID in the commit trailer (`Closes: bd-XXX`).
-7. `git push origin main`.
-8. `br update <id> --status closed` (or keep open with a progress note if not done).
-9. If you completed all beads in a phase, update the genesis bead's progress checklist and close the phase's epic.
-10. **End the iteration.** Do not start a second bead. The marathon loop will re-invoke you after the iteration delay — a clean exit lets logs flush.
+# Find UI element coordinates before tapping
+adb shell uiautomator dump /sdcard/ui.xml
+adb shell cat /sdcard/ui.xml
 
-## Constraints (binding)
+# Close Chrome between test runs for a clean cold start
+adb shell am force-stop com.android.chrome
+```
 
-Taken from plan.md's "Key Constraints" — these are non-negotiable.
+**For driving the page programmatically use Chrome DevTools Protocol, NOT `adb shell input swipe`.** Android's `input swipe` only does 2-point strokes; you need multi-sample PointerEvents to exercise the draw pipeline. CDP works:
 
-- **JS bundle ≤ 400KB gzipped** (initial payload). `size-limit` enforces.
-- **Determinism:** `Math.random()` banned in engine code (lint-enforced); all time via injected clock; fixed 1/60s timestep; iteration counts `(8, 3)`.
-- **No K8s Jobs/CronJobs** — long-running Deployments with internal loops only.
-- **No GitHub Actions** — Argo Workflows only.
-- **Never apply k8s manifests directly** — GitOps via ArgoCD only. K8s manifests live in `jedarden/declarative-config`, not in this repo.
-- **Physics immutability by default.** Any intentional physics change bumps `PHYSICS_VERSION`, requires regenerating goldens by hand, and a matching server rollout before client ships.
-- **Never force-push.** Never skip hooks (`--no-verify`). Never run destructive git operations.
+```bash
+# Expose Chrome's devtools port on this host
+adb forward tcp:9222 localabstract:chrome_devtools_remote
 
-## Quality Bar
+# Then list tabs:
+curl -s http://localhost:9222/json
+# Each tab has a webSocketDebuggerUrl like ws://localhost:9222/devtools/page/<n>
+```
 
-- **No TODOs left in code.** If a sub-task can't be finished this iteration, spawn a bead for it and leave a test or comment that will fail loudly if someone forgets.
-- **No scaffolding without substance.** A commit that only adds empty files is not valid progress. Write the actual function + its test.
-- **Tests pass before commit.** Run them. Don't assume.
-- **One bead per iteration.** Iterations are cheap; bundling three beads makes the log hard to review.
+Reference driver scripts from the 2026-04-23 audit (read them before writing the harness, they work):
 
-## What NOT to Do
+- `/tmp/drawrace-draw-circle.py` — injects a 80-sample circle stroke via CDP `Runtime.evaluate`
+- `/tmp/drawrace-click.py` — clicks a button by text
+- `/tmp/drawrace-inspect.py` — dumps DOM/buttons/canvas/localStorage
+- `/tmp/drawrace-console.py` — probes RAF rate and samples canvas pixel alpha
+- `/tmp/drawrace-errors.py` — subscribes to `Runtime.exceptionThrown` + `Log.entryAdded` for the audit-equivalent console listener
 
-- Don't add features beyond what the plan specifies (no "while I'm here" additions).
-- Don't touch `docs/plan/plan.md` — it's frozen. If you find a real gap, open a bead titled `plan-gap: <short description>` and move on.
-- Don't install cluster resources or touch ArgoCD. All of that lives in `jedarden/declarative-config` and is added in Phase 2 via a separate PR there.
-- Don't set up GitHub Actions.
-- Don't run the v1 physics engine in anything other than Planck.js (no Matter.js, no rapier2d).
+Port these into `e2e/phone-smoke/` as part of bead `drawrace-vgn.7.4`.
 
-## Success Criteria Per Iteration
+### Why "real phone over Tailscale HTTP", not localhost
 
-- Working directory is clean after your commit (no uncommitted changes).
-- `main` is pushed to origin and CI is green (or there is no CI for this phase yet).
-- One bead transitioned to `closed` (or a clearly-noted progress update).
-- `docs/plan/plan.md` unchanged.
+The insecure-context `crypto.randomUUID` bug **did not show up in Playwright** because Playwright hit `http://localhost:5173` — localhost is a secure-context exception. Any phone test MUST fetch the bundle from the host's **Tailscale IP** (so the origin is a plain IP, not `localhost`) to reproduce the Cloudflare Pages preview path. To serve accessibly:
 
----
+```bash
+# After pnpm build:
+cd apps/web/dist && python3 -m http.server 5180 --bind 0.0.0.0
+# Then the phone hits http://100.72.170.64:5180/
+```
 
-When in doubt, re-read the relevant section of `plan.md` and follow it. The plan was built from the gameplay-physics spec through the roadmap to resolve 53 gaps over 5 review rounds — trust it.
+## Per-iteration workflow
+
+1. `cd /home/coding/drawrace && git pull --ff-only`
+2. `~/.local/bin/br list --status open` — read the queue.
+3. Pick the highest-priority ready bead under `drawrace-vgn.7`. Mark it `in_progress --assignee marathon`.
+4. **Before writing any code to "fix" a playability bug, confirm you can reproduce the bug on the phone.** Build + serve over Tailscale, drive Chrome via ADB, observe the failure, capture a screenshot to `.marathon/artifacts/iter-<n>/before.png`. No repro → close the bead as "could not reproduce" with your diagnostic steps, do not fabricate a fix.
+5. Implement the fix. Run the relevant tests (`pnpm test`, `pnpm test:e2e`, `cargo test`).
+6. **Re-run the phone-smoke against the fix.** Capture `after.png`. Attach both to the bead (br comment). Bead closure requires a green phone-smoke, not a green headless test.
+7. `git add <specific paths> && git commit -m "<bead-id>: <short>"` with `Closes: drawrace-vgn.7.X` in the trailer.
+8. `git push origin main`.
+9. `~/.local/bin/br close drawrace-vgn.7.X` with a comment pasting the phone-smoke output.
+10. Update `PROGRESS.md` to reflect honest state. Don't re-declare "all phases complete" until `drawrace-vgn.7` itself is closed.
+11. **End the iteration.** One bead per iteration — never two.
+
+## Hard rules
+
+- **No feature is "done" without a green phone-smoke.** If `drawrace-vgn.7.4` (phone-smoke harness) doesn't exist yet, that is the only work you are allowed to do.
+- **Do not edit `docs/plan/plan.md`.** Found a gap? Open a new bead under `drawrace-vgn` as type `task`, title `plan-gap: <title>`, and continue with the original task.
+- **No GitHub Actions, no K8s Jobs/CronJobs, no direct `kubectl apply`.** K8s manifests change only via PR to `jedarden/declarative-config`. This repo can contain the YAML under `k8s/` for reference but that's it.
+- **Never force-push. Never `--no-verify`. Never skip hooks.**
+- **`Math.random` remains banned in `packages/engine-core`.** Lint enforces — don't disable.
+- **Physics changes require `PHYSICS_VERSION` bump + manual golden regeneration.** If your change alters physics behaviour, stop and open a dedicated bead.
+- **Phone-smoke screenshots are artifacts, not source.** Commit baselines under `e2e/phone-smoke/baselines/` but don't commit `.marathon/artifacts/` (already in .gitignore pattern).
+
+## What "done" for `drawrace-vgn.7` means
+
+1. All eight sub-beads closed with phone-smoke evidence.
+2. `PROGRESS.md` reflects honest state (Layer 9 present, round-3/4/5 decisions applied).
+3. A single fresh boot (kill Chrome, clear app storage, cold ADB connection, cold bundle fetch) can: load → draw a circle → race → see a finish time — with zero console errors or exceptions in the captured Chrome DevTools log.
+4. That smoke runs under Argo Workflow as `drawrace-ci`'s `phone-smoke` task, serialised via the `drawrace-phone` mutex, and fails the workflow on any console error.
+
+Then — and only then — re-close the genesis bead `drawrace-vgn`.
+
+## When in doubt
+
+Re-read the relevant section of `plan.md`, follow the plan. The plan survived five rounds of gap review (53 gaps fixed, documented in git log as `gap-review round N` commits) and is the source of truth. If something in the code contradicts the plan, the code is wrong.
