@@ -98,6 +98,20 @@ pub async fn post_submission(
         }
     }
 
+    // Ephemeral flag (bit 0x02): validate structurally but skip persistence
+    const EPHEMERAL_FLAG: u8 = 0x02;
+    if header.flags & EPHEMERAL_FLAG != 0 {
+        // Structural validation — parse the full blob to ensure it's well-formed
+        crate::blob::GhostBlob::parse(&body).map_err(|e| ApiError {
+            status: StatusCode::BAD_REQUEST,
+            message: format!("invalid blob: {e}"),
+        })?;
+
+        metrics::counter!("drawrace_submissions_total", "outcome" => "ephemeral").increment(1);
+
+        return Ok(StatusCode::NO_CONTENT.into_response());
+    }
+
     // Lazy player registration
     sqlx::query("INSERT INTO players (player_uuid) VALUES ($1) ON CONFLICT DO NOTHING")
         .bind(player_uuid)
@@ -193,7 +207,8 @@ pub async fn post_submission(
             status: "pending_validation",
             poll_url,
         }),
-    ))
+    )
+        .into_response())
 }
 
 pub async fn get_submission(

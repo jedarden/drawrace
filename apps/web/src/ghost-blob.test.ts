@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { encodeGhostBlob, decodeGhostBlobVertices, decodeGhostBlobFinishTime } from "./ghost-blob.js";
+import { _resetForTesting } from "./player-identity.js";
 
 const TEST_UUID = "550e8400-e29b-41d4-a716-446655440000";
 
@@ -79,5 +80,24 @@ describe("ghost-blob (Layer 1)", () => {
     // point count follows after vertices
     const pointCountOffset = 37 + vertexCount * 4;
     expect(view.getUint8(pointCountOffset)).toBe(255);
+  });
+
+  it("sets flags bit 0x02 when ephemeral", () => {
+    _resetForTesting();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("QuotaExceededError");
+    });
+
+    const buf = encodeGhostBlob(SAMPLE_INPUT);
+    const view = new DataView(buf);
+    expect(view.getUint8(7)).toBe(0x02);
+    vi.restoreAllMocks();
+  });
+
+  it("sets flags to 0x00 when not ephemeral", () => {
+    _resetForTesting();
+    const buf = encodeGhostBlob(SAMPLE_INPUT);
+    const view = new DataView(buf);
+    expect(view.getUint8(7)).toBe(0x00);
   });
 });

@@ -18,7 +18,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::Router;
 use drawrace_api::app;
-use drawrace_api::blob::{BlobHeader, GhostBlob};
+use drawrace_api::blob::{BlobHeader, GhostBlob, HEADER_SIZE};
 use drawrace_api::hmac_mod;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
@@ -950,6 +950,74 @@ async fn submission_creates_player_and_persists() {
             .unwrap();
     assert!(row.is_some());
     assert_eq!(row.unwrap().0, "pending_validation");
+}
+
+// ===========================================================================
+// 7. Ephemeral submission (flags bit 0x02)
+// ===========================================================================
+
+#[tokio::test]
+async fn ephemeral_submission_returns_204() {
+    let app = test_app().await;
+    let mut body = make_test_blob(TEST_PLAYER_UUID, 1);
+    body[7] = 0x02; // set ephemeral flag
+    let hmac = compute_hmac(&body);
+
+    let req = submission_request(&body, TEST_PLAYER_UUID, 1, &hmac);
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn ephemeral_submission_rejects_malformed_blob() {
+    let app = test_app().await;
+    let mut body = make_test_blob(TEST_PLAYER_UUID, 1);
+    body[7] = 0x02; // set ephemeral flag
+    body.truncate(HEADER_SIZE + 1 + 10); // not enough polygon data
+    let hmac = compute_hmac(&body);
+
+    let req = submission_request(&body, TEST_PLAYER_UUID, 1, &hmac);
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+#[ignore] // requires Postgres + Redis + S3
+async fn ephemeral_submission_leaves_db_untouched() {
+    let pool = setup_db().await;
+    let app = test_app_with_pool(pool.clone()).await;
+
+    let mut body = make_test_blob(TEST_PLAYER_UUID, 1);
+    body[7] = 0x02; // set ephemeral flag
+    let hmac = compute_hmac(&body);
+
+    let req = submission_request(&body, TEST_PLAYER_UUID, 1, &hmac);
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    // No rows in any table
+    let ghost_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ghosts")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(ghost_count, 0);
+
+    let sub_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM submissions")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(sub_count, 0);
+
+    let player_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM players WHERE player_uuid = $1")
+            .bind(Uuid::parse_str(TEST_PLAYER_UUID).unwrap())
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(player_count, 0);
 }
 
 // ===========================================================================

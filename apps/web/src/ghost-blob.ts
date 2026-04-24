@@ -1,5 +1,6 @@
 import { PHYSICS_VERSION } from "@drawrace/engine-core";
 import type { Point } from "@drawrace/engine-core";
+import { isEphemeral } from "./player-identity.js";
 
 export interface GhostBlobInput {
   trackId: number;
@@ -48,8 +49,9 @@ export function encodeGhostBlob(input: GhostBlobInput): ArrayBuffer {
   view.setUint16(offset, trackId, true);
   offset += 2;
 
-  // flags (uint8) = 0
-  view.setUint8(offset, 0);
+  // flags (uint8) — bit 0x02 = ephemeral (do-not-persist)
+  const flags = isEphemeral() ? 0x02 : 0x00;
+  view.setUint8(offset, flags);
   offset += 1;
 
   // finish_time_ms (uint32 LE)

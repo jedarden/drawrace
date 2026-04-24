@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { submitFeedback, redeemInvite, checkInviteStatus } from "./api.js";
+import { isEphemeral } from "./player-identity.js";
 
 interface LandingScreenProps {
   onStart: () => void;
@@ -121,6 +122,21 @@ export function LandingScreen({ onStart, dismissed }: LandingScreenProps) {
         <p style={{ fontSize: 20, margin: "0 0 24px 0", textAlign: "center", lineHeight: 1.4 }}>
           Draw your wheel, race against ghosts!
         </p>
+
+        {isEphemeral() && (
+          <div style={{
+            backgroundColor: "#E8DED0",
+            borderRadius: 8,
+            padding: "10px 16px",
+            marginBottom: 24,
+            fontSize: 14,
+            textAlign: "center",
+            color: "#6E5F48",
+            opacity: 0.85,
+          }}>
+            Private browsing detected — your data won&apos;t be saved between sessions.
+          </div>
+        )}
 
         <div style={{ marginBottom: 24, fontSize: 18, lineHeight: 1.5 }}>
           <strong>How to play:</strong>

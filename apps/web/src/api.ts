@@ -198,6 +198,7 @@ export async function submitGhost(input: SubmitInput): Promise<string | null> {
     600,
   );
 
+  if (resp.status === 204) return null; // ephemeral — accepted but not persisted
   if (resp.status !== 202) return null;
 
   const data = await resp.json();

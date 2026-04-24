@@ -1,5 +1,19 @@
 const STORAGE_KEY = "drawrace-player-uuid";
 
+let memoryUuid: string | null = null;
+let ephemeral = false;
+
+function detectStorageAvailable(): boolean {
+  try {
+    const testKey = "__drawrace_storage_test__";
+    localStorage.setItem(testKey, "1");
+    localStorage.removeItem(testKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function generateUUID(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -15,10 +29,42 @@ export function generateUUID(): string {
 }
 
 export function getPlayerUuid(): string {
-  let uuid = localStorage.getItem(STORAGE_KEY);
+  if (memoryUuid) return memoryUuid;
+
+  if (!detectStorageAvailable()) {
+    ephemeral = true;
+    memoryUuid = generateUUID();
+    return memoryUuid;
+  }
+
+  let uuid: string | null;
+  try {
+    uuid = localStorage.getItem(STORAGE_KEY);
+  } catch {
+    ephemeral = true;
+    memoryUuid = generateUUID();
+    return memoryUuid;
+  }
   if (!uuid) {
     uuid = generateUUID();
-    localStorage.setItem(STORAGE_KEY, uuid);
+    try {
+      localStorage.setItem(STORAGE_KEY, uuid);
+    } catch {
+      ephemeral = true;
+      memoryUuid = uuid;
+    }
   }
   return uuid;
+}
+
+export function isEphemeral(): boolean {
+  // Ensure detection has run
+  getPlayerUuid();
+  return ephemeral;
+}
+
+/** @internal Reset module state for tests */
+export function _resetForTesting(): void {
+  memoryUuid = null;
+  ephemeral = false;
 }

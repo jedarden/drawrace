@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { generateUUID } from "./player-identity";
+import { generateUUID, getPlayerUuid, isEphemeral, _resetForTesting } from "./player-identity";
 
 const UUID_V4_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -32,5 +33,56 @@ describe("generateUUID", () => {
     } finally {
       crypto.randomUUID = original;
     }
+  });
+});
+
+describe("ephemeral detection", () => {
+  const STORAGE_KEY = "drawrace-player-uuid";
+
+  beforeEach(() => {
+    localStorage.clear();
+    _resetForTesting();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns non-ephemeral when localStorage works", () => {
+    // Default jsdom environment — localStorage is available
+    const uuid = getPlayerUuid();
+    expect(uuid).toMatch(UUID_V4_RE);
+    expect(isEphemeral()).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(uuid);
+  });
+
+  it("returns ephemeral when localStorage.setItem throws", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("The quota has been exceeded", "QuotaExceededError");
+    });
+
+    const uuid = getPlayerUuid();
+    expect(uuid).toMatch(UUID_V4_RE);
+    expect(isEphemeral()).toBe(true);
+  });
+
+  it("returns same in-memory UUID on repeated calls when ephemeral", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("The quota has been exceeded", "QuotaExceededError");
+    });
+
+    const first = getPlayerUuid();
+    const second = getPlayerUuid();
+    expect(first).toBe(second);
+  });
+
+  it("detects ephemeral when localStorage.getItem throws", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("Security error");
+    });
+
+    const uuid = getPlayerUuid();
+    expect(uuid).toMatch(UUID_V4_RE);
+    expect(isEphemeral()).toBe(true);
   });
 });

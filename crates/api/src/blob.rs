@@ -289,4 +289,21 @@ mod tests {
     fn min_size_calc() {
         assert_eq!(GhostBlob::min_size(12, 5, 3), 36 + 1 + 48 + 1 + 30 + 1 + 12);
     }
+
+    #[test]
+    fn parse_header_with_ephemeral_flag() {
+        let mut buf = make_valid_blob();
+        buf[7] = 0x02; // ephemeral bit
+        let header = BlobHeader::parse(&buf).unwrap();
+        assert_eq!(header.flags, 0x02);
+        assert_eq!(header.flags & 0x02, 0x02); // bit test
+    }
+
+    #[test]
+    fn ephemeral_flag_isolated() {
+        let mut buf = make_valid_blob();
+        buf[7] = 0x03; // both zstd and ephemeral bits
+        let header = BlobHeader::parse(&buf).unwrap();
+        assert_eq!(header.flags & 0x02, 0x02);
+    }
 }
