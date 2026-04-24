@@ -4,6 +4,8 @@ import {
   type TrackDef,
   type WheelDef,
 } from "../src/headless-race.js";
+import { runHeadless } from "../src/headless.js";
+import type { WheelSwap } from "../src/swap.js";
 import { PHYSICS_VERSION } from "../src/version.js";
 import { writeFileSync, mkdirSync } from "fs";
 import { dirname, join } from "path";
@@ -24,7 +26,7 @@ const TEST_TRACK: TrackDef = {
 };
 
 // ---------------------------------------------------------------------------
-// Reference wheel library — §Testing 3
+// Wheel shape helpers
 // ---------------------------------------------------------------------------
 
 function makeCircle(radius: number, n: number): [number, number][] {
@@ -97,7 +99,6 @@ function makeCrescent(outerR: number, innerR: number, offset: number): [number, 
 }
 
 function makeBlob(seed: number, n: number, baseR: number): [number, number][] {
-  // Simple seeded noise for blob shapes
   let s = seed;
   function rand() {
     s = (s * 1103515245 + 12345) & 0x7fffffff;
@@ -127,50 +128,37 @@ function makeFigure8(n: number, size: number): [number, number][] {
   return verts;
 }
 
+// ---------------------------------------------------------------------------
+// Single-wheel golden entries (§Testing 3 reference library)
+// ---------------------------------------------------------------------------
+
 interface WheelEntry {
   id: string;
   wheel: WheelDef;
 }
 
 const WHEELS: WheelEntry[] = [
-  // Circles
   { id: "circ-32-r40", wheel: { vertices: makeCircle(0.4, 32) } },
   { id: "circ-32-r20", wheel: { vertices: makeCircle(0.2, 32) } },
   { id: "circ-32-r80", wheel: { vertices: makeCircle(0.8, 32) } },
   { id: "circ-16-r80", wheel: { vertices: makeCircle(0.8, 16) } },
   { id: "circ-08-r80", wheel: { vertices: makeCircle(0.8, 8) } },
   { id: "circ-24-r60", wheel: { vertices: makeCircle(0.6, 24) } },
-
-  // Ovals
   { id: "oval-slim", wheel: { vertices: makeEllipse(0.5, 0.3, 24) } },
   { id: "oval-fat", wheel: { vertices: makeEllipse(0.4, 0.55, 24) } },
-
-  // Triangles
   { id: "tri-equi-40", wheel: { vertices: makeRegularPolygon(3, 0.4) } },
   { id: "tri-right", wheel: { vertices: [[0, 0], [0.6, 0], [0.3, 0.5]] as [number, number][] } },
-
-  // Squares / rectangles
   { id: "square-40", wheel: { vertices: makeRegularPolygon(4, 0.4) } },
   { id: "rect-wide", wheel: { vertices: [[-0.4, -0.2], [0.4, -0.2], [0.4, 0.2], [-0.4, 0.2]] as [number, number][] } },
-
-  // Pentagons / hexagons
   { id: "penta-40", wheel: { vertices: makeRegularPolygon(5, 0.4) } },
   { id: "hexa-40", wheel: { vertices: makeRegularPolygon(6, 0.4) } },
-
-  // Stars
   { id: "star-5-sharp", wheel: { vertices: makeStar(5, 0.15, 0.45) } },
   { id: "star-5-soft", wheel: { vertices: makeStar(5, 0.3, 0.45) } },
   { id: "star-4", wheel: { vertices: makeStar(4, 0.2, 0.4) } },
-
-  // Crescent
   { id: "crescent-a", wheel: { vertices: makeCrescent(0.4, 0.35, 0.15) } },
-
-  // Blobs (self-intersecting-ish irregular shapes)
   { id: "blob-self-intx-1", wheel: { vertices: makeBlob(1, 16, 0.4) } },
   { id: "blob-self-intx-2", wheel: { vertices: makeBlob(2, 20, 0.35) } },
   { id: "blob-smooth", wheel: { vertices: makeBlob(42, 24, 0.5) } },
-
-  // Figure-8 (self-intersecting)
   { id: "figure8-sm", wheel: { vertices: makeFigure8(24, 0.3) } },
   { id: "figure8-lg", wheel: { vertices: makeFigure8(32, 0.5) } },
 ];
@@ -189,11 +177,7 @@ interface GoldenEntry {
 }
 
 const goldens: GoldenEntry[] = WHEELS.map((entry) => {
-  const result = createHeadlessRace({
-    seed: SEED,
-    track: TEST_TRACK,
-    wheel: entry.wheel,
-  });
+  const result = createHeadlessRace({ seed: SEED, track: TEST_TRACK, wheel: entry.wheel });
   return {
     id: entry.id,
     seed: SEED,
@@ -206,6 +190,98 @@ const goldens: GoldenEntry[] = WHEELS.map((entry) => {
   };
 });
 
+// ---------------------------------------------------------------------------
+// Multi-wheel (swap) golden entries
+// ---------------------------------------------------------------------------
+
+// Convenience shapes for swap scenarios
+const CIRC_8 = makeCircle(0.4, 8);
+const CIRC_32 = makeCircle(0.4, 32);
+const TRI = makeRegularPolygon(3, 0.4);
+const HEX = makeRegularPolygon(6, 0.4);
+const SQUA = makeRegularPolygon(4, 0.4);
+
+interface SwapGoldenEntry {
+  id: string;
+  seed: number;
+  trackId: string;
+  wheels: WheelSwap[];
+  finishTicks: number;
+  finalX: number;
+  streamHash: string;
+  physicsVersion: number;
+}
+
+const SWAP_SCENARIOS: Array<{ id: string; wheels: WheelSwap[] }> = [
+  // Swap at tick 0 only — must match single-wheel result for the same polygon
+  {
+    id: "swap-tick0-only",
+    wheels: [{ swap_tick: 0, polygon: CIRC_32 }],
+  },
+  // Circle → triangle at tick 60 (1s in)
+  {
+    id: "swap-circ-to-tri-t60",
+    wheels: [
+      { swap_tick: 0, polygon: CIRC_8 },
+      { swap_tick: 60, polygon: TRI },
+    ],
+  },
+  // Triangle → circle at tick 120
+  {
+    id: "swap-tri-to-circ-t120",
+    wheels: [
+      { swap_tick: 0, polygon: TRI },
+      { swap_tick: 120, polygon: CIRC_8 },
+    ],
+  },
+  // 3-swap chain: circle → hex → square
+  {
+    id: "swap-chain-3",
+    wheels: [
+      { swap_tick: 0, polygon: CIRC_8 },
+      { swap_tick: 60, polygon: HEX },
+      { swap_tick: 180, polygon: SQUA },
+    ],
+  },
+  // 5-swap seeded determinism reference (§Testing 3)
+  {
+    id: "swap-5-determinism",
+    wheels: [
+      { swap_tick: 0, polygon: CIRC_8 },
+      { swap_tick: 60, polygon: TRI },
+      { swap_tick: 120, polygon: CIRC_8 },
+      { swap_tick: 180, polygon: TRI },
+      { swap_tick: 240, polygon: CIRC_8 },
+    ],
+  },
+  // Position-continuity probe: swap at tick 500 with two distinct shapes
+  {
+    id: "swap-position-continuity",
+    wheels: [
+      { swap_tick: 0, polygon: CIRC_32 },
+      { swap_tick: 500, polygon: HEX },
+    ],
+  },
+];
+
+const swapGoldens: SwapGoldenEntry[] = SWAP_SCENARIOS.map((scenario) => {
+  const result = runHeadless({ seed: SEED, track: TEST_TRACK, wheels: scenario.wheels });
+  return {
+    id: scenario.id,
+    seed: SEED,
+    trackId: TEST_TRACK.id,
+    wheels: scenario.wheels,
+    finishTicks: result.finishTicks,
+    finalX: result.finalX,
+    streamHash: result.streamHash,
+    physicsVersion: PHYSICS_VERSION,
+  };
+});
+
+// ---------------------------------------------------------------------------
+// Write output files
+// ---------------------------------------------------------------------------
+
 const outDir = join(__dirname, "..", "golden");
 mkdirSync(outDir, { recursive: true });
 
@@ -214,8 +290,19 @@ writeFileSync(
   JSON.stringify({ physicsVersion: PHYSICS_VERSION, goldens }, null, 2) + "\n",
 );
 
-console.log(`Generated ${goldens.length} golden entries (PHYSICS_VERSION=${PHYSICS_VERSION})`);
+writeFileSync(
+  join(outDir, "swaps.json"),
+  JSON.stringify({ physicsVersion: PHYSICS_VERSION, swapGoldens }, null, 2) + "\n",
+);
+
+console.log(`Generated ${goldens.length} single-wheel golden entries (PHYSICS_VERSION=${PHYSICS_VERSION})`);
 for (const g of goldens) {
+  const dnf = g.finishTicks >= 60 * 180 ? " DNF" : "";
+  console.log(`  ${g.id} ticks=${g.finishTicks} hash=${g.streamHash} finalX=${g.finalX.toFixed(2)}${dnf}`);
+}
+
+console.log(`\nGenerated ${swapGoldens.length} swap golden entries:`);
+for (const g of swapGoldens) {
   const dnf = g.finishTicks >= 60 * 180 ? " DNF" : "";
   console.log(`  ${g.id} ticks=${g.finishTicks} hash=${g.streamHash} finalX=${g.finalX.toFixed(2)}${dnf}`);
 }
