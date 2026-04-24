@@ -57,8 +57,8 @@
 | Layer 1 — Unit | Passing (97 tests) | Vitest: geometry, HMAC, haptics, ghost-blob, particles, sound, perf, player-identity |
 | Layer 2 — Physics Golden | Passing | Deterministic headless sim with 23 reference wheels |
 | Layer 3 — Rendering Snapshots | **Passing** (5 tests) | Playwright snapshot tests in `e2e/snapshot.spec.ts` |
-| Layer 4 — E2E Input | Configured | Playwright game tests in `e2e/game.spec.ts` |
-| Layer 5 — Backend Contract | Passing (10 tests) | Rust validator structural tests |
+| Layer 4 — E2E Input | Passing (75 tests) | Playwright tests in `e2e/game.spec.ts`, `e2e/a11y.spec.ts`, `e2e/perf.spec.ts`, `e2e/snapshot.spec.ts` |
+| Layer 5 — Backend Contract | Passing (10 tests) | Rust validator structural tests (`crates/validator`) |
 | Layer 6 — Replay Verification | Implemented | Server-side re-sim against submitted ghosts |
 | Layer 7 — Perf Budget | **Passing** | CDP CPU throttling perf tests in `e2e/perf.spec.ts` |
 | Layer 8 — Load/Chaos | Configured | k6 load test scripts in `load/` |
@@ -85,6 +85,6 @@ console errors, finish time 20.4s.
 
 ## Current State
 
-All phases code-complete. Tests passing (`pnpm test`: 97/97, `cargo test`: 65/65, Playwright chromium: 37/37).
+All phases code-complete. Tests passing (`pnpm test`: 97/97, `cargo test`: 10/10, Playwright: 75/75).
 Build succeeds. Bundle: ~126KB gzipped (well under 400KB budget).
 **Phone-smoke PASSES** — cold-boot green on Pixel 6 over Tailscale HTTP.
