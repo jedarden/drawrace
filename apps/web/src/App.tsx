@@ -9,6 +9,7 @@ import { LeaderboardScreen } from "./LeaderboardScreen.js";
 import { fetchGhosts, submitCrashReport, type GhostData } from "./api.js";
 import { getHaptics } from "./Haptics.js";
 import type { DrawResult } from "@drawrace/engine-core";
+import { parseSurfaces } from "@drawrace/engine-core";
 
 type Screen = "draw" | "race" | "result";
 
@@ -28,8 +29,35 @@ interface TrackData {
     friction?: number;
   }>;
   zones?: Array<{ id: string; x_start: number; x_end: number }>;
+  ramps?: Array<{ zone: string; x_start: number; x_end: number }>;
+  hazards?: Array<{ zone: string; type: string; x_start: number; x_end: number }>;
+  surfaces?: unknown;
   start: { pos: [number, number]; facing: number };
   finish: { pos: [number, number]; width: number };
+}
+
+function validateTrackData(track: TrackData): void {
+  const terrainMinX = track.terrain[0][0];
+  const terrainMaxX = track.terrain[track.terrain.length - 1][0];
+
+  // Validate surfaces tile coverage (parseSurfaces throws on gaps/overlaps)
+  parseSurfaces(track.surfaces, terrainMinX, terrainMaxX);
+
+  // Validate zones tile coverage
+  if (track.zones && track.zones.length > 0) {
+    const sorted = [...track.zones].sort((a, b) => a.x_start - b.x_start);
+    if (Math.abs(sorted[0].x_start - terrainMinX) > 1e-6) {
+      throw new Error(`Zone coverage: first zone starts at ${sorted[0].x_start}, terrain starts at ${terrainMinX}`);
+    }
+    for (let i = 1; i < sorted.length; i++) {
+      if (Math.abs(sorted[i].x_start - sorted[i - 1].x_end) > 1e-6) {
+        throw new Error(`Zone gap at x=${sorted[i - 1].x_end}`);
+      }
+    }
+    if (sorted[sorted.length - 1].x_end > terrainMaxX + 1e-6) {
+      throw new Error(`Zone coverage: last zone ends at ${sorted[sorted.length - 1].x_end}, terrain ends at ${terrainMaxX}`);
+    }
+  }
 }
 
 export function App() {
@@ -81,6 +109,7 @@ export function App() {
     fetch("/tracks/hills-01.json")
       .then((r) => r.json())
       .then((trackData: TrackData) => {
+        validateTrackData(trackData);
         setTrack(trackData);
         fetchGhosts(trackData.numeric_id).then(setGhosts);
       });

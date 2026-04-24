@@ -1,6 +1,16 @@
 import type { RaceSnapshot, TrackDef, SimBody } from "@drawrace/engine-core";
 import type { DrawResult } from "@drawrace/engine-core";
+import { parseSurfaces, type SurfaceSegment } from "@drawrace/engine-core";
 import type { ParticleSystem } from "./Particles.js";
+
+const SURFACE_COLORS: Record<string, string> = {
+  normal: "#E5D3B0",
+  ice: "#D6EAF0",
+  snow: "#F0EDE6",
+  water: "#B8D4E3",
+  mud: "#C4A96A",
+  rock: "#B8A99A",
+};
 
 const PPM = 30;
 
@@ -251,6 +261,11 @@ export function createRenderer(
     wy: y,
   }));
 
+  // Parse surfaces for per-segment terrain coloring
+  const terrainMinX = track.terrain[0][0];
+  const terrainMaxX = track.terrain[track.terrain.length - 1][0];
+  const parsedSurfaces = parseSurfaces(track.surfaces, terrainMinX, terrainMaxX);
+
   // Physics-accurate wheel Path2D (mutable — updated on mid-race swap)
   let wheelPath = new Path2D();
   let wobblePath: Path2D | null = null;
@@ -420,17 +435,26 @@ export function createRenderer(
   function drawTerrain() {
     const pts = terrainScreenPts.map((p) => worldToScreen(p.wx, p.wy));
 
-    // Fill band
-    ctx.fillStyle = "#E5D3B0";
-    ctx.beginPath();
-    ctx.moveTo(pts[0].sx, pts[0].sy);
-    for (let i = 1; i < pts.length; i++) {
-      ctx.lineTo(pts[i].sx, pts[i].sy);
+    // Fill terrain with surface-specific colors (clip each surface segment)
+    for (const seg of parsedSurfaces) {
+      ctx.fillStyle = SURFACE_COLORS[seg.type] || SURFACE_COLORS.normal;
+      ctx.save();
+      ctx.beginPath();
+      const left = seg.x_range[0] * PPM - camera.x;
+      const w = (seg.x_range[1] - seg.x_range[0]) * PPM;
+      ctx.rect(left, 0, w, height);
+      ctx.clip();
+      ctx.beginPath();
+      ctx.moveTo(pts[0].sx, pts[0].sy);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i].sx, pts[i].sy);
+      }
+      ctx.lineTo(pts[pts.length - 1].sx, height + 10);
+      ctx.lineTo(pts[0].sx, height + 10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
-    ctx.lineTo(pts[pts.length - 1].sx, height + 10);
-    ctx.lineTo(pts[0].sx, height + 10);
-    ctx.closePath();
-    ctx.fill();
 
     // Cross-hatch overlay clipped to terrain
     if (crossHatchPattern) {
