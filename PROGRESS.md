@@ -81,9 +81,10 @@ console errors, finish time 20.4s.
 | drawrace-vgn.7.5 — First-run ephemeral mode | P1 | Fixed | Private-mode + ephemeral flag |
 | drawrace-vgn.7.6 — WorkflowTemplate rounds 3-5 | P2 | Done | `rotate-client-key`, `wait-validator-live`, etc. |
 | drawrace-vgn.7.7 — Validator 8080/8081 port split | P2 | Done | Healthz on 8081 + NetworkPolicy |
+| drawrace-vgn.7.8 — Snapshot pinned CI image | P3 | Done | Pinned Playwright + webfonts container |
 
 ## Current State
 
-All phases code-complete. Tests passing (`pnpm test`: 97/97, `cargo test`: 13/13).
+All phases code-complete. Tests passing (`pnpm test`: 97/97, `cargo test`: 65/65, `pnpm test:e2e`: 62/62).
 Build succeeds. Bundle: ~126KB gzipped (well under 400KB budget).
 **Phone-smoke PASSES** — cold-boot green on Pixel 6 over Tailscale HTTP.
