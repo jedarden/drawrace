@@ -251,31 +251,43 @@ for piece in pieces:
 
 Density is constant at `1.0 kg/m²` (world units are meters; 1m = 30px, per the research doc). Mass and rotational inertia are computed by Planck from the fixture set — we do not override them. This means **drawing bigger genuinely adds mass and rotational inertia**, which is exactly the design intent (big wheels clear obstacles but accelerate slower).
 
-The chassis is a fixed rectangle, density 2.0, mass ≈ 4× typical wheel mass, so the wheel-to-chassis mass ratio stays in a stable regime regardless of wheel size. We clamp the effective wheel radius to `[0.3m, 1.5m]` post-normalization to bound the range.
+**Both wheels use the drawn polygon (AWD).**
 
-**Wheel hot-swap procedure (mid-race redraw)**
+The drawn shape is the *vehicle's wheels*, plural — not just a front wheel. Both wheel wells hold a copy of the same polygon, mounted on the chassis via independent `WheelJoint`s with identical suspension, damping, and motor parameters (see §Gameplay 4). The car is effectively AWD: both wheels contribute friction and torque, which makes angular shapes like triangles actually viable on demanding terrain (claw-in grip on both axles, not just one). Rationale:
 
-When a mid-race stroke commits, the simulation performs a **deterministic wheel-body swap** at the next tick boundary. This is the only structural mutation the Planck world receives mid-race; everything else (chassis, terrain, ghosts) persists unchanged.
+- **Player agency scales.** With only the front wheel drawn, the rear was a constant — so at most ~50% of vehicle behaviour reacted to the drawing. With both wheels drawn, the full behaviour of the car is downstream of what the player draws.
+- **Symmetry matches intuition.** Players who see a polygon drawing expect it to be "the wheel of the car," not "the front wheel of a two-wheel-asymmetric car." Visual parity (front and rear look identical) makes the physics readable.
+- **Moment-of-inertia doubles.** Compensated in §Gameplay 4: chassis density dropped to keep the ~4× chassis-to-wheel mass ratio stable given two drawn wheels instead of one drawn + one cartoon circle.
+
+The chassis is a fixed rectangle, density `1.0` (was 2.0 before the AWD change), mass ≈ 4× typical combined wheel mass, so the wheel-to-chassis mass ratio stays in the same regime the physics tuning was calibrated against. We clamp the effective wheel radius to `[0.3m, 1.5m]` post-normalization to bound the range.
+
+**Wheel hot-swap procedure (mid-race redraw, twin-wheel)**
+
+When a mid-race stroke commits, the simulation performs a **deterministic twin body-swap** at the next tick boundary: both the front and rear wheels are destroyed and rebuilt with the new polygon at the same tick. This is the only structural mutation the Planck world receives mid-race; everything else (chassis, terrain, ghosts) persists unchanged.
 
 ```
 on commitSwap(newPolygon, swap_tick):
-    assert simTick == swap_tick              // scheduled exactly on next tick
-    old = chassis.frontWheel                 // the current wheel body + joint
-    newBody = buildWheelBody(newPolygon)     // same pipeline as initial wheel
-    newBody.setPosition(old.getPosition())   // spawn in place — no teleport
-    newBody.setLinearVelocity(
-        chassis.getLinearVelocity())         // carry the chassis velocity
-    newBody.setAngularVelocity(0)            // zero: moment of inertia changed,
-                                             //       reusing ω would be unphysical
-    world.destroyJoint(chassis.wheelJoint)
-    world.destroyBody(old)
-    newJoint = world.createJoint(WheelJointDef(chassis, newBody, /* axis, freq, damping */))
-    chassis.frontWheel = newBody
-    chassis.wheelJoint = newJoint
-    motor.setMaxTorque(40)                   // motor params unchanged, re-bound
-    motor.setMotorSpeed(8)
+    assert simTick == swap_tick                         // scheduled exactly on next tick
+    for axle in [chassis.frontAxle, chassis.rearAxle]:  // both wheels swap together
+        old = axle.wheel
+        newBody = buildWheelBody(newPolygon)            // same pipeline as initial wheel
+        newBody.setPosition(old.getPosition())          // spawn in place — no teleport
+        newBody.setLinearVelocity(
+            chassis.getLinearVelocity())                // carry the chassis velocity
+        newBody.setAngularVelocity(0)                   // zero: moment of inertia changed,
+                                                        //       reusing ω would be unphysical
+        world.destroyJoint(axle.joint)
+        world.destroyBody(old)
+        newJoint = world.createJoint(
+            WheelJointDef(chassis, newBody, /* axis, freq, damping */))
+        axle.wheel = newBody
+        axle.joint = newJoint
+        newJoint.setMaxMotorTorque(40)                  // motor params unchanged, re-bound
+        newJoint.setMotorSpeed(8)
     wheel_swaps.push({ swap_tick, polygon: newPolygon })
 ```
+
+Only ONE entry is appended to `wheel_swaps` per stroke — the ghost format stores one polygon per swap event and the decoder applies it to both axles during replay (see §Multiplayer 5 / 8). This keeps blobs tight: a twin-wheel vehicle is the same wire cost as a single-wheel vehicle.
 
 Guarantees and rationale:
 
@@ -295,13 +307,14 @@ Starting values, chosen to make a near-perfect circle win but not trivially. All
 | Fixed timestep | `1/60 s` | fixed | See §Gameplay & Physics 6 |
 | Velocity iterations | `8` | `6 – 10` | Planck default; handles our lopsided contact well |
 | Position iterations | `3` | `2 – 4` | Planck default |
-| Wheel density | `1.0 kg/m²` | `0.5 – 2.0` | Mass scales with drawn area; baseline at 1.0 |
-| Wheel friction | `0.8` | `0.5 – 1.0` | High enough to grip, low enough that angular shapes still slip satisfyingly on flats |
+| Wheel density | `1.0 kg/m²` | `0.5 – 2.0` | Mass scales with drawn area; baseline at 1.0. Both wheels use this value (see §Gameplay 3 AWD). |
+| Wheel friction | `0.8` | `0.5 – 1.0` | High enough to grip, low enough that angular shapes still slip satisfyingly on flats. Multiplied per-contact by the active terrain surface coefficient (see §Gameplay 5 surface table) |
 | Wheel restitution | `0.3` | `0.1 – 0.5` | Lopsided shapes already bounce from geometry; adding restitution compounds chaos |
-| Terrain friction | `0.9` | `0.7 – 1.0` | Slightly higher than wheel so contact behavior is wheel-dominated |
+| Chassis density | `1.0 kg/m²` | `0.8 – 1.5` | Halved from the original `2.0` on 2026-04-24 when both wheels became drawn (AWD). Keeps chassis-to-combined-wheel mass ratio ≈ 4×, which is what §Gameplay 4's feel tuning was calibrated for. |
+| Terrain base friction | `0.9` | `0.7 – 1.0` | Slightly higher than wheel so contact behavior is wheel-dominated. This is the `normal` surface baseline; `ice`, `snow`, `water`, `mud`, `rock` override per §Gameplay 5 surface table |
 | Terrain restitution | `0.0` | `0.0 – 0.1` | Ground does not bounce — all bounce comes from the wheel's angularity |
-| Motor `maxTorque` | `40 N·m` | `20 – 80` | Low enough that a triangle stalls on steep ramps, high enough that a circle clears them |
-| Motor `motorSpeed` | `8 rad/s` | `4 – 15` | ~76 RPM target free-spin; tuned so a 0.5m circle is near top speed on flat |
+| Motor `maxTorque` (per axle) | `40 N·m` | `20 – 80` | Applied independently on each `WheelJoint` (front and rear) — combined torque is effectively 2×. Low enough that a triangle stalls on steep ramps, high enough that a circle clears them |
+| Motor `motorSpeed` (per axle) | `8 rad/s` | `4 – 15` | ~76 RPM target free-spin; tuned so a 0.5m circle is near top speed on flat |
 | Suspension (WheelJoint) `frequencyHz` | `4.0` | `2.0 – 8.0` | Soft-ish ride; allows the car body to pitch on ramps for visual flavor |
 | Suspension `dampingRatio` | `0.7` | `0.3 – 1.0` | Slightly under-damped — one rebound on landings, then settles |
 | Max wheel angular velocity | `20 rad/s` | clamp | Prevents runaway spin after a ramp launch |
@@ -331,6 +344,13 @@ Tracks are static JSON assets under `/public/tracks/`. The game reads a track ma
     [0.0, 0.0], [5.0, 0.0], [8.0, -0.5], [12.0, -0.5],
     [15.0, -2.0], [20.0, -2.0], [22.0, 0.0], [40.0, 0.0]
   ],
+  "surfaces": [
+    { "x_range": [0.0, 8.0],   "type": "normal" },
+    { "x_range": [8.0, 18.0],  "type": "ice"    },
+    { "x_range": [18.0, 28.0], "type": "snow"   },
+    { "x_range": [28.0, 36.0], "type": "water"  },
+    { "x_range": [36.0, 40.0], "type": "rock"   }
+  ],
   "obstacles": [
     { "type": "box",   "pos": [18.0, -2.3], "size": [0.6, 0.6], "angle": 0.0, "friction": 0.8 },
     { "type": "circle","pos": [25.0,  0.4], "radius": 0.4, "friction": 0.6 }
@@ -338,13 +358,19 @@ Tracks are static JSON assets under `/public/tracks/`. The game reads a track ma
   "ramps": [
     { "polyline": [[30.0, 0.0], [34.0, -2.5], [36.0, -2.5]], "friction": 0.9 }
   ],
+  "zones": [
+    { "id": "A", "x_range": [0.0,  8.0],  "name": "Warm-up flats" },
+    { "id": "B", "x_range": [8.0,  18.0], "name": "Icy incline"   },
+    { "id": "C", "x_range": [18.0, 28.0], "name": "Snowy rocks"   },
+    { "id": "D", "x_range": [28.0, 40.0], "name": "Water & jump"  }
+  ],
   "start":  { "pos": [1.5, -1.5], "facing": 1 },
   "finish": { "pos": [39.0, -1.5], "width": 0.2 },
   "hazards": [
     { "type": "pit", "x_range": [26.0, 27.5], "depthMeters": 3.0 }
   ],
   "metadata": {
-    "targetTimeSeconds": 35,
+    "targetTimeSeconds": 38,
     "tutorialGhosts": ["ghost-dev-001", "ghost-dev-002", "ghost-dev-003"]
   }
 }
@@ -357,25 +383,52 @@ Tracks are static JSON assets under `/public/tracks/`. The game reads a track ma
 - `start.pos` is where the chassis spawns; the wheel is placed beneath it at the normalized wheel radius.
 - `finish.pos.x` is the trigger; crossing it right-to-left does not count.
 - `obstacles`, `ramps`, and `hazards` are optional arrays. Hazard type `pit` is a trigger region that ends the race as DNF.
+- `surfaces[]` is optional; omitted or empty defaults to a single `normal` segment covering the full terrain extent. Segments must tile the terrain with no gaps or overlaps (validated at load time).
+- `zones[]` is optional; omitted means the entire track is one implicit zone named "default". When present, segments must tile the track with no gaps or overlaps.
 - Every track declares a stable `numeric_id` (uint16) assigned at track authoring time; it is the identifier used on the wire (submission header, ghost blob `track_id`, leaderboard URLs). The string `id` is a human-readable slug used for filenames and in-repo references only. Numeric IDs are never re-used.
+
+**Terrain surface types.**
+
+Each segment of `surfaces[]` declares a surface `type` that overrides the `normal` baseline friction for wheel contacts in that x range. Surface types are a closed enum — tracks cannot invent new ones:
+
+| Type | Friction coeff | Restitution | Chassis linear drag | Visual | Feel |
+|---|---|---|---|---|---|
+| `normal` | 0.9 | 0.0 | 0 | tan dirt, fine cross-hatch | baseline |
+| `ice` | 0.10 | 0.0 | 0 | cool blue-white with pale streaks | wheels spin freely — angular shapes with teeth dig in and pull ahead; smooth circles slide and spin |
+| `snow` | 0.45 | 0.0 | 0 | off-white with dotted texture | sluggish but predictable — wide wheels ride on top, narrow wheels sink slightly (reduced contact area) |
+| `water` | 0.05 | 0.0 | 4.0 N·s/m (applied to chassis linear velocity while above a water segment) | dusty blue with gentle wave cross-hatches | wheels lose almost all traction; momentum coasts you across, the drag eats speed quadratically. Only works for *shallow* water — water segments that are flat enough for the chassis to glide over. Deep water = hazard `pit`. |
+| `mud` | 0.70 | 0.0 | 1.5 N·s/m | dark brown with blobby texture | chunky and heavy; big heavy wheels plow through, light wheels bog down |
+| `rock` | 0.95 | 0.25 | 0 | grey with angular bump texture | grippy but bouncy — every bump rebounds slightly, so lopsided wheels amplify pitch; a large smooth wheel absorbs |
+
+Coefficients multiply per-contact. A Planck contact filter looks up the surface at the contact's world-x and applies `friction = wheelFriction × surfaceFriction`, `restitution = max(wheelRestitution, surfaceRestitution)`. Drag for `water` and `mud` is applied as a linear damping force on the chassis body each tick when its center-x is over a qualifying segment (cheap lookup: binary search on a sorted `surfaces[]` array).
+
+Surface rendering is part of the terrain fill pass (§Graphics 6 Terrain Rendering) — each segment's fill uses the surface's visual preset rather than the single tan `#E5D3B0`. The ink edge remains `#2B2118` for all surfaces so the terrain silhouette is consistent.
 
 **Zone-based terrain (v1 design requirement — pairs with mid-race redraw).**
 
-A track whose terrain is uniform gives the redraw mechanic nothing to do — one optimal wheel beats every other wheel for the whole race. v1's `hills-01` is authored as **four distinct zones** of different terrain character, each long enough that observing → redrawing → benefitting from the new wheel is worthwhile. Zone length must comfortably exceed `look-ahead + cooldown + rebuild + a few seconds of payoff`: with 500 ms cooldown and the camera look-ahead spring, **8 seconds minimum per zone** hits the sweet spot.
+A track whose terrain is uniform gives the redraw mechanic nothing to do — one optimal wheel beats every other wheel for the whole race. v1's `hills-01` is authored as **four distinct zones** where geometry (incline/decline/bumps) and surface type *combine* to multiply the design space. With 6 surface types × ~5 canonical geometries (flat, uphill, downhill, bumpy, ramp) there are ~30 character combinations to pull from — more than enough for a single-track v1 and the post-v1 track catalogue.
 
-| Zone | Approx window (v1 targets) | Terrain character | Rewards |
-|---|---|---|---|
-| A — Warm-up flats | 0–8s | Smooth gentle polyline, +/-0.2m oscillation | Low rolling resistance wheels (near-circles). Triangles visibly slow. |
-| B — The ramp | 8–18s | Steady +20° incline for 7s then plateau | High-torque grippy shapes (hex, squat ellipse, rough circle with teeth). Smooth circles spin out on the incline. |
-| C — Rough rocks | 18–28s | Spiked polyline amplitude +/-0.8m at ~1m spacing, plus 3 box obstacles | Large-diameter wheels smooth over bumps. Small wheels rattle and lose speed. |
-| D — Descent & jump | 28–40s | Steep descent -25° into a short ramp and a 4m gap hazard | Small tight wheels (low moment of inertia) land cleanly. Big wheels oversteer and miss the ramp landing. |
+Zone length must comfortably exceed `look-ahead + cooldown + rebuild + a few seconds of payoff`: with 500 ms cooldown and the camera look-ahead spring, **10 seconds minimum per zone** hits the sweet spot (up from the 8 s floor when surface changes were geometry-only).
+
+v1 hills-01 zone/surface combinations:
+
+| Zone | Window | Geometry | Surface | Optimal wheel |
+|---|---|---|---|---|
+| A — Warm-up flats | 0–8 s | Flat ±0.2 m oscillation | `normal` | Near-circle — baseline; low rolling resistance wins |
+| B — Icy incline | 8–18 s | +20° uphill for 7 s then plateau | `ice` | Angular (hex, rough-circle-with-teeth) — circles spin out, teeth claw through the ice |
+| C — Snowy rocks | 18–28 s | Spiked ±0.8 m amplitude at ~1 m + 3 box obstacles | `snow` | Large-diameter smooth wheel — smooths bumps; snow rewards wide contact; small wheels sink and rattle |
+| D — Water & jump | 28–40 s | Shallow water puddle 28–34 s, then ramp + 4 m gap hazard 34–40 s | `water` on the puddle, `normal` on the ramp | Medium compact wheel — must coast through the water without stalling (drag bleeds speed) then land the jump with low moment of inertia |
 
 Authoring conventions:
-- The zone boundaries are marked in the track JSON as `zones: [{ id: "A", x_start: 0.0, x_end: 48.0 }, ...]` and rendered subtly at runtime (a faint ink marker at the zone boundary, only visible when the camera is close).
-- Each zone's terrain is designed so the "optimal" wheel shape is *obvious from the silhouette* — players learn which wheel wins where by watching ghosts visibly swap into that shape in that zone.
-- Horizon visibility: camera look-ahead (§Graphics 8) is tuned so the next zone's terrain appears in frame at least 4 seconds before the chassis reaches it, giving the player a full cooldown + rebuild + settle window.
 
-Adding a new track is: drop a JSON file (zones + terrain + obstacles), add its id to `tracks/manifest.json`, record a handful of seed ghost replays that visibly swap into each zone's optimal shape, ship.
+- Zone boundaries are declared in `zones[]` with `x_range`. They do not need to coincide with surface boundaries — you can have a geometry zone change mid-surface or vice versa (e.g. zone D's geometry shifts from puddle to ramp at x=34, while the underlying `surfaces[]` has `water` from 28–34 and `normal` from 34 onwards).
+- Each zone's terrain is designed so the "optimal" wheel shape is *obvious from the silhouette + surface colour* — players learn which shape wins where by watching ghosts visibly swap into that shape at that boundary.
+- Horizon visibility: camera look-ahead (§Graphics 8) is tuned so the next zone's terrain and surface-colour band appear in frame at least 4 seconds before the chassis reaches it, giving the player a full cooldown + rebuild + settle window.
+- Surface × geometry combinations tuning goal: no single wheel shape should win more than one zone. If a playtest build shows one wheel dominating two zones, adjust the surface or geometry of the second zone to create a different optimum.
+
+**Zone-based terrain (v1 design requirement — pairs with mid-race redraw).**
+
+Adding a new track is: drop a JSON file (zones + terrain + surfaces + obstacles), add its id to `tracks/manifest.json`, record a handful of seed ghost replays that visibly swap into each zone's optimal shape, ship.
 
 ### 6. Deterministic Simulation
 
@@ -470,7 +523,7 @@ Target device is **Snapdragon 665 / Redmi 9-class** at **30fps minimum**; 60fps 
 | Input / event loop / misc | 3 ms | Includes mid-race stroke sampling off the draw overlay |
 | Headroom | 8 ms | Absorbs GC pauses, OS jitter, and worst-case wheel-rebuild tick (a swap frame costs ~2 ms extra and lands in the headroom) |
 
-**Wheel hot-swap cost (mid-race redraw).** When a swap lands on a frame, that frame pays an additional ~1-2 ms for `buildWheelBody` (decomposition + fixture creation + joint rebind). The 500ms cooldown (§Gameplay 1) ensures this happens at most 2 times/second, i.e. once every ~60 sim ticks. Over any 60-frame window the amortised cost is < 0.04 ms/frame — invisible. The single swap-frame spike is absorbed by the 8 ms headroom.
+**Wheel hot-swap cost (mid-race redraw, twin-wheel).** When a swap lands on a frame, that frame pays the cost of rebuilding **both** wheel bodies — ~2-4 ms total for `buildWheelBody × 2` (each rebuild is decomposition + fixture creation + joint rebind). The 500ms cooldown (§Gameplay 1) ensures this happens at most 2 times/second, i.e. once every ~60 sim ticks. Over any 60-frame window the amortised cost is < 0.08 ms/frame — still invisible. The single swap-frame spike (~4 ms worst case) is absorbed by the 8 ms headroom.
 
 **Hard caps:**
 
@@ -1800,26 +1853,26 @@ One fixed chassis for v1 — no customization burden. It's a **small, boxy carto
 - Body fill `#FBF4E3` (same as UI surface — reads as "off-white bodywork on the page").
 - Window cut-out with a subtle sky tint `#6FA8C9` at 40% alpha.
 - Driver: a single oval head + grinning mouth stamp, 2px ink outline. Cartoon cue that this is *not* serious racing.
-- Two **wheel wells**: the front well holds the drawn wheel; the rear well holds a plain cartoon circle wheel (fixed). This asymmetry is deliberate — the player's creation sits at the front where the camera reads it first.
+- Two **wheel wells**: **both wells hold the drawn polygon** (§Gameplay 3 AWD). Front and rear are visually identical. This symmetry is deliberate — the player's drawing is the car's *wheels*, not one front wheel and a free rear wheel. Seeing two copies of the same drawn shape reinforces that the drawing defines the whole vehicle's behaviour.
 - A thin darker strip (`#E9DEC3`) along the lower 6px of the body suggests a side panel / chassis shadow: enough implied 3D lift to not look like it's lying flat on the page.
 
-#### Joint and tilt
+#### Joints and tilt
 
-- Chassis is a single rectangular Planck body (per the §Gameplay 3 engine commitment — no Matter.js anywhere in the stack).
-- Front axle: Planck `WheelJoint` between chassis front-well point and player wheel centroid, with suspension spring/damping and a motor applying torque. Matches the `WheelJoint` parameters pinned in §Gameplay 4.
-- Rear axle: Planck `RevoluteJoint` to a plain circle body (fixed cartoon wheel — no suspension needed on a wheel the player can't change).
-- The chassis tilts naturally as physics dictate — when the front wheel rides up a hill the chassis pitches back, the driver leans, and the rear dust particles kick harder. No scripted animation; it's all emergent from the physics body angle.
+- Chassis is a single rectangular Planck body (per the §Gameplay 3 engine commitment — no Matter.js anywhere in the stack). Chassis density is `1.0 kg/m²` (revised down from 2.0 when AWD landed — see §Gameplay 4).
+- **Both axles** use Planck `WheelJoint` with suspension spring/damping and an independent motor applying torque. Matches the `WheelJoint` parameters pinned in §Gameplay 4. Both motors share the same `maxTorque` and `motorSpeed` values; total drive torque is effectively 2× a single-axle setup.
+- The chassis tilts naturally as physics dictate — when one wheel rides up a ledge the chassis pitches, the driver leans, and dust particles kick harder. Both wheels now contribute to tilt dynamics (previously the rear was an "obedient" circle that didn't surprise the chassis; now the rear's shape can also catch on terrain and pitch the car in new ways).
 
-Rendering: sprite drawn with `ctx.rotate(chassis.angle)` around the chassis center of mass. One sprite = one `drawImage` per frame.
+Rendering: chassis sprite drawn with `ctx.rotate(chassis.angle)` around the chassis center of mass (one `drawImage` per frame). Each wheel renders its drawn-polygon Path2D via the §4 wobble-stroke path, rotated by its own `body.angle` — the two wheels spin independently because Planck solves each `WheelJoint` separately, so on uneven terrain one may momentarily lag the other (visible and fine).
 
 ### 6. Terrain Rendering
 
 Terrain is a polyline (points every 20–30px) stored as static track data. Rendered as three passes per visible chunk, cached into a `Path2D` on chunk creation:
 
-1. **Fill band.** Close the polyline to screen bottom, fill with a warm tan (`#E5D3B0`). Single draw call.
-2. **Cross-hatching.** A pre-rendered 256×256 `ImageBitmap` of sparse pen cross-hatches (diagonal 20°, 0.6 alpha ink) clipped to the terrain fill. Gives "dirt under the line" feel without per-line draws.
-3. **Ink top edge.** A 3px stroke of the polyline with a slight width modulation (alternate 2.5/3.5px every ~80px) — mimics variable pen pressure. Color `#2B2118`.
-4. **Grass strip.** 4px sage (`#7CA05C`) line drawn just above the ink edge, with small tuft sprites stamped every 60–120px (jittered positions, seeded per-chunk).
+1. **Fill band (per-surface).** Close the polyline to screen bottom, filled with the active surface's visual preset (see §Gameplay 5 surface table). `normal` → warm tan `#E5D3B0`; `ice` → cool blue-white `#DDE7EE`; `snow` → off-white `#F0EBE0`; `water` → dusty blue `#9FB3C4`; `mud` → dark brown `#6E5340`; `rock` → grey `#8A8680`. When a terrain chunk crosses a surface boundary, the fill is split at the boundary x and rendered as two adjacent Path2D fills; the transition is a hard edge (no gradient blend — visual clarity matters more than smoothness, players need to read the boundary at a glance).
+2. **Cross-hatching (per-surface).** The pre-rendered 256×256 `ImageBitmap` of diagonal hatches (0.6 α ink) is replaced per surface by a distinctive hatch pattern: `ice` → pale horizontal streaks; `snow` → sparse dotted "flake" stamps; `water` → gentle wave cross-hatches; `mud` → blobby irregular smears; `rock` → angular bump texture; `normal` → the original diagonal cross-hatches. One pre-rendered bitmap per surface baked at asset-pipeline time; runtime just selects which to clip against.
+3. **Ink top edge.** A 3px stroke of the polyline with a slight width modulation (alternate 2.5/3.5px every ~80px) — mimics variable pen pressure. Color `#2B2118`. **Always the same ink color across surfaces** — a consistent silhouette anchors the warm paper aesthetic even when the fill is icy or watery.
+4. **Grass strip (conditional).** 4px sage (`#7CA05C`) line drawn just above the ink edge, with small tuft sprites stamped every 60–120px (jittered positions, seeded per-chunk). Rendered only for `normal` and `mud` surfaces; suppressed for `ice`, `snow`, `water`, `rock` where a grass strip would be nonsensical.
+5. **Surface motif (optional per surface).** Small animated or static flourishes keyed to the surface, pre-baked where possible: water segments can include a slow 2-frame wave stamp cycle at the top edge (driven by `simTick` modulo so it stays deterministic); snow gets a still dusting sprite. Budget: ≤0.2 ms/frame across all visible surface motifs.
 
 #### Parallax
 
@@ -1836,7 +1889,7 @@ No blur filters at runtime (mobile perf killer). Atmospheric haze is baked into 
 
 Each ghost is replayed by re-simulating from the stored `wheels[]` + seed using the shared Planck WASM module; the client runs the ghost sim in the same world tick as its own race. No positions are stored or streamed — the ghost body's transform is read straight off the re-simulated world each frame and rendered:
 - Draw the ghost's current wheel Path2D and a *pre-rendered monochrome copy* of the chassis sprite.
-- **Wheel swaps are visible.** At each stored `swap_tick` the ghost sim executes the same swap procedure (§Gameplay 3) the player's sim does: the wheel geometry visibly morphs to the next polygon in `wheels[]`. A short 200 ms `easeOutCubic` crossfade between old and new wheel silhouettes makes the swap readable without pausing the ghost. Players learn mid-race-draw timing by watching faster ghosts swap wheels at the right moments.
+- **Wheel swaps are visible on both wheels.** At each stored `swap_tick` the ghost sim executes the twin-wheel swap procedure (§Gameplay 3) the player's sim does: **both** wheel geometries morph to the next polygon in `wheels[]` simultaneously. A short 200 ms `easeOutCubic` crossfade between old and new wheel silhouettes plays on both wheels in sync, so the ghost's entire vehicle visibly updates at the swap. Players learn mid-race-draw timing by watching faster ghosts swap wheels at the right moments; seeing both wheels change together reinforces that the drawing *is* the whole vehicle.
 - **Color:** tinted `#8896A3` (cool blue-gray) via a pre-tinted `ImageBitmap`, not per-frame `globalCompositeOperation` (which is expensive on iOS).
 - **Opacity:** `globalAlpha = 0.6`.
 - **Silhouette simplification:** the ghost's wheel uses the simplified polygon without the wobble pass — a cleaner, less detailed line suggests "memory of a run." Internal detail (driver face, window tint) is omitted.
