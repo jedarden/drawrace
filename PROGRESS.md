@@ -54,7 +54,7 @@
 
 | Layer | Status | Description |
 |-------|--------|-------------|
-| Layer 1 — Unit | Passing (88 tests) | Vitest: geometry, HMAC, haptics, ghost-blob, particles, sound, perf |
+| Layer 1 — Unit | Passing (97 tests) | Vitest: geometry, HMAC, haptics, ghost-blob, particles, sound, perf, player-identity |
 | Layer 2 — Physics Golden | Passing | Deterministic headless sim with 23 reference wheels |
 | Layer 3 — Rendering Snapshots | Configured | Playwright snapshot tests in `e2e/snapshot.spec.ts` |
 | Layer 4 — E2E Input | Configured | Playwright game tests in `e2e/game.spec.ts` |
@@ -62,8 +62,33 @@
 | Layer 6 — Replay Verification | Implemented | Server-side re-sim against submitted ghosts |
 | Layer 7 — Perf Budget | Configured | CDP CPU throttling perf tests in `e2e/perf.spec.ts` |
 | Layer 8 — Load/Chaos | Configured | k6 load test scripts in `load/` |
-| Layer 9 — Device Matrix | Self-hosted Pixel 6 | ADB-driven smoke tests |
+| Layer 9 — Phone Smoke | Built, failing | ADB+CDP harness drives real Pixel 6; fails on playability bugs below |
+
+## Real-Device Playability (drawrace-vgn.7)
+
+The game does not yet play on a real phone. Headless tests all pass; the phone-smoke
+harness (`e2e/phone-smoke/`) catches the gaps that desktop tests cannot.
+
+### Known playability bugs (detected by phone-smoke)
+
+- **Race init fails on Android Chrome**: `InvalidStateError: The source image could not be decoded`
+  when `createImageBitmap()` processes SVG hill assets served over plain HTTP. The race
+  canvas stays blank at the countdown screen.
+
+### Remaining work (drawrace-vgn.7)
+
+| Bead | Priority | Status |
+|------|----------|--------|
+| drawrace-vgn.7.4 — Phone-smoke harness | P0 | Done |
+| drawrace-vgn.7.1 — crypto.randomUUID polyfill | P0 | Closed (premature) |
+| drawrace-vgn.7.2 — Race canvas blank on Android Chrome | P0 | Closed (premature) |
+| drawrace-vgn.7.3 — Draw canvas no live stroke preview | P1 | Closed (premature) |
+| drawrace-vgn.7.5 — First-run ephemeral mode | P1 | Closed (premature) |
+| drawrace-vgn.7.6 — WorkflowTemplate rounds 3-5 | P2 | Open |
+| drawrace-vgn.7.7 — Validator 8080/8081 port split | P2 | Open |
 
 ## Current State
 
-All phases implemented. Tests passing (`pnpm test`: 88/88, `cargo test`: 10/10). Build succeeds. Bundle: ~126KB gzipped (well under 400KB budget).
+All phases code-complete. Tests passing (`pnpm test`: 97/97, `cargo test`: 13/13).
+Build succeeds. Bundle: ~126KB gzipped (well under 400KB budget).
+**Phone-smoke FAILS** — race init bug must be fixed before declaring "all phases complete."
