@@ -1,0 +1,185 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: drawrace-ci
+  namespace: argo-workflows
+  labels:
+    app: drawrace-ci
+spec:
+  # ── Top-level parameters ────────────────────────────────────────────────────
+  arguments:
+    parameters:
+      - name: ref
+        value: main
+      - name: mode
+        # pr | nightly | release
+        value: pr
+      - name: preview-url
+        # Injected by drawrace-build's trigger-ci step after Pages publish.
+        # Empty on manual/local runs; phone-smoke step is skipped when empty.
+        value: ""
+
+  entrypoint: ci
+
+  templates:
+    # ── CI DAG ─────────────────────────────────────────────────────────────────
+    - name: ci
+      dag:
+        tasks:
+          - name: lint
+            template: step
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm lint"}
+
+          - name: unit
+            template: step
+            dependencies: [lint]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm vitest run --coverage"}
+
+          - name: physics-golden
+            template: step
+            dependencies: [unit]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm -F engine-core test:golden"}
+
+          - name: replay-verify
+            template: step
+            dependencies: [unit]
+            arguments:
+              parameters:
+                - {name: cmd, value: "cargo test -p drawrace-validator --test replay"}
+
+          - name: build
+            template: step
+            dependencies: [physics-golden]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm build"}
+
+          - name: render-snap
+            template: step
+            dependencies: [build]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm test:snapshot"}
+
+          - name: e2e
+            template: step
+            dependencies: [build]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm test:e2e"}
+
+          - name: backend-contract
+            template: step
+            dependencies: [build]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm test:contract"}
+
+          - name: perf
+            template: step
+            dependencies: [build]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm test:perf"}
+
+          # phone-smoke: serialized via mutex, runs only when a preview URL is available
+          - name: phone-smoke
+            template: phone-smoke
+            dependencies: [build]
+            when: "'{{workflow.parameters.preview-url}}' != ''"
+            arguments:
+              parameters:
+                - name: preview-url
+                  value: "{{workflow.parameters.preview-url}}"
+
+          - name: load
+            template: step
+            dependencies: [e2e]
+            when: "'{{workflow.parameters.mode}}' == 'nightly'"
+            arguments:
+              parameters:
+                - {name: cmd, value: "k6 run load/submit.js"}
+
+          - name: device-matrix
+            template: step
+            dependencies: [e2e]
+            when: "'{{workflow.parameters.mode}}' == 'release'"
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm test:devices"}
+
+    # ── Generic step template ───────────────────────────────────────────────
+    - name: step
+      inputs:
+        parameters:
+          - name: cmd
+      activeDeadlineSeconds: 600
+      container:
+        image: ghcr.io/drawrace/ci-snap:2026-04-21
+        command: [bash, -lc, "{{inputs.parameters.cmd}}"]
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      volumes:
+        - name: workspace
+          emptyDir: {}
+
+    # ── Phone-smoke template ────────────────────────────────────────────────
+    # Serialized via mutex so concurrent PRs queue rather than fight over the
+    # single Pixel 6.  ADB_SERVER_SOCKET points at the adb-relay service which
+    # bridges the CI pod to the persistent ADB server on the coding host.
+    - name: phone-smoke
+      inputs:
+        parameters:
+          - name: preview-url
+      activeDeadlineSeconds: 300
+      # Serialize access to the Pixel 6 — concurrent PRs queue behind this mutex
+      synchronization:
+        mutex:
+          name: drawrace-phone
+      container:
+        image: ghcr.io/drawrace/ci-phone:2026-04-21
+        command: [bash, -lc]
+        args:
+          - |
+            set -euo pipefail
+            # Verify ADB is reachable before spending time on the run
+            adb-check
+            # Run the smoke against the provided preview URL
+            # --skip-build: dist is already published to Cloudflare Pages
+            PHONE_SMOKE_URL="{{inputs.parameters.preview-url}}" \
+              bash e2e/phone-smoke/run.sh --skip-build
+        env:
+          - name: ADB_SERVER_SOCKET
+            value: "tcp:adb-relay.tailnet:5037"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      # Upload screenshots on failure so engineers can see what the phone saw
+      outputs:
+        artifacts:
+          - name: phone-smoke-screenshots
+            path: /workspace/e2e/phone-smoke/artifacts
+            archive:
+              tar: {}
+            # s3 destination configured by the Argo controller's artifact repo

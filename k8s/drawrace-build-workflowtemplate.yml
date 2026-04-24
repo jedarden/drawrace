@@ -16,6 +16,12 @@ spec:
         value: main
       - name: tag
         value: ""
+      - name: republish_only
+        # When "true", skip rotate-client-key, docker builds, bump-manifest,
+        # and wait-validator-live; re-publish the Pages bundle at the
+        # checked-out git ref with the CURRENT production ConfigMap key.
+        # This is the rollback path.
+        value: "false"
   volumes:
     - name: docker-config
       secret:
@@ -24,14 +30,21 @@ spec:
           - key: .dockerconfigjson
             path: config.json
   templates:
+    # ── Top-level DAG ────────────────────────────────────────────────────────
+    # DAG form (not steps:) so that pages-publish is auto-skipped when
+    # wait-validator-live fails — Argo treats a skipped dep as satisfied,
+    # but a failed dep propagates failure to dependents.
     - name: build
       dag:
         tasks:
           - name: checkout
             template: git-checkout
-          - name: pnpm-install
-            template: pnpm-setup
+
+          - name: rotate-client-key
+            template: rotate-client-key
             dependencies: [checkout]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
+
           - name: lint-api
             template: cargo-lint
             dependencies: [checkout]
@@ -48,11 +61,12 @@ spec:
                   value: validator
           - name: lint-js
             template: pnpm-ci-step
-            dependencies: [pnpm-install]
+            dependencies: [checkout]
             arguments:
               parameters:
                 - name: command
-                  value: pnpm lint
+                  value: pnpm install --frozen-lockfile && pnpm lint
+
           - name: test-api
             template: cargo-test
             dependencies: [checkout]
@@ -69,30 +83,35 @@ spec:
                   value: validator
           - name: test-js
             template: pnpm-ci-step
-            dependencies: [pnpm-install]
+            dependencies: [checkout]
             arguments:
               parameters:
                 - name: command
-                  value: pnpm vitest run
+                  value: pnpm install --frozen-lockfile && pnpm vitest run
+
           - name: size-limit
             template: pnpm-ci-step
-            dependencies: [pnpm-install]
+            dependencies: [checkout]
             arguments:
               parameters:
                 - name: command
-                  value: pnpm build && npx size-limit
+                  value: pnpm install --frozen-lockfile && pnpm build && npx size-limit
+
           - name: build-api
             template: docker-build
             dependencies: [lint-api, test-api, test-js, lint-js]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
                 - name: binary
                   value: drawrace-api
                 - name: image
                   value: ronaldraygun/drawrace-api
+
           - name: build-validator
             template: docker-build
             dependencies: [lint-validator, test-validator, test-js, lint-js]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
                 - name: binary
@@ -100,6 +119,51 @@ spec:
                 - name: image
                   value: ronaldraygun/drawrace-validator
 
+          - name: bump-manifest
+            template: update-declarative-config
+            dependencies: [build-api, build-validator]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
+            arguments:
+              parameters:
+                - name: path
+                  value: k8s/iad-acb/drawrace
+
+          - name: read-expected-physics-version
+            template: read-expected-physics-version
+            dependencies: [checkout]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
+
+          - name: wait-validator-live
+            template: wait-validator-live
+            dependencies: [bump-manifest, read-expected-physics-version]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
+            arguments:
+              parameters:
+                - name: expected-physics-version
+                  value: "{{tasks.read-expected-physics-version.outputs.parameters.physics_version}}"
+
+          - name: pages-publish
+            template: wrangler-pages
+            dependencies: [rotate-client-key, wait-validator-live]
+            arguments:
+              parameters:
+                - name: project
+                  value: drawrace
+                - name: branch
+                  value: "{{workflow.parameters.branch}}"
+
+          - name: trigger-ci
+            template: submit-drawrace-ci
+            dependencies: [pages-publish]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
+            arguments:
+              parameters:
+                - name: preview-url
+                  value: "{{tasks.pages-publish.outputs.parameters.preview-url}}"
+                - name: ref
+                  value: "{{workflow.parameters.branch}}"
+
+    # ── git-checkout ─────────────────────────────────────────────────────────
     - name: git-checkout
       activeDeadlineSeconds: 300
       container:
@@ -135,7 +199,194 @@ spec:
             resources:
               requests:
                 storage: 4Gi
+      outputs:
+        artifacts:
+          - name: workspace
+            path: /workspace
 
+    # ── rotate-client-key ────────────────────────────────────────────────────
+    # Atomically writes previous=<old_current>, current=<new_random_hex>,
+    # rotated_at=now() to the drawrace-client-key ConfigMap.  Runs only on
+    # main-branch, non-republish builds.  On first-run (previous == ""),
+    # still promotes current -> previous; the api verifier treats empty
+    # previous as "ignore".
+    - name: rotate-client-key
+      container:
+        image: bitnami/kubectl:1.29
+        command: [bash, -lc]
+        args:
+          - |
+            set -euo pipefail
+            OLD=$(kubectl -n drawrace get configmap drawrace-client-key -o jsonpath='{.data.current}')
+            NEW=$(openssl rand -hex 16)
+            NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            kubectl -n drawrace apply -f - <<EOF
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: drawrace-client-key
+              namespace: drawrace
+            data:
+              current: "$NEW"
+              previous: "$OLD"
+              rotated_at: "$NOW"
+            EOF
+
+    # ── read-expected-physics-version ────────────────────────────────────────
+    # Extracts PHYSICS_VERSION from packages/engine-core/src/version.ts.
+    # The webhook dispatcher runs before checkout, so the workflow must
+    # extract the version itself.
+    - name: read-expected-physics-version
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            set -eu
+            V=$(grep -oE 'PHYSICS_VERSION *= *[0-9]+' /workspace/packages/engine-core/src/version.ts | grep -oE '[0-9]+$')
+            if [ -z "$V" ]; then
+              echo "failed to extract PHYSICS_VERSION from packages/engine-core/src/version.ts" >&2
+              exit 1
+            fi
+            echo -n "$V" > /tmp/physics_version
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      outputs:
+        parameters:
+          - name: physics_version
+            valueFrom: { path: /tmp/physics_version }
+
+    # ── wait-validator-live ──────────────────────────────────────────────────
+    # Polls the prod api's /v1/health until the validator reports the same
+    # physics_version the client bundle was built against.  On timeout the
+    # workflow fails and pages-publish never runs — the last-good client
+    # stays live in production.
+    - name: wait-validator-live
+      inputs:
+        parameters:
+          - name: expected-physics-version
+          - name: health-url
+            value: "https://api.drawrace.ardenone.com/v1/health"
+          - name: timeout-seconds
+            value: "1200"
+          - name: poll-interval-seconds
+            value: "10"
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            set -euo pipefail
+            want="{{inputs.parameters.expected-physics-version}}"
+            url="{{inputs.parameters.health-url}}"
+            deadline=$(( $(date +%s) + {{inputs.parameters.timeout-seconds}} ))
+            until [ "$(curl -sf "$url" | jq -r '.validator.physics_version // empty')" = "$want" ]; do
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "timeout: validator never reported physics_version=$want"
+                curl -sf "$url" | jq . || true
+                exit 1
+              fi
+              sleep {{inputs.parameters.poll-interval-seconds}}
+            done
+            echo "validator live at physics_version=$want"
+
+    # ── wrangler-pages ───────────────────────────────────────────────────────
+    - name: wrangler-pages
+      inputs:
+        parameters:
+          - name: project
+          - name: branch
+      container:
+        image: node:20-alpine
+        command: [sh, -c]
+        args:
+          - |
+            set -euo pipefail
+            apk add --no-cache git
+            npm install -g pnpm@10 wrangler
+            cd /workspace
+            pnpm install --frozen-lockfile
+            pnpm --filter @drawrace/web build
+            URL=$(wrangler pages deploy apps/web/dist \
+                    --project-name={{inputs.parameters.project}} \
+                    --branch={{inputs.parameters.branch}} \
+                  | tee /dev/stderr \
+                  | grep -Eo 'https://[^ ]+\.pages\.dev' \
+                  | tail -n1)
+            echo -n "$URL" > /tmp/preview_url
+        env:
+          - name: CLOUDFLARE_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: drawrace-cloudflare
+                key: api-token
+          - name: CLOUDFLARE_ACCOUNT_ID
+            valueFrom:
+              secretKeyRef:
+                name: drawrace-cloudflare
+                key: account-id
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      outputs:
+        parameters:
+          - name: preview-url
+            valueFrom: { path: /tmp/preview_url }
+
+    # ── submit-drawrace-ci ───────────────────────────────────────────────────
+    # Submits a drawrace-ci Workflow via `argo submit --from workflowtemplate/…`
+    # so the child workflow inherits the template's full DAG. The preview-url
+    # is passed as a top-level workflow parameter.
+    - name: submit-drawrace-ci
+      inputs:
+        parameters:
+          - name: preview-url
+          - name: ref
+      serviceAccountName: argo-workflow-submitter
+      container:
+        image: ghcr.io/drawrace/ci-snap:2026-04-21
+        command: [bash, -lc]
+        args:
+          - |
+            set -euo pipefail
+            argo submit \
+              --from workflowtemplate/drawrace-ci \
+              -n argo-workflows \
+              --parameter preview-url="{{inputs.parameters.preview-url}}" \
+              --parameter ref="{{inputs.parameters.ref}}" \
+              --parameter mode=release \
+              --wait=false
+
+    # ── update-declarative-config ────────────────────────────────────────────
+    - name: update-declarative-config
+      inputs:
+        parameters:
+          - name: path
+      container:
+        image: alpine/git:2.43.0
+        command: [sh, -c]
+        args:
+          - |
+            set -ex
+            git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/jedarden/declarative-config" /tmp/dc
+            cd /tmp/dc
+            # Update image tags in the declarative-config path
+            echo "ronaldraygun/drawrace-api:latest" > {{inputs.parameters.path}}/images.txt
+            echo "ronaldraygun/drawrace-validator:latest" >> {{inputs.parameters.path}}/images.txt
+            git config user.name "DrawRace CI"
+            git config user.email "ci@drawrace.ardenone.com"
+            git add {{inputs.parameters.path}}/images.txt
+            git diff --cached --quiet || git commit -m "drawrace: update images"
+            git push
+        env:
+          - name: GH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: github-webhook-secret
+                key: token
+
+    # ── cargo-lint ───────────────────────────────────────────────────────────
     - name: cargo-lint
       inputs:
         parameters:
@@ -162,6 +413,7 @@ spec:
             cpu: 2000m
             memory: 2Gi
 
+    # ── cargo-test ───────────────────────────────────────────────────────────
     - name: cargo-test
       inputs:
         parameters:
@@ -188,28 +440,7 @@ spec:
             cpu: 2000m
             memory: 2Gi
 
-    - name: pnpm-setup
-      activeDeadlineSeconds: 300
-      container:
-        image: node:20-alpine
-        command: [sh, -c]
-        args:
-          - |
-            set -e
-            corepack enable
-            cd /workspace
-            pnpm install --frozen-lockfile
-        volumeMounts:
-          - name: workspace
-            mountPath: /workspace
-        resources:
-          requests:
-            cpu: 500m
-            memory: 512Mi
-          limits:
-            cpu: 1000m
-            memory: 1Gi
-
+    # ── pnpm-ci-step ─────────────────────────────────────────────────────────
     - name: pnpm-ci-step
       inputs:
         parameters:
@@ -235,6 +466,7 @@ spec:
             cpu: 2000m
             memory: 2Gi
 
+    # ── docker-build (Kaniko) ────────────────────────────────────────────────
     - name: docker-build
       inputs:
         parameters:

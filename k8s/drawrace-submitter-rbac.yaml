@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argo-workflow-submitter
+  namespace: argo-workflows
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-workflow-submitter
+  namespace: argo-workflows
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [workflows]
+    verbs: [create, get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-workflow-submitter
+  namespace: argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-workflow-submitter
+subjects:
+  - kind: ServiceAccount
+    name: argo-workflow-submitter
+    namespace: argo-workflows
