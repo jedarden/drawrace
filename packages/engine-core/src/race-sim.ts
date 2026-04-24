@@ -1,6 +1,8 @@
-import { World, Vec2, Edge, Polygon, Circle, Box, WheelJoint, RevoluteJoint, type Body, type WheelJoint as WheelJointType } from "planck";
+import { World, Vec2, Edge, Polygon, Circle, Box, WheelJoint, RevoluteJoint, type Body, type Joint, type WheelJoint as WheelJointType } from "planck";
 import { PHYSICS_VERSION } from "./version.js";
 import { sfc32, hashSeed } from "./prng.js";
+import { executeWheelSwap } from "./swap.js";
+import type { WheelSwap } from "./swap.js";
 
 export interface TrackDef {
   id: string;
@@ -14,6 +16,7 @@ export interface TrackDef {
     angle?: number;
     friction?: number;
   }>;
+  zones?: Array<{ id: string; x_start: number; x_end: number }>;
   start: { pos: [number, number]; facing: number };
   finish: { pos: [number, number]; width: number };
 }
@@ -50,6 +53,7 @@ const REAR_WHEEL_RADIUS = 0.35;
 export class RaceSim {
   private world: World;
   private wheelBody: Body;
+  private wheelJoint!: Joint;
   private chassisBody: Body;
   private rearWheelBody: Body;
   private prng: ReturnType<typeof sfc32>;
@@ -58,6 +62,7 @@ export class RaceSim {
   private finished = false;
   private finishX: number;
   private motorEnabled = false;
+  private wheelSwapLog: WheelSwap[] = [];
   readonly track: TrackDef;
 
   constructor(
@@ -173,8 +178,8 @@ export class RaceSim {
       density: 1.0, friction: 0.8, restitution: 0.3,
     });
 
-    // Front wheel joint (suspension + motor)
-    this.world.createJoint(
+    // Front wheel joint (suspension + motor) — stored so swapWheel can rebind it
+    const frontJoint = this.world.createJoint(
       WheelJoint({
         bodyA: this.chassisBody,
         bodyB: this.wheelBody,
@@ -188,6 +193,12 @@ export class RaceSim {
         maxMotorTorque: MOTOR_MAX_TORQUE,
       })
     );
+    if (!frontJoint) throw new Error("Failed to create wheel joint");
+    this.wheelJoint = frontJoint;
+
+    // Initialize swap log with the initial wheel (swap_tick 0)
+    const initialPoly = wv.map((v) => [v.x, v.y] as [number, number]);
+    this.wheelSwapLog = [{ swap_tick: 0, polygon: initialPoly }];
 
     // Rear wheel joint (revolute, no suspension)
     this.world.createJoint(
@@ -199,6 +210,26 @@ export class RaceSim {
         enableMotor: false,
       })
     );
+  }
+
+  swapWheel(vertices: Array<{ x: number; y: number }>): void {
+    if (this.finished) return;
+    const poly = vertices.map((v) => [v.x, v.y] as [number, number]);
+    const result = executeWheelSwap(
+      this.world,
+      this.chassisBody,
+      this.wheelBody,
+      this.wheelJoint,
+      poly,
+      this.tick,
+      this.wheelSwapLog,
+    );
+    this.wheelBody = result.newWheelBody;
+    this.wheelJoint = result.newWheelJoint;
+  }
+
+  getSwapLog(): WheelSwap[] {
+    return this.wheelSwapLog;
   }
 
   enableMotor(): void {

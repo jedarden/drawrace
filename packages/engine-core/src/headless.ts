@@ -1,4 +1,4 @@
-import { World, Vec2, Edge, Circle, Box, WheelJoint, RevoluteJoint } from "planck";
+import { World, Vec2, Edge, Circle, Box, WheelJoint, RevoluteJoint, type Joint } from "planck";
 import { PHYSICS_VERSION } from "./version.js";
 import { sfc32 } from "./prng.js";
 import { InjectedClock } from "./clock.js";
@@ -120,7 +120,8 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
   });
 
   // --- joints ---
-  let wheelJoint = world.createJoint(
+  // Typed as Joint (not WheelJoint) so executeWheelSwap can rebind it later
+  let wheelJoint: Joint = world.createJoint(
     WheelJoint({
       bodyA: chassisBody,
       bodyB: wheelBody,

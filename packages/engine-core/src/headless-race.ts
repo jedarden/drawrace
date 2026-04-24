@@ -15,6 +15,7 @@ export interface TrackDef {
     angle?: number;
     friction?: number;
   }>;
+  zones?: Array<{ id: string; x_start: number; x_end: number }>;
   start: { pos: [number, number]; facing: number };
   finish: { pos: [number, number]; width: number };
 }

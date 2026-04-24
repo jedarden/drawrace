@@ -271,6 +271,14 @@ export function createRenderer(
   // Ink-flash pool
   const inkFlashes: InkFlash[] = [];
 
+  // Zone boundary x-coordinates (skip first zone start = track start)
+  const zoneBoundaries: number[] = [];
+  if (track.zones) {
+    for (let i = 1; i < track.zones.length; i++) {
+      zoneBoundaries.push(track.zones[i].x_start);
+    }
+  }
+
   // Pre-compute grass tuft positions (seeded, deterministic)
   const tuftPositions: Array<{ wx: number; wy: number; spriteIdx: number }> = [];
   {
