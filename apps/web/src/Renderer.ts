@@ -225,7 +225,14 @@ export function createRenderer(
   track: TrackDef,
   wheelDraw: DrawResult
 ) {
-  const ctx = canvas.getContext("2d", { desynchronized: true })!;
+  // Do NOT use desynchronized:true here — on Android Chrome that context flag
+  // causes getImageData() to return stale transparent pixels because rendering
+  // happens off the main thread. The race canvas has no user-input latency
+  // requirement (the race is autonomous), so synchronised rendering is correct.
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("[DrawRace] Failed to acquire 2D rendering context for race canvas");
+  }
   const width = canvas.width;
   const height = canvas.height;
   ctx.imageSmoothingEnabled = true;

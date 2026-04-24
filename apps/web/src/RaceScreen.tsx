@@ -39,37 +39,52 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
   const prevWheelPosRef = useRef({ x: 0, y: 0 });
   const [ariaAnnouncement, setAriaAnnouncement] = useState("Race starting. Countdown: 3");
 
+  // Capture ghosts in a ref so that a late-arriving ghost fetch (slow mobile
+  // network) cannot change the prop reference and restart the race effect
+  // mid-countdown.  The ref is updated every render so the captured snapshot
+  // always reflects whatever was available when the effect last ran.
+  const ghostsRef = useRef(ghosts);
+  ghostsRef.current = ghosts;
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Snapshot the ghosts that exist at race-start time.  Any later prop
+    // update changes ghostsRef.current but does NOT trigger this effect again,
+    // preventing the loop from being cancelled and restarted mid-race.
+    const capturedGhosts = ghostsRef.current;
+
+    // Guard against a canvas that hasn't been laid out yet (can happen on
+    // Android Chrome before the first paint fully commits the flex layout).
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
+    canvas.width = rect.width > 0 ? rect.width : window.innerWidth;
+    canvas.height = rect.height > 0 ? rect.height : window.innerHeight;
 
     let cancelled = false;
     let rafId: number = 0;
 
     (async () => {
-      await preloadAssets();
-      if (cancelled) return;
+      try {
+        await preloadAssets();
+        if (cancelled) return;
 
-      const ppm = track.world.pixelsPerMeter;
-      const rawVerts = wheelDraw.vertices.map((v) => ({ x: v.x / ppm, y: v.y / ppm }));
-      const maxR = Math.max(...rawVerts.map((v) => Math.hypot(v.x, v.y)));
-      const MIN_R = 0.3;
-      const MAX_R = 1.0;
-      const scale = maxR < MIN_R ? MIN_R / maxR : maxR > MAX_R ? MAX_R / maxR : 1;
-      const playerVerts = rawVerts.map((v) => ({ x: v.x * scale, y: v.y * scale }));
-      const sim = new RaceSim(track, playerVerts);
-      const ghostSims = ghosts.map((g) => new RaceSim(track, g.wheelVertices, g.seed));
+        const ppm = track.world.pixelsPerMeter;
+        const rawVerts = wheelDraw.vertices.map((v) => ({ x: v.x / ppm, y: v.y / ppm }));
+        const maxR = Math.max(...rawVerts.map((v) => Math.hypot(v.x, v.y)));
+        const MIN_R = 0.3;
+        const MAX_R = 1.0;
+        const scale = maxR < MIN_R ? MIN_R / maxR : maxR > MAX_R ? MAX_R / maxR : 1;
+        const playerVerts = rawVerts.map((v) => ({ x: v.x * scale, y: v.y * scale }));
+        const sim = new RaceSim(track, playerVerts);
+        const ghostSims = capturedGhosts.map((g) => new RaceSim(track, g.wheelVertices, g.seed));
 
-      const particles = new ParticleSystem();
-      particlesRef.current = particles;
+        const particles = new ParticleSystem();
+        particlesRef.current = particles;
 
-      const physDraw = { ...wheelDraw, vertices: playerVerts };
-      const renderer = createRenderer(canvas, track, physDraw);
-      const ghostWheelPaths = ghosts.map((g) => createGhostWheelPath(g.wheelVertices));
+        const physDraw = { ...wheelDraw, vertices: playerVerts };
+        const renderer = createRenderer(canvas, track, physDraw);
+        const ghostWheelPaths = capturedGhosts.map((g) => createGhostWheelPath(g.wheelVertices));
       const perf = getPerformanceManager();
       const sound = getSoundManager();
       const haptics = getHaptics();
@@ -220,6 +235,11 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
       }
 
       rafId = requestAnimationFrame(loop);
+      } catch (err) {
+        // Surface any renderer / physics init failure so it shows up in the
+        // Chrome DevTools console on Android instead of vanishing silently.
+        console.error("[RaceScreen] Race init failed:", err);
+      }
     })();
 
     return () => {
@@ -228,7 +248,11 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
       if (rafId) cancelAnimationFrame(rafId);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [track, wheelDraw, ghosts, onFinished]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // `ghosts` is intentionally excluded: we capture it via ghostsRef above so
+    // that a late-arriving ghost fetch on slow mobile networks cannot cancel the
+    // loop and restart the countdown mid-race.
+  }, [track, wheelDraw, onFinished]);
 
   return (
     <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#F4EAD5" }}>
