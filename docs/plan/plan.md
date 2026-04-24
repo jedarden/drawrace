@@ -2003,6 +2003,36 @@ Controls:
 - **Draw overlay** — permanent, bottom ~40% of viewport. Never fully disappears; it is the primary input surface during a race.
 - **Swap counter** `3/20` in the top-right of the HUD, dims from ink to muted as it approaches cap; shows `20/20` in warning red when the cap is reached.
 
+**Pause menu (Resume / Restart / Quit).**
+
+Tapping the pause button halts the sim and opens a menu overlay with three stacked buttons. The player is never forced to watch a doomed run play out — restart and quit are always one pause-tap + one action away.
+
+```
+┌─────────────────────────────┐
+│             ⏸                │
+│                             │
+│         P A U S E D         │  ← 28pt heading, centered
+│                             │
+│     ┌───────────────────┐   │
+│     │     R E S U M E   │   │  ← primary CTA, #D94F3A, 56px tall
+│     └───────────────────┘   │
+│     ┌───────────────────┐   │
+│     │     R E S T A R T │   │  ← secondary, ink outline on cream, 48px
+│     └───────────────────┘   │
+│                             │
+│            Quit             │  ← tertiary text link, muted
+│                             │
+└─────────────────────────────┘
+```
+
+- **Resume** — unpause; race continues from the same sim tick.
+- **Restart** — drop the current run, return to Draw screen for a fresh attempt on the same track. Same seed semantics as a first attempt (`seed = hash(trackId, playerId, runIndex)` with `runIndex` incremented). Previous attempt's `wheel_swaps[]` and positions are discarded; nothing is submitted.
+- **Quit** — drop the current run, return to Home. Same "nothing submitted" semantics.
+
+No confirmation dialogs — the pause tap itself was the deliberate act. Tapping outside the menu panel is treated as Resume (convenient escape hatch back to racing). Pause → Restart → Draw transition should feel snappy (target < 200ms from Restart tap to Draw screen ready for input on a Pixel 6); restart tears down the Planck world, the renderer's per-run caches, and the draw overlay state, then navigates.
+
+Interaction with stuck-DNF (§Gameplay 1): the stuck detection still runs in the background while paused-time is *not* accumulating (sim is paused, so no ticks elapse → no rotations counted → counter is frozen). On Resume, detection continues where it left off. Restart resets everything.
+
 #### 9.5 Result Screen
 
 ```
