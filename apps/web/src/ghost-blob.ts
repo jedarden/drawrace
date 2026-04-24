@@ -2,11 +2,16 @@ import { PHYSICS_VERSION } from "@drawrace/engine-core";
 import type { Point } from "@drawrace/engine-core";
 import { isEphemeral } from "./player-identity.js";
 
+export interface WheelSwap {
+  swapTick: number;
+  vertices: Array<{ x: number; y: number }>;
+}
+
 export interface GhostBlobInput {
   trackId: number;
   finishTimeMs: number;
   playerUuid: string;
-  wheelVertices: Array<{ x: number; y: number }>;
+  wheels: WheelSwap[];
   rawStrokePoints: Array<Point & { t: number }>;
 }
 
@@ -15,19 +20,23 @@ export function encodeGhostBlob(input: GhostBlobInput): ArrayBuffer {
     trackId,
     finishTimeMs,
     playerUuid,
-    wheelVertices,
+    wheels,
     rawStrokePoints,
   } = input;
 
-  const vertexCount = wheelVertices.length;
+  const wheelCount = wheels.length;
   const pointCount = Math.min(rawStrokePoints.length, 255);
 
   // Calculate total size
   const headerSize = 36;
-  const polySize = 1 + vertexCount * 4;
+  const wheelCountSize = 1;
+  let wheelsSize = 0;
+  for (const w of wheels) {
+    wheelsSize += 4 + 1 + w.vertices.length * 4; // swap_tick + vertex_count + vertices
+  }
   const strokeSize = 1 + pointCount * 6;
   const checkpointSize = 1; // 0 checkpoints
-  const totalSize = headerSize + polySize + strokeSize + checkpointSize;
+  const totalSize = headerSize + wheelCountSize + wheelsSize + strokeSize + checkpointSize;
 
   const buf = new ArrayBuffer(totalSize);
   const view = new DataView(buf);
@@ -70,16 +79,24 @@ export function encodeGhostBlob(input: GhostBlobInput): ArrayBuffer {
   }
   offset += 16;
 
-  // vertex_count (uint8)
-  view.setUint8(offset, vertexCount);
+  // wheel_count (uint8)
+  view.setUint8(offset, wheelCount);
   offset += 1;
 
-  // polygon_vertices — int16 x, y in 1/100 px units
-  for (const v of wheelVertices) {
-    view.setInt16(offset, Math.round(v.x * 100), true);
-    offset += 2;
-    view.setInt16(offset, Math.round(v.y * 100), true);
-    offset += 2;
+  // wheels[] — per wheel: swap_tick uint32, vertex_count uint8, int16 x,y × vertex_count
+  for (const w of wheels) {
+    view.setUint32(offset, w.swapTick, true);
+    offset += 4;
+
+    view.setUint8(offset, w.vertices.length);
+    offset += 1;
+
+    for (const v of w.vertices) {
+      view.setInt16(offset, Math.round(v.x * 100), true);
+      offset += 2;
+      view.setInt16(offset, Math.round(v.y * 100), true);
+      offset += 2;
+    }
   }
 
   // point_count (uint8)
@@ -115,6 +132,16 @@ export function encodeGhostBlob(input: GhostBlobInput): ArrayBuffer {
 export function decodeGhostBlobVertices(blob: ArrayBuffer): Array<{ x: number; y: number }> {
   const view = new DataView(blob);
   let offset = 36; // skip header
+
+  const wheelCount = view.getUint8(offset);
+  offset += 1;
+
+  if (wheelCount === 0) return [];
+
+  // Read first wheel's vertices
+  const swapTick = view.getUint32(offset, true);
+  offset += 4;
+  void swapTick;
 
   const vertexCount = view.getUint8(offset);
   offset += 1;

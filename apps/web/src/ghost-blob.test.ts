@@ -2,19 +2,22 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { encodeGhostBlob, decodeGhostBlobVertices, decodeGhostBlobFinishTime } from "./ghost-blob.js";
 import { _resetForTesting } from "./player-identity.js";
+import type { WheelSwap } from "./ghost-blob.js";
 
 const TEST_UUID = "550e8400-e29b-41d4-a716-446655440000";
+
+const SAMPLE_VERTICES = [
+  { x: 1.0, y: 0.0 },
+  { x: 0.0, y: 1.0 },
+  { x: -1.0, y: 0.0 },
+  { x: 0.0, y: -1.0 },
+];
 
 const SAMPLE_INPUT = {
   trackId: 1,
   finishTimeMs: 12345,
   playerUuid: TEST_UUID,
-  wheelVertices: [
-    { x: 1.0, y: 0.0 },
-    { x: 0.0, y: 1.0 },
-    { x: -1.0, y: 0.0 },
-    { x: 0.0, y: -1.0 },
-  ],
+  wheels: [{ swapTick: 0, vertices: SAMPLE_VERTICES }] as WheelSwap[],
   rawStrokePoints: [
     { x: 0, y: 0, t: 0 },
     { x: 10, y: 5, t: 100 },
@@ -37,8 +40,8 @@ describe("ghost-blob (Layer 1)", () => {
     const decoded = decodeGhostBlobVertices(buf);
     expect(decoded).toHaveLength(4);
     for (let i = 0; i < 4; i++) {
-      expect(decoded[i].x).toBeCloseTo(SAMPLE_INPUT.wheelVertices[i].x, 1);
-      expect(decoded[i].y).toBeCloseTo(SAMPLE_INPUT.wheelVertices[i].y, 1);
+      expect(decoded[i].x).toBeCloseTo(SAMPLE_VERTICES[i].x, 1);
+      expect(decoded[i].y).toBeCloseTo(SAMPLE_VERTICES[i].y, 1);
     }
   });
 
@@ -54,11 +57,52 @@ describe("ghost-blob (Layer 1)", () => {
     expect(view.getUint16(5, true)).toBe(1);
   });
 
-  it("handles zero vertices", () => {
-    const input = { ...SAMPLE_INPUT, wheelVertices: [] };
+  it("encodes wheel_count at offset 36", () => {
+    const buf = encodeGhostBlob(SAMPLE_INPUT);
+    const view = new DataView(buf);
+    expect(view.getUint8(36)).toBe(1);
+  });
+
+  it("encodes swap_tick for first wheel as 0", () => {
+    const buf = encodeGhostBlob(SAMPLE_INPUT);
+    const view = new DataView(buf);
+    expect(view.getUint32(37, true)).toBe(0);
+  });
+
+  it("round-trips a 5-swap blob", () => {
+    const wheels: WheelSwap[] = [{ swapTick: 0, vertices: SAMPLE_VERTICES }];
+    for (let i = 1; i <= 5; i++) {
+      wheels.push({
+        swapTick: i * 60, // 60 tick gaps
+        vertices: SAMPLE_VERTICES.map((v) => ({ x: v.x + i * 0.1, y: v.y })),
+      });
+    }
+    const input = { ...SAMPLE_INPUT, wheels };
     const buf = encodeGhostBlob(input);
+    const view = new DataView(buf);
+
+    // wheel_count
+    expect(view.getUint8(36)).toBe(6);
+
+    // decode first wheel
     const decoded = decodeGhostBlobVertices(buf);
-    expect(decoded).toHaveLength(0);
+    expect(decoded).toHaveLength(4);
+    expect(decoded[0].x).toBeCloseTo(1.0, 1);
+  });
+
+  it("encodes a 20-swap blob (21 wheels)", () => {
+    const wheels: WheelSwap[] = [{ swapTick: 0, vertices: SAMPLE_VERTICES }];
+    for (let i = 1; i <= 20; i++) {
+      wheels.push({
+        swapTick: i * 60,
+        vertices: SAMPLE_VERTICES,
+      });
+    }
+    const input = { ...SAMPLE_INPUT, wheels };
+    const buf = encodeGhostBlob(input);
+    const view = new DataView(buf);
+    expect(view.getUint8(36)).toBe(21);
+    expect(buf.byteLength).toBeGreaterThan(0);
   });
 
   it("handles zero stroke points", () => {
@@ -73,13 +117,17 @@ describe("ghost-blob (Layer 1)", () => {
     }));
     const input = { ...SAMPLE_INPUT, rawStrokePoints: points };
     const buf = encodeGhostBlob(input);
-    // Should not throw, and stroke count byte should be 255
     const view = new DataView(buf);
-    // vertex count at offset 36
-    const vertexCount = view.getUint8(36);
-    // point count follows after vertices
-    const pointCountOffset = 37 + vertexCount * 4;
-    expect(view.getUint8(pointCountOffset)).toBe(255);
+    // wheel_count at offset 36
+    const wheelCount = view.getUint8(36);
+    // skip wheels[] to find point_count
+    let offset = 37;
+    for (let w = 0; w < wheelCount; w++) {
+      offset += 4; // swap_tick
+      const vc = view.getUint8(offset);
+      offset += 1 + vc * 4;
+    }
+    expect(view.getUint8(offset)).toBe(255);
   });
 
   it("sets flags bit 0x02 when ephemeral", () => {

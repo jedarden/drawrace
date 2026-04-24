@@ -1,7 +1,7 @@
 use anyhow::Context;
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::config::Region;
-use drawrace_api::blob::{BlobHeader, GhostBlob};
+use drawrace_api::blob::{BlobHeader, GhostBlob, MIN_SWAP_TICK_GAP};
 use serde_json::json;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -105,7 +105,7 @@ async fn healthz_handler() -> axum::Json<serde_json::Value> {
 
 async fn version_handler() -> axum::Json<serde_json::Value> {
     axum::Json(json!({
-        "physics_version": 1,
+        "physics_version": 2,
         "engine_core_wasm_sha256": "stub-will-be-replaced",
         "ok": true,
     }))
@@ -195,17 +195,36 @@ async fn validate_ghost(
     // Parse full blob for structural validation
     let ghost = GhostBlob::parse(blob).context("Failed to parse ghost blob")?;
 
-    // Layer 2 structural checks
-    if ghost.polygon_vertices.len() < 8 || ghost.polygon_vertices.len() > 32 {
-        return Ok(Verdict {
-            status: "rejected".to_string(),
-            ghost_id: None,
-            time_ms: None,
-            reject_reason: Some(format!(
-                "polygon vertex count {} outside [8, 32]",
-                ghost.polygon_vertices.len()
-            )),
-        });
+    // Layer 2 structural checks: validate all wheels' vertex counts
+    for (i, wheel) in ghost.wheels.iter().enumerate() {
+        let vc = wheel.polygon_vertices.len();
+        if !(8..=32).contains(&vc) {
+            return Ok(Verdict {
+                status: "rejected".to_string(),
+                ghost_id: None,
+                time_ms: None,
+                reject_reason: Some(format!(
+                    "wheel {} polygon vertex count {} outside [8, 32]",
+                    i, vc
+                )),
+            });
+        }
+    }
+
+    // swap_tick gaps must be >= 30 ticks (500ms cooldown at 60 ticks/sec)
+    for window in ghost.wheels.windows(2) {
+        let gap = window[1].swap_tick - window[0].swap_tick;
+        if gap < MIN_SWAP_TICK_GAP {
+            return Ok(Verdict {
+                status: "rejected".to_string(),
+                ghost_id: None,
+                time_ms: None,
+                reject_reason: Some(format!(
+                    "swap_tick gap {} < minimum {} ticks",
+                    gap, MIN_SWAP_TICK_GAP
+                )),
+            });
+        }
     }
 
     // Checkpoint splits must be monotonically increasing
@@ -340,34 +359,43 @@ mod tests {
     use super::*;
     use drawrace_api::blob::HEADER_SIZE;
 
-    /// Build a valid DRGH blob with configurable fields.
+    /// Build a valid DRGH v2 blob with configurable fields.
     fn make_blob(
         track_id: u16,
         finish_time_ms: u32,
-        vertex_count: u8,
+        vertex_counts: &[u8],
+        swap_ticks: &[u32],
         checkpoints: &[u32],
     ) -> Vec<u8> {
-        let vertex_count = vertex_count.clamp(8, 32);
+        assert_eq!(vertex_counts.len(), swap_ticks.len());
         let mut buf = Vec::new();
         buf.extend_from_slice(b"DRGH");
-        buf.push(1); // version
+        buf.push(2); // version
         buf.extend_from_slice(&track_id.to_le_bytes());
         buf.push(0); // flags
         buf.extend_from_slice(&finish_time_ms.to_le_bytes());
         buf.extend_from_slice(&1745299200000i64.to_le_bytes()); // submitted_at
         let uuid = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
         buf.extend_from_slice(uuid.as_bytes());
-        buf.push(vertex_count);
-        for i in 0..vertex_count {
-            buf.extend_from_slice(&((i as i16) * 10).to_le_bytes());
-            buf.extend_from_slice(&((i as i16) * 20).to_le_bytes());
+
+        buf.push(vertex_counts.len() as u8); // wheel_count
+
+        for (i, (&vc, &st)) in vertex_counts.iter().zip(swap_ticks.iter()).enumerate() {
+            buf.extend_from_slice(&st.to_le_bytes());
+            buf.push(vc);
+            for j in 0..vc {
+                buf.extend_from_slice(&((j as i16) * 10 + i as i16).to_le_bytes());
+                buf.extend_from_slice(&((j as i16) * 20 + i as i16).to_le_bytes());
+            }
         }
+
         buf.push(5u8); // point_count
         for i in 0..5u8 {
             buf.extend_from_slice(&(i as i16).to_le_bytes());
             buf.extend_from_slice(&((i as i16) * 2).to_le_bytes());
             buf.extend_from_slice(&16u16.to_le_bytes());
         }
+
         buf.push(checkpoints.len() as u8);
         for &cp in checkpoints {
             buf.extend_from_slice(&cp.to_le_bytes());
@@ -376,13 +404,13 @@ mod tests {
     }
 
     fn make_valid_blob() -> Vec<u8> {
-        make_blob(1, 28441, 12, &[5000, 15000, 25000])
+        make_blob(1, 28441, &[12], &[0], &[5000, 15000, 25000])
     }
 
     #[tokio::test]
     async fn valid_blob_is_accepted() {
         let blob = make_valid_blob();
-        let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
         assert_eq!(verdict.status, "accepted");
         assert!(verdict.ghost_id.is_some());
         assert_eq!(verdict.time_ms, Some(28441));
@@ -391,8 +419,8 @@ mod tests {
 
     #[tokio::test]
     async fn track_id_mismatch_rejected() {
-        let blob = make_blob(1, 28441, 12, &[5000, 15000, 25000]);
-        let verdict = validate_ghost(&blob, 2, "1").await.unwrap();
+        let blob = make_blob(1, 28441, &[12], &[0], &[5000, 15000, 25000]);
+        let verdict = validate_ghost(&blob, 2, "2").await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(verdict.reject_reason.as_deref(), Some("track_id mismatch"));
     }
@@ -400,28 +428,24 @@ mod tests {
     #[tokio::test]
     async fn too_few_vertices_rejected() {
         let mut blob = make_valid_blob();
-        // Blob parser rejects vertex_count < 8 at parse time, so we can't
-        // construct a blob with <8 vertices via GhostBlob::parse. The validator
-        // layer-2 check is a defense-in-depth that runs after successful parse.
-        // Test the parser rejection instead.
-        blob[HEADER_SIZE] = 4; // vertex_count = 4 (below min 8)
-        let result = validate_ghost(&blob, 1, "1").await;
+        // swap_tick at HEADER_SIZE+1 (4 bytes), then vertex_count at HEADER_SIZE+5
+        blob[HEADER_SIZE + 5] = 4; // vertex_count = 4 (below min 8)
+        let result = validate_ghost(&blob, 1, "2").await;
         assert!(result.is_err(), "blob with 4 vertices should fail parse");
     }
 
     #[tokio::test]
     async fn too_many_vertices_rejected() {
         let mut blob = make_valid_blob();
-        // Similarly, parser enforces max 32. Test the parser rejection.
-        blob[HEADER_SIZE] = 40; // vertex_count = 40 (above max 32)
-        let result = validate_ghost(&blob, 1, "1").await;
+        blob[HEADER_SIZE + 5] = 40; // vertex_count = 40 (above max 32)
+        let result = validate_ghost(&blob, 1, "2").await;
         assert!(result.is_err(), "blob with 40 vertices should fail parse");
     }
 
     #[tokio::test]
     async fn non_monotonic_checkpoints_rejected() {
-        let blob = make_blob(1, 28441, 12, &[10000, 5000, 15000]);
-        let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
+        let blob = make_blob(1, 28441, &[12], &[0], &[10000, 5000, 15000]);
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(
             verdict.reject_reason.as_deref(),
@@ -431,8 +455,8 @@ mod tests {
 
     #[tokio::test]
     async fn equal_checkpoints_rejected() {
-        let blob = make_blob(1, 28441, 12, &[10000, 10000, 15000]);
-        let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
+        let blob = make_blob(1, 28441, &[12], &[0], &[10000, 10000, 15000]);
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(
             verdict.reject_reason.as_deref(),
@@ -442,8 +466,8 @@ mod tests {
 
     #[tokio::test]
     async fn zero_finish_time_rejected() {
-        let blob = make_blob(1, 0, 12, &[5000, 15000, 25000]);
-        let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
+        let blob = make_blob(1, 0, &[12], &[0], &[5000, 15000, 25000]);
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(
             verdict.reject_reason.as_deref(),
@@ -453,22 +477,78 @@ mod tests {
 
     #[tokio::test]
     async fn single_checkpoint_accepted() {
-        let blob = make_blob(1, 28441, 12, &[15000]);
-        let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
+        let blob = make_blob(1, 28441, &[12], &[0], &[15000]);
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
     #[tokio::test]
     async fn empty_checkpoints_accepted() {
-        let blob = make_blob(1, 28441, 12, &[]);
-        let verdict = validate_ghost(&blob, 1, "1").await.unwrap();
+        let blob = make_blob(1, 28441, &[12], &[0], &[]);
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
     #[tokio::test]
     async fn malformed_blob_rejected() {
         let blob = vec![0u8; 20]; // too short
-        let result = validate_ghost(&blob, 1, "1").await;
+        let result = validate_ghost(&blob, 1, "2").await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn swap_tick_gap_too_small_rejected() {
+        // 2-swap blob (3 wheels) with gap of 10 ticks (< minimum 30)
+        let blob = make_blob(
+            1,
+            28441,
+            &[12, 12, 12],
+            &[0, 10, 50], // gap between first two is 10 < 30
+            &[5000, 15000],
+        );
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        assert_eq!(verdict.status, "rejected");
+        assert!(verdict.reject_reason.as_deref().unwrap().contains("swap_tick gap"));
+    }
+
+    #[tokio::test]
+    async fn swap_tick_gap_exactly_30_accepted() {
+        let blob = make_blob(
+            1,
+            28441,
+            &[12, 12],
+            &[0, 30],
+            &[5000],
+        );
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        assert_eq!(verdict.status, "accepted");
+    }
+
+    #[tokio::test]
+    async fn five_swap_blob_accepted() {
+        let vertex_counts: Vec<u8> = (0..6).map(|_| 12u8).collect();
+        let swap_ticks: Vec<u32> = (0..6).map(|i| i * 60).collect();
+        let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000, 15000, 25000]);
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        assert_eq!(verdict.status, "accepted");
+    }
+
+    #[tokio::test]
+    async fn twenty_swap_blob_accepted() {
+        let vertex_counts: Vec<u8> = (0..21).map(|_| 12u8).collect();
+        let swap_ticks: Vec<u32> = (0..21).map(|i| i * 60).collect();
+        let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000]);
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        assert_eq!(verdict.status, "accepted");
+    }
+
+    #[tokio::test]
+    async fn twenty_one_swap_blob_rejected() {
+        // 22 wheels (21 swaps) — exceeds max wheel_count of 21
+        let vertex_counts: Vec<u8> = (0..22).map(|_| 12u8).collect();
+        let swap_ticks: Vec<u32> = (0..22).map(|i| i * 60).collect();
+        let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000]);
+        let result = validate_ghost(&blob, 1, "2").await;
+        assert!(result.is_err(), "blob with 22 wheels should fail parse");
     }
 }

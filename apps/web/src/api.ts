@@ -173,7 +173,7 @@ export async function submitGhost(input: SubmitInput): Promise<string | null> {
     trackId: input.trackId,
     finishTimeMs: input.finishTimeMs,
     playerUuid,
-    wheelVertices: input.wheelVertices,
+    wheels: [{ swapTick: 0, vertices: input.wheelVertices }],
     rawStrokePoints: input.rawStrokePoints,
   });
 

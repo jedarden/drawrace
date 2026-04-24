@@ -154,7 +154,7 @@ async fn setup_db() -> PgPool {
 fn make_test_blob(player_uuid: &str, track_id: u16) -> Vec<u8> {
     let mut buf = Vec::new();
     buf.extend_from_slice(b"DRGH");
-    buf.push(1);
+    buf.push(2); // version
     buf.extend_from_slice(&track_id.to_le_bytes());
     buf.push(0);
     buf.extend_from_slice(&28441u32.to_le_bytes());
@@ -162,7 +162,11 @@ fn make_test_blob(player_uuid: &str, track_id: u16) -> Vec<u8> {
     let uuid = Uuid::parse_str(player_uuid).unwrap();
     buf.extend_from_slice(uuid.as_bytes());
 
-    buf.push(12u8);
+    // wheel_count = 1
+    buf.push(1u8);
+    // wheel 0: swap_tick = 0
+    buf.extend_from_slice(&0u32.to_le_bytes());
+    buf.push(12u8); // vertex_count
     for i in 0..12u8 {
         let x = (i as i16) * 10;
         let y = (i as i16) * 20;
@@ -191,7 +195,7 @@ fn make_test_blob(player_uuid: &str, track_id: u16) -> Vec<u8> {
 fn make_blob_with_time(player_uuid: &str, track_id: u16, time_ms: u32) -> Vec<u8> {
     let mut buf = Vec::new();
     buf.extend_from_slice(b"DRGH");
-    buf.push(1);
+    buf.push(2); // version
     buf.extend_from_slice(&track_id.to_le_bytes());
     buf.push(0);
     buf.extend_from_slice(&time_ms.to_le_bytes());
@@ -199,7 +203,11 @@ fn make_blob_with_time(player_uuid: &str, track_id: u16, time_ms: u32) -> Vec<u8
     let uuid = Uuid::parse_str(player_uuid).unwrap();
     buf.extend_from_slice(uuid.as_bytes());
 
-    buf.push(12u8);
+    // wheel_count = 1
+    buf.push(1u8);
+    // wheel 0: swap_tick = 0
+    buf.extend_from_slice(&0u32.to_le_bytes());
+    buf.push(12u8); // vertex_count
     for i in 0..12u8 {
         let x = (i as i16) * 10;
         let y = (i as i16) * 20;
@@ -531,12 +539,13 @@ async fn ghost_blob_parse_roundtrip() {
 
     let header = BlobHeader::parse(&body).unwrap();
     assert_eq!(header.track_id, 1);
-    assert_eq!(header.version, 1);
+    assert_eq!(header.version, 2);
     assert_eq!(header.player_uuid.to_string(), TEST_PLAYER_UUID);
 
     let ghost = GhostBlob::parse(&body).unwrap();
-    assert_eq!(ghost.vertex_count, 12);
-    assert_eq!(ghost.polygon_vertices.len(), 12);
+    assert_eq!(ghost.wheel_count, 1);
+    assert_eq!(ghost.wheels[0].vertex_count, 12);
+    assert_eq!(ghost.wheels[0].polygon_vertices.len(), 12);
     assert_eq!(ghost.point_count, 5);
     assert_eq!(ghost.stroke_points.len(), 5);
     assert_eq!(ghost.checkpoint_count, 3);
@@ -551,7 +560,7 @@ fn blob_header_roundtrip_preserves_fields() {
     let blob = make_test_blob(&player_uuid.to_string(), track_id);
 
     let header = BlobHeader::parse(&blob).unwrap();
-    assert_eq!(header.version, 1);
+    assert_eq!(header.version, 2);
     assert_eq!(header.track_id, track_id);
     assert_eq!(header.finish_time_ms, time_ms);
     assert_eq!(header.player_uuid, player_uuid);
@@ -563,8 +572,13 @@ fn blob_parse_is_deterministic() {
     let p1 = GhostBlob::parse(&blob).unwrap();
     let p2 = GhostBlob::parse(&blob).unwrap();
 
-    assert_eq!(p1.vertex_count, p2.vertex_count);
-    assert_eq!(p1.polygon_vertices, p2.polygon_vertices);
+    assert_eq!(p1.wheel_count, p2.wheel_count);
+    assert_eq!(p1.wheels.len(), p2.wheels.len());
+    for (w1, w2) in p1.wheels.iter().zip(p2.wheels.iter()) {
+        assert_eq!(w1.swap_tick, w2.swap_tick);
+        assert_eq!(w1.vertex_count, w2.vertex_count);
+        assert_eq!(w1.polygon_vertices, w2.polygon_vertices);
+    }
     assert_eq!(p1.point_count, p2.point_count);
     assert_eq!(p1.stroke_points, p2.stroke_points);
     assert_eq!(p1.checkpoint_count, p2.checkpoint_count);
@@ -580,7 +594,8 @@ fn blob_with_custom_time_roundtrips() {
     assert_eq!(header.finish_time_ms, 50000);
 
     let ghost = GhostBlob::parse(&blob).unwrap();
-    assert_eq!(ghost.vertex_count, 12);
+    assert_eq!(ghost.wheel_count, 1);
+    assert_eq!(ghost.wheels[0].vertex_count, 12);
     assert_eq!(ghost.point_count, 5);
 }
 

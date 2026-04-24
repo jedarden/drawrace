@@ -2,7 +2,7 @@ use aws_sdk_s3::Client as S3Client;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-const PHYSICS_VERSION: u8 = 1;
+const PHYSICS_VERSION: u8 = 2;
 const TRACK_ID: i16 = 1;
 const HEADER_SIZE: usize = 36;
 
@@ -609,7 +609,7 @@ pub async fn load_seeds_if_empty(
     Ok(())
 }
 
-/// Encode a seed ghost into the DRGH binary format.
+/// Encode a seed ghost into the DRGH binary format (v2 with wheels[]).
 fn encode_seed_blob(seed: &SeedGhost, submitted_at: i64) -> Vec<u8> {
     let vertex_count = seed.vertices.len() as u8;
     assert!(
@@ -622,8 +622,8 @@ fn encode_seed_blob(seed: &SeedGhost, submitted_at: i64) -> Vec<u8> {
 
     let checkpoint_count: u8 = 0;
     let total_size = HEADER_SIZE
-        + 1
-        + (vertex_count as usize * 4)
+        + 1 // wheel_count
+        + (4 + 1 + vertex_count as usize * 4) // single wheel: swap_tick + vertex_count + vertices
         + 1
         + (stroke_points.len() * 6)
         + 1
@@ -644,7 +644,15 @@ fn encode_seed_blob(seed: &SeedGhost, submitted_at: i64) -> Vec<u8> {
 
     let mut offset = HEADER_SIZE;
 
-    // Polygon vertices
+    // wheel_count = 1
+    buf[offset] = 1;
+    offset += 1;
+
+    // Wheel 0: swap_tick = 0
+    buf[offset..offset + 4].copy_from_slice(&0u32.to_le_bytes());
+    offset += 4;
+
+    // vertex_count
     buf[offset] = vertex_count;
     offset += 1;
     for &(x, y) in seed.vertices {
@@ -745,7 +753,8 @@ mod tests {
 
         // Parse via blob module
         let parsed = crate::blob::GhostBlob::parse(&blob).unwrap();
-        assert_eq!(parsed.vertex_count as usize, seed.vertices.len());
+        assert_eq!(parsed.wheel_count, 1);
+        assert_eq!(parsed.wheels[0].vertex_count as usize, seed.vertices.len());
         assert_eq!(parsed.point_count as usize, parsed.stroke_points.len());
     }
 
