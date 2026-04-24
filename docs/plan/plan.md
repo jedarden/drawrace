@@ -108,18 +108,21 @@ This section specifies the runtime behavior of DrawRace: how the game turns a fi
 
 ### 1. Core Game Loop
 
-A single attempt is a strict three-phase state machine: **Draw → Race → Result**. There is no mid-race redraw; the wheel is committed on the transition into Race. This deliberate commitment is the core skill tension of the game.
+A single attempt moves through three states — **Draw → Race → Result** — but unlike a classical "commit once" racer, **drawing continues throughout the race**. The player commits an initial wheel at the Draw→Race transition and may redraw at any moment during the race; each redraw hot-swaps the wheel on the next tick boundary. The core skill tension is *shape adaptation under time pressure* rather than one-shot commitment.
 
 | Phase | Typical Duration | Player Input | State Held |
 |---|---|---|---|
-| Draw | 3–15s (median ~7s) | Single continuous stroke on canvas | Raw point array, centroid, committed polygon |
-| Race | 30–45s on v1 track; DNF at 2× track-best | None (spectate) | Physics world, ghost playbacks, timer |
-| Result | Until player taps Retry / Leaderboard | Tap only | Final time, rank delta, replay buffer |
+| Draw (initial) | 3–15s (median ~7s) | Single continuous stroke on the Draw canvas | Raw point array, centroid, committed polygon, initial `swap_tick=0` record |
+| Race | 30–45s on v1 track; DNF at 2× track-best | Continuous: draw overlay is live for mid-race redraws | Physics world, ghost playbacks, timer, append-only `wheel_swaps[]` log |
+| Result | Until player taps Retry / Leaderboard | Tap only | Final time, rank delta, full `wheel_swaps[]` replay buffer |
 
 Hard timing constraints:
 
 - **Draw-to-Race handoff**: shape simplification + convex decomposition + physics body construction must complete in **< 100ms** on a Snapdragon 665. Over that budget, the transition feels laggy. If processing overruns, show the "building wheel…" animation and hide the seam.
-- **Race countdown**: 3-2-1-GO. Motor is disabled until GO, but the wheel is already in the world under gravity — the car settles visually during the countdown, which doubles as a tell for wheel quality.
+- **Mid-race wheel hot-swap**: from `pointerup` on the Race-screen draw overlay to the new wheel being live in the Planck world, **< 80ms** on a Snapdragon 665 so the player perceives the redraw as immediate. See §Gameplay 3 for the swap procedure and §Gameplay 9 for how this fits the per-frame budget.
+- **Swap cooldown**: **500ms minimum** between the end of one stroke and the acceptance of the next, enforced client-side by greying out the draw overlay. This debounces accidental double-strokes and caps worst-case wheel-rebuild frequency for the perf budget.
+- **Max swaps per race**: **20**, enforced both client-side (`wheel_swaps.length < 21` before accepting a new stroke) and server-side (structural check in §Multiplayer 8 Layer 2). Prevents pathological ghosts with hundreds of swaps bloating blobs or stressing the validator.
+- **Race countdown**: 3-2-1-GO. Motor is disabled until GO, but the initial wheel is already in the world under gravity — the car settles visually during the countdown, which doubles as a tell for wheel quality. The draw overlay is **inactive** during countdown; it enables on GO.
 - **DNF timeout**: `2 × currentTrackBest`, clamped to a minimum of 90s so a slow first global time doesn't cut off slow wheels too early. **DNF runs are never submitted** — the client drops them at the `Result → submit` boundary; no ghost blob is generated, no network call is made. This keeps the binary layout in §Multiplayer 5 outcome-agnostic (no DNF flag or outcome enum is needed) and means every ghost on the server is, by construction, a real finish.
 - **Result dwell**: no auto-advance. The rank delta is the dopamine; give the player time to absorb it.
 
@@ -203,6 +206,16 @@ on pointerup(e):
     enableRaceButton(polygon=bodyLocal, axle=(c.x, c.y))
 ```
 
+**Mid-race draw overlay**
+
+During the Race phase the same pipeline runs on a **separate draw overlay** that is permanently attached to the Race screen (see §Graphics 9.4). The overlay occupies the bottom ~40% of the viewport, which is the natural right-thumb arc in portrait, and sits above the race canvas at 50% alpha so the player can still see the world beneath.
+
+- **Activation.** The overlay is inactive during countdown, active from GO to finish, and grey/disabled during the 500ms post-swap cooldown (see §Gameplay 1).
+- **Pointer ownership.** `setPointerCapture` on the overlay takes priority over the race canvas — taps inside the overlay rectangle never pause the race (no accidental pause on draw). A single-finger tap outside the overlay still opens the pause menu.
+- **Pipeline reuse.** Raw points → closure → Douglas-Peucker → centroid is identical to the initial Draw. The *only* difference is the terminal step: instead of `enableRaceButton()`, the overlay calls `commitSwap(polygon, swap_tick)` where `swap_tick = currentSimTick` sampled at `pointerup`.
+- **Preview feedback.** The newly-drawn polygon renders briefly (300ms `easeOutBack` scale) over the race's wheel position so the player sees what they just committed without having to track the rolling car.
+- **Overlay dismissal.** The overlay fades back to 50% alpha after the cooldown elapses so it stops obscuring the bottom of the track. It never fully disappears — the race is designed to be redrawn.
+
 ### 3. Shape-to-Physics Translation
 
 **Engine choice: Planck.js.** The features doc's leaning toward Planck is correct, and the research doc's lean toward Matter.js is a tooling-DX argument, not a fidelity one. Reasons:
@@ -239,6 +252,38 @@ for piece in pieces:
 Density is constant at `1.0 kg/m²` (world units are meters; 1m = 30px, per the research doc). Mass and rotational inertia are computed by Planck from the fixture set — we do not override them. This means **drawing bigger genuinely adds mass and rotational inertia**, which is exactly the design intent (big wheels clear obstacles but accelerate slower).
 
 The chassis is a fixed rectangle, density 2.0, mass ≈ 4× typical wheel mass, so the wheel-to-chassis mass ratio stays in a stable regime regardless of wheel size. We clamp the effective wheel radius to `[0.3m, 1.5m]` post-normalization to bound the range.
+
+**Wheel hot-swap procedure (mid-race redraw)**
+
+When a mid-race stroke commits, the simulation performs a **deterministic wheel-body swap** at the next tick boundary. This is the only structural mutation the Planck world receives mid-race; everything else (chassis, terrain, ghosts) persists unchanged.
+
+```
+on commitSwap(newPolygon, swap_tick):
+    assert simTick == swap_tick              // scheduled exactly on next tick
+    old = chassis.frontWheel                 // the current wheel body + joint
+    newBody = buildWheelBody(newPolygon)     // same pipeline as initial wheel
+    newBody.setPosition(old.getPosition())   // spawn in place — no teleport
+    newBody.setLinearVelocity(
+        chassis.getLinearVelocity())         // carry the chassis velocity
+    newBody.setAngularVelocity(0)            // zero: moment of inertia changed,
+                                             //       reusing ω would be unphysical
+    world.destroyJoint(chassis.wheelJoint)
+    world.destroyBody(old)
+    newJoint = world.createJoint(WheelJointDef(chassis, newBody, /* axis, freq, damping */))
+    chassis.frontWheel = newBody
+    chassis.wheelJoint = newJoint
+    motor.setMaxTorque(40)                   // motor params unchanged, re-bound
+    motor.setMotorSpeed(8)
+    wheel_swaps.push({ swap_tick, polygon: newPolygon })
+```
+
+Guarantees and rationale:
+
+- **Determinism.** The swap is indexed by an integer `swap_tick`, not a wall-clock moment. Client and validator (§Multiplayer 8 Layer 3) apply the swap at the *same* tick during re-simulation, so bit-exact reproduction is preserved.
+- **Position continuity.** New wheel spawns at the old wheel's world position. Visual continuity is preserved; no teleport artifact.
+- **Velocity handling.** Linear velocity carries because the chassis (which retains its state) is driving it anyway. Angular velocity resets to zero because the new wheel's moment of inertia can differ by orders of magnitude from the old one; reusing `ω` would either launch the car on a small-to-large swap or stall it on a large-to-small swap. Zero is physically neutral.
+- **Single-frame cost.** The swap is scheduled at a tick boundary and rebuild time on Snapdragon 665 is ~1–2 ms for an 8-vertex decomposed wheel. See §Gameplay 9.
+- **Rear axle untouched.** Only the drawn front wheel swaps. The rear cartoon-circle wheel (plan §Graphics 5) is permanent.
 
 ### 4. Physics Tuning Knobs
 
@@ -344,11 +389,15 @@ Interpolation is render-only; it never feeds back into the sim. On 120Hz devices
 
 All randomness routes through a single seeded PRNG (`sfc32` or `mulberry32`, ~10 lines, deterministic across JS engines). The seed for a run is derived from `hash(trackId, playerId, runIndex)`. Particle puffs, any cosmetic jitter, and any future procedural element all draw from this stream. `Math.random()` is banned in game code — a lint rule flags it.
 
+**Wheel-swap determinism**
+
+Mid-race wheel swaps (§Gameplay 3) are also tick-indexed. At `pointerup` the client reads `currentSimTick` and schedules the swap for that tick; the ghost blob records `{swap_tick, polygon}` tuples; the validator replays each swap at its exact recorded tick. There is no wall-clock dependency anywhere in the swap pipeline. Float behaviour across client JS and validator `wasmtime` remains bit-exact for the same reason single-wheel runs do — Planck's own solver is deterministic given identical step counts, iteration counts, and contact ordering, and the swap is just a Planck body-destroy + body-create at a well-defined tick.
+
 **What this buys us:**
 
-- **Ghost fidelity**: v1 stores **path-only** ghosts (seed + wheel polygon + drawn stroke + track_id + finish_time) and replays them by re-simulating on both client and server. The older "sampled positions at 10Hz" design is stale — determinism makes re-sim the cheaper, smaller, drift-proof default from day one.
-- **Anti-cheat**: the server can re-run a submitted run at low priority and compare the produced time against the claimed time. Mismatch = rejected.
-- **Bug reports**: a failed run is reproducible from `(seed, trackId, polygon)` alone.
+- **Ghost fidelity**: v1 stores **path-only** ghosts (seed + `wheel_swaps[]` + track_id + finish_time) and replays them by re-simulating on both client and server. The older "sampled positions at 10Hz" design is stale — determinism makes re-sim the cheaper, smaller, drift-proof default from day one, and is the only affordable way to replay the wheel-swap mechanic (storing a swap's geometry costs ~50 bytes; storing its resulting 30-second trajectory at 10 Hz would cost 100× that).
+- **Anti-cheat**: the server can re-run a submitted run at low priority and compare the produced time against the claimed time. Mismatch = rejected. The same re-sim validates that every `swap_tick` is within the race window and separated by at least the 500ms cooldown (plan §Gameplay 1).
+- **Bug reports**: a failed run is reproducible from `(seed, trackId, wheel_swaps[])` alone.
 
 ### 7. Difficulty & Progression
 
@@ -363,6 +412,8 @@ All randomness routes through a single seeded PRNG (`sfc32` or `mulberry32`, ~10
   - *Diameter-capped*: enforce bounding-box diameter ≤ Xpx pre-normalization. Rewards choosing a small wheel (low inertia, low clearance).
   - *Symmetry-scored*: compute a reflective-symmetry score on the polygon; bonus points for >0.9.
   - *Convex-only*: reject shapes where `quickDecomp` returns > 1 piece. Forces rounder drawings.
+  - *Single-wheel*: `wheel_swaps.length == 1` (no mid-race redraw). Reverts to the original "commit once" feel as a purist mode.
+  - *Swap-capped*: `wheel_swaps.length ≤ N` for `N ∈ {2, 3, 5}`. Middle ground between single-wheel and unlimited.
 - **Cosmetic wheel trails** unlockable by total distance raced — separates "grinding" progression from "skill" progression so the daily challenge stays pure.
 
 None of these require new physics, only new evaluators on the polygon post-simplification. That's the point of locking down shape processing now.
@@ -379,6 +430,10 @@ The draw pipeline must survive everything a frustrated thumb can do. Explicit ha
 | Degenerate / collinear points | Polygon area < `1e-4` m² after centroid calc | Reject: show "draw a shape, not a line" hint; retain stroke so player can add to it |
 | Drawing off-canvas | Pointer Events via `setPointerCapture` continue firing; we clamp coordinates to canvas bounds | Stroke continues along the clamped edge — intentional "rail" behavior, predictable |
 | Player lifts and redraws (before pressing Race) | Clear button, or any new pointerdown | New pointerdown on a committed-but-not-raced canvas clears and restarts the stroke |
+| Mid-race stroke during cooldown | `currentSimTick - lastSwapTick < 30` (500ms @ 1/60) | Overlay is already greyed; pointerdown is ignored — no feedback flash, the overlay just doesn't accept input |
+| Mid-race stroke after swap cap | `wheel_swaps.length >= 20` | Overlay shows a subtle "20/20" chip; pointerdown still captures but `commitSwap` is skipped on pointerup, stroke is erased |
+| Swap pointerdown overlapping race-pause region | Pointer inside draw-overlay rect vs outside | Overlay wins — inside the rect, taps never pause the race; pause is reachable only via the top-left pause button |
+| Pointer cancelled mid-swap (OS gesture, call) | `pointercancel` on the overlay | Existing `pointercancel` path (reset silently if `totalTravel < 150`, else treat as `pointerup`); swap_tick is captured at the cancel event, not at original pointerdown |
 | Pointer cancelled mid-stroke (OS gesture, call) | `pointercancel` event | Treat exactly like pointerup but only if `totalTravel ≥ 150`; otherwise reset silently |
 | Second finger mid-stroke | `e.pointerId != activePointerId` | Ignore secondary pointer completely; do not abort the primary stroke |
 | Exact-duplicate consecutive points | Per-event `d < 1.0` filter | Dropped at ingest — prevents zero-length edges in decomposition |
@@ -394,10 +449,12 @@ Target device is **Snapdragon 665 / Redmi 9-class** at **30fps minimum**; 60fps 
 | Slice | Budget | Notes |
 |---|---|---|
 | Physics step (1 × 1/60 @ 30fps render → 2 steps/frame) | 8 ms | 2 × 4ms steps at 8/3 iterations on an 8-fixture wheel + chassis + ~100 terrain segments |
-| Canvas 2D render | 12 ms | Chassis + wheel polygon + 3 ghosts + terrain + HUD |
-| Ghost re-sim (3 ghosts stepped in the same world tick as the player) | 2 ms | Each ghost is a lightweight Planck body + replayed input; no render-side LERP needed |
-| Input / event loop / misc | 3 ms | |
-| Headroom | 8 ms | Absorbs GC pauses and OS jitter |
+| Canvas 2D render | 12 ms | Chassis + wheel polygon + 3 ghosts + terrain + HUD + draw overlay |
+| Ghost re-sim (3 ghosts stepped in the same world tick as the player) | 2 ms | Each ghost is a lightweight Planck body + replayed input; no render-side LERP needed. Ghosts apply their own `wheel_swaps[]` at the recorded ticks — no extra budget line because a swap is ~1-2ms amortised ≤ 1 time per 500ms |
+| Input / event loop / misc | 3 ms | Includes mid-race stroke sampling off the draw overlay |
+| Headroom | 8 ms | Absorbs GC pauses, OS jitter, and worst-case wheel-rebuild tick (a swap frame costs ~2 ms extra and lands in the headroom) |
+
+**Wheel hot-swap cost (mid-race redraw).** When a swap lands on a frame, that frame pays an additional ~1-2 ms for `buildWheelBody` (decomposition + fixture creation + joint rebind). The 500ms cooldown (§Gameplay 1) ensures this happens at most 2 times/second, i.e. once every ~60 sim ticks. Over any 60-frame window the amortised cost is < 0.04 ms/frame — invisible. The single swap-frame spike is absorbed by the 8 ms headroom.
 
 **Hard caps:**
 
@@ -538,9 +595,9 @@ Why not Turso / SQLite + Litestream: the leaderboard's hot write path is ~10–1
 
 ### 5. Ghost Replay Format
 
-Per the research doc, we store **path only** — the wheel polygon plus the pre-race drawn stroke is the entire "input." The server re-simulates to produce the trajectory when validating and the client re-simulates for playback. This keeps blobs tiny and immune to trajectory drift.
+Per the research doc, we store **path only** — the entire sequence of wheel polygons the player drew (initial + mid-race swaps) plus the pre-race drawn stroke is the entire "input." The server re-simulates to produce the trajectory when validating and the client re-simulates for playback. This keeps blobs tiny and immune to trajectory drift even as the player swaps wheels mid-race.
 
-Binary layout, little-endian:
+Binary layout, little-endian. The `wheels[]` array replaces the single-polygon field from the original v1 design to support mid-race redraw (§Gameplay 1, 3, 6).
 
 ```
 Offset  Size  Field              Notes
@@ -552,12 +609,19 @@ Offset  Size  Field              Notes
 8       4     finish_time_ms     uint32 (re-sim must match ±tolerance)
 12      8     submitted_at       int64 unix millis
 20      16    player_uuid        raw 128-bit
-36      1     vertex_count       uint8 (8..32 after simplification; typical 12..24)
-37      ...   polygon_vertices   int16 x,y (1/100 px units) × vertex_count
-...     1     point_count        uint8 (up to 255, DP-simplified)
-...     ...   stroke_points      the player's DRAWING stroke (finger path used
-                                  to deterministically reconstruct the wheel
-                                  polygon); NOT a race trajectory.
+36      1     wheel_count        uint8 (1..21 — initial wheel plus up to 20 swaps)
+37      ...   wheels[]           per wheel, in swap_tick order:
+                                   uint32 swap_tick   (0 for initial; strictly
+                                                       increasing; minimum gap
+                                                       30 ticks = 500ms cooldown)
+                                   uint8  vertex_count (8..32)
+                                   int16  x,y (1/100 px units) × vertex_count
+...     1     point_count        uint8 (up to 255, DP-simplified; initial wheel's raw drawing stroke for cosmetic preview only)
+...     ...   stroke_points      the player's INITIAL DRAWING stroke (finger path
+                                  used to deterministically reconstruct the first
+                                  wheel polygon); NOT a race trajectory, and NOT
+                                  recorded for mid-race swaps (the swap polygon
+                                  itself is already committed to wheels[])
                                   delta-encoded: int16 dx, int16 dy,
                                   uint16 dt_ms × point_count
 ...     1     checkpoint_count   uint8
@@ -566,7 +630,12 @@ Offset  Size  Field              Notes
 
 The HMAC is transmitted in the `X-DrawRace-ClientHMAC` request header at submission time and computed over the entire blob bytes (magic through checkpoint_splits, inclusive). The blob itself contains no HMAC — stored ghosts are authenticated only at ingestion, after which server-side re-simulation (Layer 3) is the sole integrity check.
 
-Expected size for a 24-vertex polygon, 200-point stroke, 5 checkpoints: `64 + 48 + 1200 + 20 ≈ 1.3 KB` raw. After compression typically 0.8–1.1 KB. Wheel thumbnails are rendered on demand from the polygon (§Graphics 4 / 9.5 / 9.6) — no thumbnail blob is stored.
+**Size.** Per-wheel overhead is `4 + 1 + 2 × 24 = 53 bytes` for a typical 24-vertex polygon with its 4-byte tick and 1-byte vertex count. Expected sizes:
+- **Single-wheel finish (no mid-race swaps):** `64 + 53 + 1200 + 20 ≈ 1.3 KB` raw.
+- **Median mid-race run (~3–5 swaps):** `64 + 4 × 53 + 1200 + 20 ≈ 1.5 KB` raw.
+- **Cap (20 swaps):** `64 + 21 × 53 + 1200 + 20 ≈ 2.4 KB` raw.
+
+After compression typically 0.8–1.8 KB. Wheel thumbnails are rendered on demand from the first polygon in `wheels[]` (§Graphics 4 / 9.5 / 9.6) — no thumbnail blob is stored.
 
 **Compression: zstd level 3.** The research doc evaluates gzip / zstd / brotli; zstd wins on decompression speed (important on mid-range Android) at similar ratios to gzip-9, and `ruzstd` / WASM `zstd-wasm` both work in-browser. We apply zstd at the storage layer, not per-field — simpler, and the HMAC is over the pre-compression bytes.
 
@@ -815,7 +884,8 @@ Failure modes: (a) if a rollback is attempted by a normal (non-`republish_only`)
 **Where the real anti-forgery weight lives.** Layer 3 (deterministic server-side re-simulation, §Multiplayer & Backend 8 below) and the per-UUID / per-IP rate limits (Layer 2) are what actually stop forged submissions. A cheater who extracts the public key still has to produce a ghost blob whose re-sim finish tick matches the claimed time within ±2 ticks — which is exactly as hard as beating the game legitimately. Layer 1 is housekeeping; Layer 3 is the gate.
 
 **Layer 2 — Structural checks** (synchronous, in `drawrace-api`):
-- Path plausibility: polygon is closed, 8–32 vertices, all within the draw-canvas bounds.
+- Path plausibility: **every** polygon in `wheels[]` is closed, 8–32 vertices, all within the draw-canvas bounds. An empty `wheels[]` is a reject.
+- `wheel_count` is 1..21. Every `swap_tick` is 0 for the first wheel, strictly increasing thereafter, within `[0, finishTicks]`, and separated from its predecessor by at least 30 ticks (the 500 ms cooldown from §Gameplay 1). Violations reject.
 - `finish_time_ms` ≥ floor-time-for-track (track length / max-possible-wheel-speed, computed once per track).
 - Server rejects any submission with `finish_time_ms == 0` or `finish_time_ms > 2 × max(global_best_ms, 90_000)` for the submission's track_id. `global_best_ms` is the MIN of `ghosts.time_ms` for that track (cached 60s in Redis); freshly-launched tracks default to the 90s floor until the first accepted run is recorded. DNF runs should never reach the server in the first place (client drops them at the Result → submit boundary per §Gameplay 1), so a submission in this range is either a bug or a forgery.
 - Checkpoint splits monotonic, in-range, sum ≈ finish time.
@@ -828,8 +898,8 @@ The physics is path-following plus Planck.js rigid-body for the wheel. We compil
 
 1. Decodes the ghost blob.
 2. Loads the track's terrain polyline (versioned, hashed).
-3. Loads the polygon as a `b2PolygonShape` / decomposed convex set.
-4. Runs a fixed-step simulation (`1/60 s` step, `8` velocity / `3` position iterations — identical to the client per §Gameplay 4 & 6) until finish line or 2× timeout.
+3. Loads the first wheel (`wheels[0]`, `swap_tick == 0`) as a `b2PolygonShape` / decomposed convex set and mounts it on the chassis via `WheelJoint`.
+4. Runs a fixed-step simulation (`1/60 s` step, `8` velocity / `3` position iterations — identical to the client per §Gameplay 4 & 6) until finish line or 2× timeout. On each tick, if the next entry in `wheels[]` has `swap_tick == simTick`, the validator executes the same swap procedure the client uses (§Gameplay 3): destroy old wheel body, build a new body at the old position with chassis linear velocity preserved and zero angular velocity, rebind `WheelJoint`. The scheduler is deterministic because `swap_tick` is an integer and the client and validator run the same Planck step count before checking it.
 5. Compares computed finish tick to claimed finish tick. Accept if `|serverFinishTicks − clientFinishTicks| ≤ 2 ticks` (≈33 ms at the `1/60 s` step — this is the single canonical replay tolerance, also enforced by §Testing 7). Tolerance is expressed in ticks, not milliseconds, so it stays deterministic across any future timestep change.
 
 Divergence > tolerance → `status: rejected`, no leaderboard entry, the submission is kept for abuse analysis. A player's rejection rate exceeding 20% on a 50-run rolling window triggers shadowban (their submissions are accepted locally, never surfaced to others).
@@ -1748,8 +1818,9 @@ No blur filters at runtime (mobile perf killer). Atmospheric haze is baked into 
 
 ### 7. Ghost Rendering
 
-Each ghost is replayed by re-simulating from the stored polygon + seed using the shared Planck WASM module; the client runs the ghost sim in the same world tick as its own race. No positions are stored or streamed — the ghost body's transform is read straight off the re-simulated world each frame and rendered:
-- Draw the ghost's wheel Path2D and a *pre-rendered monochrome copy* of the chassis sprite.
+Each ghost is replayed by re-simulating from the stored `wheels[]` + seed using the shared Planck WASM module; the client runs the ghost sim in the same world tick as its own race. No positions are stored or streamed — the ghost body's transform is read straight off the re-simulated world each frame and rendered:
+- Draw the ghost's current wheel Path2D and a *pre-rendered monochrome copy* of the chassis sprite.
+- **Wheel swaps are visible.** At each stored `swap_tick` the ghost sim executes the same swap procedure (§Gameplay 3) the player's sim does: the wheel geometry visibly morphs to the next polygon in `wheels[]`. A short 200 ms `easeOutCubic` crossfade between old and new wheel silhouettes makes the swap readable without pausing the ghost. Players learn mid-race-draw timing by watching faster ghosts swap wheels at the right moments.
 - **Color:** tinted `#8896A3` (cool blue-gray) via a pre-tinted `ImageBitmap`, not per-frame `globalCompositeOperation` (which is expensive on iOS).
 - **Opacity:** `globalAlpha = 0.6`.
 - **Silhouette simplification:** the ghost's wheel uses the simplified polygon without the wobble pass — a cleaner, less detailed line suggests "memory of a run." Internal detail (driver face, window tint) is omitted.
@@ -1771,6 +1842,9 @@ All motion curves via `requestAnimationFrame` + explicit easing; never CSS anima
 | Countdown 3-2-1-GO | Race start | 3s | `easeOutBack` (scale in) + `easeInCubic` (fade out) | 96pt numerals, center-screen, pulses with 1Hz heartbeat |
 | Finish confetti | Cross finish line | 1.2s | Particle physics (gravity 800 px/s²) | 40 particles, palette of 4 accents, rotate random |
 | Wheel commit | Player taps Race | 500ms | `easeOutBack` scale to axle | Drawn polygon morphs/shrinks from preview panel to car front wheel |
+| Mid-race wheel swap | `commitSwap()` on overlay | 300ms | `easeOutBack` scale | New polygon overlays the live wheel at full opacity, scales from 120%→100%, then handoff to physics-driven path |
+| Ghost wheel swap | Ghost's `swap_tick` hits during its sim | 200ms | `easeOutCubic` crossfade | Two wheel silhouettes (old → new) crossfade over the ghost's world position |
+| Swap cooldown gauge | Post-swap 500ms | 500ms | linear | Bottom draw-overlay briefly darkens with a thin progress bar across its top edge, clears at cooldown end |
 | Camera look-ahead | Velocity > threshold | smooth | spring (k=8, d=1.2) | Offset x by 15% screen width in travel direction |
 
 Dust particle budget: pool size 64, typical active 12–20, max 32. Each is an opaque circle with a single radial gradient pre-baked into a 16×16 `ImageBitmap` — zero per-frame gradient allocation.
@@ -1834,17 +1908,28 @@ Full-screen translucent `#F4EAD5` at 80% over the paused race scene, huge numera
 
 ```
 ┌─────────────────────────────┐
-│ 0:12.4    ━━━━●━━━━   #47   │  ← timer | progress | rank, 16pt HUD, 70% alpha
+│ ⏸  0:12.4  ━━━●━━  #47  3/20│  ← pause | timer | progress | rank | swaps used, 16pt HUD 70% α
 │                             │
 │    [ghost blue]             │
 │        [ghost blue]         │
 │              [PLAYER RED]   │
 │ ~~~~~~~~~~~~~~~~~~~~~~~~~~  │  ← terrain
 │                             │
+│ ╔═════════════════════════╗ │  ← DRAW OVERLAY — always present during race
+│ ║                         ║ │     cream #F4EAD5 @ 50% α over race canvas
+│ ║    (live race visible   ║ │     active from GO to finish, greyed during
+│ ║     through overlay)    ║ │     500ms post-swap cooldown
+│ ║                         ║ │     bottom ~40% of viewport — right-thumb arc
+│ ║        ~~~ draw ~~~     ║ │     setPointerCapture owns touches in this rect
+│ ║                         ║ │     taps here never pause the race
+│ ╚═════════════════════════╝ │
 └─────────────────────────────┘
 ```
 
-No bottom controls — race is autonomous. Tap anywhere for pause (top-left pause appears).
+Controls:
+- **Pause** — dedicated top-left 44×44 button (⏸). Tapping anywhere else on the race canvas (above the draw overlay) no longer pauses — that gesture is reserved for skipping tutorial toasts. This is a deliberate change from the original "tap anywhere to pause" to make room for the always-on draw overlay.
+- **Draw overlay** — permanent, bottom ~40% of viewport. Never fully disappears; it is the primary input surface during a race.
+- **Swap counter** `3/20` in the top-right of the HUD, dims from ink to muted as it approaches cap; shows `20/20` in warning red when the cap is reached.
 
 #### 9.5 Result Screen
 
@@ -2078,9 +2163,11 @@ Determinism checklist enforced by a single `createHeadlessRace()` factory:
 
 #### Golden-file approach
 
-Under `packages/engine-core/golden/` we check in a JSON table: `{ wheel: <polygon>, track: "v1", finishTicks: <int>, finalX: <float>, hash: <sha256 of positions@10Hz> }`. The test loads a named wheel, runs the sim, and asserts:
+Under `packages/engine-core/golden/` we check in a JSON table: `{ wheels: [{swap_tick, polygon}, ...], track: "v1", finishTicks: <int>, finalX: <float>, hash: <sha256 of positions@10Hz> }`. The test loads a named wheels sequence, runs the sim (applying each swap at its `swap_tick`), and asserts:
 - `finishTicks` exactly matches (determinism must be bit-exact);
 - a SHA256 of the position stream matches.
+
+Single-wheel goldens are simply `wheels: [{swap_tick: 0, polygon: ...}]`. Multi-wheel goldens cover the mid-race redraw path explicitly — see the added scenarios in the reference wheel library below.
 
 If a test fails we print **both** the stored and observed values and, critically, the **per-second delta curve** so a human can see whether it's a 1-tick slip or a structural change.
 
@@ -2102,7 +2189,15 @@ We seed 24+ wheels covering the behavioral matrix from features.md:
 | `crescent-a` | concave crescent | preset | DNF on steep ramp |
 | `blob-self-intx-1` | self-intersecting noise | seed=1 | finishes, ~35s |
 | `regression-2026-03-12` | captured bug repro | — | 29.8s (must not regress) |
-| ... (12 more) | | | |
+| ... (12 more single-wheel) | | | |
+| **Mid-race swap scenarios** | | | |
+| `swap-tri-to-circ-t300` | triangle then circle | swap at tick 300 | triangle crashes on first ramp; circle clears; finishes ~30s |
+| `swap-circ-to-tri-t600` | circle then triangle | swap at tick 600 | circle cruises flat; triangle stalls on incline; DNF — must not be submittable |
+| `swap-chain-3` | circle → oval → star | swap@300, swap@900 | finishes ~28s (mid-tier) — tests two-sequence scheduling |
+| `swap-cap-20` | 20 swaps evenly spaced | swap every 60 ticks starting at t=60 | finishes; validates swap cap exactly at 20 |
+| `swap-cooldown-violation` | two swaps 29 ticks apart | — | blob is *structurally* invalid; used only as a server-side reject fixture (not a physics run) |
+| `swap-position-continuity` | any two wheels, swap at t=500 | — | position at tick 501 must equal position at tick 499 (± numerical epsilon) — proves hot-swap spawns in place, doesn't teleport |
+| ... (grow as bugs surface) | | | |
 
 ```ts
 // packages/engine-core/test/golden.test.ts
@@ -2111,7 +2206,7 @@ import { runHeadless } from "../src/headless";
 
 for (const entry of golden) {
   test(`golden ${entry.id}`, () => {
-    const res = runHeadless({ wheel: entry.wheel, track: entry.track, seed: 1 });
+    const res = runHeadless({ wheels: entry.wheels, track: entry.track, seed: 1 });
     expect(res.finishTicks).toBe(entry.finishTicks);
     expect(res.streamHash).toBe(entry.hash);
   });
@@ -2120,7 +2215,7 @@ for (const entry of golden) {
 
 Intentional physics tuning follows a **two-commit workflow**: (1) bump a `PHYSICS_VERSION` constant, (2) regenerate `golden/wheels.json` with a dedicated script, requiring a human to eyeball the diff. CI refuses to regenerate goldens automatically.
 
-Runtime target: **<45 seconds** for all 24 wheels on one core. Trivially parallel across cores.
+Runtime target: **<60 seconds** for all goldens (single-wheel + swap scenarios) on one core. Trivially parallel across cores.
 
 ### 4. Layer 3 — Rendering Snapshot Tests
 
@@ -2604,22 +2699,23 @@ Deliverables:
 
 ### Phase 1 — Playable MVP (2–3 weeks)
 
-**Goal:** a human can draw a wheel and race a bundled ghost, entirely offline, on their phone.
+**Goal:** a human can draw an initial wheel, race a bundled ghost, **redraw the wheel mid-race**, and finish — entirely offline, on their phone.
 
 Deliverables:
 - `apps/web` Vite + React (or Solid — both fit the 400KB budget; React if team familiarity wins).
 - Draw Screen: pointer capture → Douglas-Peucker → centroid → decomposition → preview render.
 - Physics integration: Planck.js loaded, wheel attaches to a chassis via revolute joint + motor.
 - Canvas 2D renderer with scene layers (§Graphics & UX 3): sky gradient, single parallax hill, terrain polyline with ink edge, chassis sprite, wheel Path2D.
+- **Race-screen draw overlay + wheel hot-swap pipeline** per §Gameplay 1/2/3: always-on overlay, 500ms cooldown, 20-swap cap, position-continuous hot-swap, ghosts visibly swap at recorded ticks. This is the **core v1 gameplay mechanic**, not post-v1 polish.
 - v1 track JSON authored: `hills-01`, ~40s target. Single track ships.
-- 3 hand-authored tutorial ghosts bundled as assets (recorded via a dev tool that saves ghost blobs from runs).
+- 3 hand-authored tutorial ghosts bundled as assets, **each with at least one mid-race swap** so players see the mechanic demonstrated on their first run (recorded via a dev tool that saves ghost blobs from runs).
 - Result Screen with time, basic "beat ghost" feedback, Retry.
 - Service Worker caching shell + assets. Web App Manifest. Installable on iOS and Android.
 - Cloudflare Pages project bootstrapped (`wrangler pages project create drawrace`) and `drawrace-sensor` added to `declarative-config` to trigger `website-build` on push to `jedarden/drawrace`. No new secrets needed — `cloudflare-pages-secret` and `github-webhook-secret` already exist on `iad-ci`. Production domain parked; preview URL live at `drawrace.pages.dev`. See §Multiplayer & Backend 10 for full setup.
 
-**Exit criteria:** install PWA on a Pixel 6; draw a circle; finish the race; see a finish time; retry. 60fps on Pixel 6; 30fps on a Redmi 9 class device (the targeted floor). `drawrace.pages.dev` resolves and serves the PWA.
+**Exit criteria:** install PWA on a Pixel 6; draw an initial wheel; race; redraw the wheel at least once mid-race and observe the hot-swap; finish; see a finish time; retry. 60fps on Pixel 6; 30fps on a Redmi 9 class device (the targeted floor). `drawrace.pages.dev` resolves and serves the PWA. Phone-smoke (Layer 9) specifically exercises a multi-swap run.
 
-> **Status (2026-04-22):** Code complete — all Phase 1 deliverables built and tests passing. Cloudflare Pages project not yet stood up; follow §Multiplayer & Backend 10a to deploy.
+> **Status (2026-04-24):** Phase 1 shipped with a single-wheel-commit mechanic (no mid-race redraw). The mid-race redraw spec in this section was added 2026-04-24 after the first playable build revealed the one-shot commit didn't produce enough skill expression per race. Implementation tracked under the mid-race redraw epic; the original "code complete" status no longer applies.
 
 ---
 
