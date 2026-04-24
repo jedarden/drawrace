@@ -904,24 +904,14 @@ Under `k8s/iad-acb/drawrace/`:
 
 **CI-side RBAC** — alongside the WorkflowTemplate, `jedarden/declarative-config` also ships `k8s/iad-ci/argo-workflows/drawrace-submitter-rbac.yaml`. This file defines (a) a `ServiceAccount` named `argo-workflow-submitter` in the `argo-workflows` namespace, (b) a namespace-scoped `Role` granting verbs `create,get,list` on resource `workflows` in `apiGroup: argoproj.io`, and (c) a `RoleBinding` binding the Role to the SA. The `drawrace-build` WorkflowTemplate runs in the `argo-workflows` namespace on `iad-ci`; the `submit-drawrace-ci` step's pod assumes the `argo-workflow-submitter` SA, which has the narrow RBAC needed to create downstream Workflow resources in the same namespace. The SA lives on `iad-ci` (alongside the Argo workflow-controller) rather than in the `drawrace` namespace on `iad-acb` because the submitter pod runs wherever `drawrace-build` runs — which is `iad-ci`.
 
-**Frontend deployment (Cloudflare Pages) — reuses `website-build`**
+**Frontend deployment (Cloudflare Pages) — via drawrace-build's wrangler-pages step**
 
-The existing `website-build` WorkflowTemplate on `iad-ci` (`k8s/iad-ci/argo-workflows/website-build-workflowtemplate.yml`) already handles Cloudflare Pages deploys for all static sites. DrawRace's frontend plugs into this directly — no new CI image, no custom wrangler step.
+The `drawrace-build` WorkflowTemplate includes a `wrangler-pages` step that builds `@drawrace/web` and deploys via wrangler to Cloudflare Pages. This runs as part of the build DAG rather than delegating to the shared `website-build` template, because it needs to coordinate with `rotate-client-key` and `wait-validator-live` (see DAG ordering above).
 
 Existing secrets already present on `iad-ci` (no action required):
-- `cloudflare-pages-secret` → `CF_API_TOKEN` — Pages deploy token
+- `drawrace-cloudflare` → `api-token` — Pages deploy token (scoped to Account: Cloudflare Pages:Edit only)
+- `drawrace-cloudflare` → `account-id` — Cloudflare account ID
 - `github-webhook-secret` → `token` — repo clone auth
-
-`website-build` invocation parameters for DrawRace:
-
-```yaml
-repo: jedarden/drawrace
-branch: main          # or "pr-<n>" for preview branches
-build-dir: "."        # repo root (pnpm workspace)
-build-command: "npm install -g pnpm && pnpm install && pnpm -r run build"
-output-dir: apps/web/dist
-cf-project: drawrace  # Cloudflare Pages project name
-```
 
 Cloudflare account: `e26f015c7ba47a6ad6219385e77072b7`
 
@@ -930,9 +920,9 @@ Cloudflare account: `e26f015c7ba47a6ad6219385e77072b7`
 CLOUDFLARE_API_TOKEN=<token> CLOUDFLARE_ACCOUNT_ID=e26f015c7ba47a6ad6219385e77072b7 \
   npx wrangler pages project create drawrace --production-branch=main
 ```
-This creates the Pages project. Subsequent deploys are fully automated via `website-build`.
+This creates the Pages project. Subsequent deploys are fully automated via the `wrangler-pages` step in `drawrace-build`.
 
-**Argo Events sensor** — add `k8s/iad-ci/argo-events/drawrace-sensor.yml` to `jedarden/declarative-config`, modelled after the existing `website-build-sensor.yml`, pointing at the `jedarden/drawrace` GitHub webhook. On `push` to any branch, the sensor submits a `website-build` Workflow with the parameters above. On `main` it deploys to production; on PR branches wrangler automatically creates a preview URL under `*.drawrace.pages.dev`.
+**Argo Events sensor** — add `k8s/iad-ci/argo-events/drawrace-sensor.yml` to `jedarden/declarative-config`, modelled after the existing `website-build-sensor.yml`, pointing at the `jedarden/drawrace` GitHub webhook. On `push` to any branch, the sensor submits a `drawrace-build` Workflow with the parameters above. On `main` it deploys to production; on PR branches wrangler automatically creates a preview URL under `*.drawrace.pages.dev`.
 
 **Backend CI build** — new WorkflowTemplate in `jedarden/declarative-config` at `k8s/iad-ci/argo-workflows/drawrace-build.yaml`, patterned after the existing `container-build` / `kalshi-weather-build`, handles only the Rust image builds and manifest bumps (not Pages):
 
@@ -944,72 +934,132 @@ metadata:
   namespace: argo-workflows
 spec:
   entrypoint: build
+  serviceAccountName: argo-workflow
   arguments:
     parameters:
       - name: repo
-        value: https://github.com/jedarden/drawrace
-      - name: revision
-        value: main
+        value: jedarden/drawrace
       - name: branch
-        # "main" on push-to-main; "pr-<number>" on PR synchronize events.
-        # Gates which steps run — see `when:` expressions below.
         value: main
+      - name: tag
+        value: ""
       - name: republish_only
-        # When "true", skip rotate-client-key, buildx, buildx-validator, and
-        # bump-manifest; re-publish the Pages bundle at the checked-out git ref
-        # with the CURRENT production ConfigMap key baked in. This is the
-        # rollback path — see §Multiplayer & Backend 8 Layer 1 rollback
-        # procedure. Defaults to "false".
+        # When "true", skip rotate-client-key, docker builds, bump-manifest,
+        # and wait-validator-live; re-publish the Pages bundle at the
+        # checked-out git ref with the CURRENT production ConfigMap key.
+        # This is the rollback path.
         value: "false"
+  volumes:
+    - name: docker-config
+      secret:
+        secretName: docker-hub-registry
+        items:
+          - key: .dockerconfigjson
+            path: config.json
   templates:
-    # Top-level DAG: explicit dependency edges ensure pages-publish is skipped
-    # if wait-validator-live fails. Argo DAG semantics auto-skip dependents
-    # when a dependency fails; the sequential `steps:` form does NOT, hence
-    # the DAG choice here (matches the drawrace-ci convention in §Testing 11).
+    # ── Top-level DAG ────────────────────────────────────────────────────────
+    # DAG form (not steps:) so that pages-publish is auto-skipped when
+    # wait-validator-live fails — Argo treats a skipped dep as satisfied,
+    # but a failed dep propagates failure to dependents.
     - name: build
       dag:
         tasks:
           - name: checkout
-            template: git-clone
+            template: git-checkout
+
           - name: rotate-client-key
             template: rotate-client-key
             dependencies: [checkout]
-            # Only rotates on genuine main-branch releases. PR previews and
-            # republish (rollback) builds must NOT touch the production
-            # ConfigMap — see §Multiplayer & Backend 8 Layer 1.
             when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
-          - name: buildx
-            template: docker-buildx
+
+          - name: lint-api
+            template: cargo-lint
             dependencies: [checkout]
+            arguments:
+              parameters:
+                - name: crate
+                  value: api
+          - name: lint-validator
+            template: cargo-lint
+            dependencies: [checkout]
+            arguments:
+              parameters:
+                - name: crate
+                  value: validator
+          - name: lint-js
+            template: pnpm-ci-step
+            dependencies: [checkout]
+            arguments:
+              parameters:
+                - name: command
+                  value: pnpm install --frozen-lockfile && pnpm lint
+
+          - name: test-api
+            template: cargo-test
+            dependencies: [checkout]
+            arguments:
+              parameters:
+                - name: crate
+                  value: api
+          - name: test-validator
+            template: cargo-test
+            dependencies: [checkout]
+            arguments:
+              parameters:
+                - name: crate
+                  value: validator
+          - name: test-js
+            template: pnpm-ci-step
+            dependencies: [checkout]
+            arguments:
+              parameters:
+                - name: command
+                  value: pnpm install --frozen-lockfile && pnpm vitest run
+
+          - name: size-limit
+            template: pnpm-ci-step
+            dependencies: [checkout]
+            arguments:
+              parameters:
+                - name: command
+                  value: pnpm install --frozen-lockfile && pnpm build && npx size-limit
+
+          - name: build-api
+            template: docker-build
+            dependencies: [lint-api, test-api, test-js, lint-js]
             when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
+                - name: binary
+                  value: drawrace-api
                 - name: image
                   value: ronaldraygun/drawrace-api
-                - name: dockerfile
-                  value: Dockerfile.api
-          - name: buildx-validator
-            template: docker-buildx
-            dependencies: [checkout]
+
+          - name: build-validator
+            template: docker-build
+            dependencies: [lint-validator, test-validator, test-js, lint-js]
             when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
+                - name: binary
+                  value: drawrace-validator
                 - name: image
                   value: ronaldraygun/drawrace-validator
-                - name: dockerfile
-                  value: Dockerfile.validator
+
           - name: bump-manifest
             template: update-declarative-config
-            dependencies: [buildx, buildx-validator]
+            dependencies: [build-api, build-validator]
             when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
                 - name: path
                   value: k8s/iad-acb/drawrace
+
           - name: read-expected-physics-version
             template: read-expected-physics-version
             dependencies: [checkout]
             when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
+
           - name: wait-validator-live
             template: wait-validator-live
             dependencies: [bump-manifest, read-expected-physics-version]
@@ -1017,11 +1067,8 @@ spec:
             arguments:
               parameters:
                 - name: expected-physics-version
-                  # Extracted post-checkout from packages/engine-core/src/version.ts.
-                  # The webhook dispatcher passes only the git ref; the workflow
-                  # is responsible for extracting the version (the dispatcher runs
-                  # before checkout and cannot read workspace files).
                   value: "{{tasks.read-expected-physics-version.outputs.parameters.physics_version}}"
+
           - name: pages-publish
             template: wrangler-pages
             # Depends on both rotate-client-key (so the bundle embeds the
@@ -1039,9 +1086,8 @@ spec:
                 - name: project
                   value: drawrace
                 - name: branch
-                  # On main → production publish. On PR branches → Cloudflare Pages
-                  # preview slot `pr-<number>`.
                   value: "{{workflow.parameters.branch}}"
+
           - name: trigger-ci
             template: submit-drawrace-ci
             # Only on main-branch, non-republish runs. PR previews and rollbacks
@@ -1056,29 +1102,19 @@ spec:
                 - name: preview-url
                   value: "{{tasks.pages-publish.outputs.parameters.preview-url}}"
                 - name: ref
-                  value: "{{workflow.parameters.revision}}"
+                  value: "{{workflow.parameters.branch}}"
+    # ── submit-drawrace-ci ───────────────────────────────────────────────────
+    # Submits a drawrace-ci Workflow via `argo submit --from workflowtemplate/…`
+    # so the child workflow inherits the template's full DAG. The preview-url
+    # is passed as a top-level workflow parameter.
     - name: submit-drawrace-ci
-      # Submits a `drawrace-ci` Workflow via `argo submit --from workflowtemplate/...`
-      # so the child workflow inherits the template's full DAG (lint, unit,
-      # physics-golden, replay-verify, build, render-snap, e2e, backend-contract,
-      # perf, phone-smoke, …). The preview-url is passed as a top-level workflow
-      # parameter — see §Testing 11. We deliberately DO NOT use Argo's
-      # `resource` template to create a Workflow manifest inline because that
-      # would duplicate the WorkflowTemplate's DAG in this file; `argo submit
-      # --from` keeps drawrace-ci's definition the single source of truth.
       inputs:
         parameters:
-          - { name: preview-url }
-          - { name: ref }
-      # Runs under the `argo-workflow-submitter` ServiceAccount, which has
-      # namespace-scoped RBAC to create `workflows.argoproj.io` resources in
-      # `argo-workflows` (see rbac.yaml in the file list below). The default
-      # workflow SA cannot create child Workflow resources, so without this
-      # binding the `argo submit` call would fail with a 403 from the Argo
-      # API and the trigger-ci step would never actually kick off drawrace-ci.
+          - name: preview-url
+          - name: ref
       serviceAccountName: argo-workflow-submitter
       container:
-        image: ghcr.io/drawrace/ci-wrangler:2026-04-22 # has argo CLI + curl
+        image: ghcr.io/drawrace/ci-snap:2026-04-21
         command: [bash, -lc]
         args:
           - |
@@ -1090,26 +1126,24 @@ spec:
               --parameter ref="{{inputs.parameters.ref}}" \
               --parameter mode=release \
               --wait=false
+    # ── wrangler-pages ───────────────────────────────────────────────────────
     - name: wrangler-pages
-      # ci-wrangler is a small dedicated image: node:20-alpine + `npm i -g wrangler@3`.
-      # (ci-snap already has Node but not wrangler; we keep ci-snap lean and use a
-      # separate ci-wrangler image so the publish step's dependencies don't leak
-      # into every other CI job.)
       inputs:
         parameters:
-          - { name: project }
-          - { name: branch }
+          - name: project
+          - name: branch
       container:
-        image: ghcr.io/drawrace/ci-wrangler:2026-04-22
-        command: [bash, -lc]
+        image: node:20-alpine
+        command: [sh, -c]
         args:
           - |
             set -euo pipefail
-            cd /workspace/drawrace
-            pnpm build
-            # Publish and capture the deployment URL.
-            # wrangler prints a line like: "Deployment complete! Take a peek over at https://<hash>.drawrace.pages.dev"
-            URL=$(wrangler pages publish dist/ \
+            apk add --no-cache git
+            npm install -g pnpm@10 wrangler
+            cd /workspace
+            pnpm install --frozen-lockfile
+            pnpm --filter @drawrace/web build
+            URL=$(wrangler pages deploy apps/web/dist \
                     --project-name={{inputs.parameters.project}} \
                     --branch={{inputs.parameters.branch}} \
                   | tee /dev/stderr \
@@ -1120,8 +1154,6 @@ spec:
           - name: CLOUDFLARE_API_TOKEN
             valueFrom:
               secretKeyRef:
-                # Sealed-secret `drawrace-cloudflare` in argo-workflows ns; token scoped to
-                # Account.Cloudflare Pages:Edit only (no DNS, no Workers, no zone access).
                 name: drawrace-cloudflare
                 key: api-token
           - name: CLOUDFLARE_ACCOUNT_ID
@@ -1129,52 +1161,55 @@ spec:
               secretKeyRef:
                 name: drawrace-cloudflare
                 key: account-id
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
       outputs:
         parameters:
           - name: preview-url
             valueFrom: { path: /tmp/preview_url }
+    # ── read-expected-physics-version ────────────────────────────────────────
+    # Extracts PHYSICS_VERSION from packages/engine-core/src/version.ts.
+    # The webhook dispatcher runs before checkout, so the workflow must
+    # extract the version itself.
     - name: read-expected-physics-version
-      # Extracts the PHYSICS_VERSION integer from the just-checked-out
-      # packages/engine-core/src/version.ts. Produces an output parameter
-      # `physics_version` consumed by wait-validator-live (and available to
-      # any future step that needs to key off the build's physics version,
-      # e.g. pages-publish cache-key derivation). The webhook dispatcher
-      # cannot do this itself — it runs before checkout, so there is no
-      # workspace to read. Keeping the extraction in the workflow also means
-      # the source of truth stays in the repo, not in the dispatcher config.
       container:
         image: alpine:3.19
         command: [sh, -c]
         args:
           - |
             set -eu
-            cd /workspace/drawrace
-            V=$(grep -oE 'PHYSICS_VERSION *= *[0-9]+' packages/engine-core/src/version.ts | grep -oE '[0-9]+$')
+            V=$(grep -oE 'PHYSICS_VERSION *= *[0-9]+' /workspace/packages/engine-core/src/version.ts | grep -oE '[0-9]+$')
             if [ -z "$V" ]; then
               echo "failed to extract PHYSICS_VERSION from packages/engine-core/src/version.ts" >&2
               exit 1
             fi
             echo -n "$V" > /tmp/physics_version
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
       outputs:
         parameters:
           - name: physics_version
             valueFrom: { path: /tmp/physics_version }
+    # ── wait-validator-live ──────────────────────────────────────────────────
+    # Polls the prod api's /v1/health until the validator reports the same
+    # physics_version the client bundle was built against.  On timeout the
+    # workflow fails and pages-publish never runs — the last-good client
+    # stays live in production.
     - name: wait-validator-live
-      # Polls the prod api's /v1/health until the validator object reports the
-      # same physics_version the client bundle was built against. Enforces the
-      # rollout-order promise in §Gameplay & Physics — Physics versioning (e):
-      # validator must be live with the new version BEFORE Pages promotes the
-      # matching client bundle. On timeout, the workflow fails and pages-publish
-      # never runs — the last-good client stays live in production.
       inputs:
         parameters:
-          - { name: expected-physics-version }
-          - { name: health-url, value: "https://api.drawrace.example/v1/health" }
-          - { name: timeout-seconds, value: "1200" } # 20 min — covers the 2-min api readiness grace (§Multiplayer & Backend 7) plus ArgoCD sync latency
-          - { name: poll-interval-seconds, value: "10" }
+          - name: expected-physics-version
+          - name: health-url
+            value: "https://api.drawrace.ardenone.com/v1/health"
+          - name: timeout-seconds
+            value: "1200"
+          - name: poll-interval-seconds
+            value: "10"
       container:
-        image: ghcr.io/drawrace/ci-wrangler:2026-04-22 # has curl + jq
-        command: [bash, -lc]
+        image: curlimages/curl:latest
+        command: [sh, -c]
         args:
           - |
             set -euo pipefail
@@ -1190,13 +1225,13 @@ spec:
               sleep {{inputs.parameters.poll-interval-seconds}}
             done
             echo "validator live at physics_version=$want"
+    # ── rotate-client-key ────────────────────────────────────────────────────
+    # Atomically writes previous=<old_current>, current=<new_random_hex>,
+    # rotated_at=now() to the drawrace-client-key ConfigMap.  Runs only on
+    # main-branch, non-republish builds.  On first-run (previous == ""),
+    # still promotes current -> previous; the api verifier treats empty
+    # previous as "ignore".
     - name: rotate-client-key
-      # Atomically writes `previous=<old_current>, current=<new_random_hex>,
-      # rotated_at=now()` to the `drawrace-client-key` ConfigMap via a single
-      # `kubectl apply`. Runs only on main-branch, non-republish builds — see
-      # §Multiplayer & Backend 8 Layer 1. On first-run (previous == ""), still
-      # promotes current → previous; the api verifier treats empty previous
-      # as "ignore" per the verify_hmac pseudocode.
       container:
         image: bitnami/kubectl:1.29
         command: [bash, -lc]
@@ -1221,9 +1256,9 @@ spec:
 
 Triggered by a webhook from the drawrace repo (existing pattern). GitHub Actions stays off, per convention. The webhook passes `branch=main` on push-to-main and `branch=pr-<number>` on PR synchronize events, plus `republish_only=true` when an operator triggers a rollback re-publish.
 
-- **PR preview builds** (`branch == pr-<n>`): only `checkout` and `pages-publish` (to preview slot `pr-<n>`) execute. The `when:` gates on `rotate-client-key`, `buildx`, `buildx-validator`, `bump-manifest`, `wait-validator-live`, and `trigger-ci` suppress rotation, image pushes, manifest promotion, the live-version check, and the post-publish CI kick-off. PR previews read the production ConfigMap's `current` at `pages-publish` build time and embed it unmodified; they never mutate production state. PR CI runs independently of `drawrace-build` — triggered directly by the PR webhook — with its `preview-url` parameter left empty (phone-smoke skips when `preview-url == ""`).
-- **Main-branch releases** (`branch == main && republish_only == false`): every DAG node runs. `rotate-client-key` advances the ConfigMap; `wait-validator-live` blocks until ArgoCD has synced the validator Deployment and its `/internal/version` endpoint reports the freshly built `physics_version` (see §Multiplayer & Backend 3 and 7 for the endpoint contracts); `pages-publish` only then ships the client bundle; `trigger-ci` submits a `drawrace-ci` Workflow against the fresh preview URL so the phone-smoke step runs on the live production bundle.
-- **Rollback republish** (`branch == main && republish_only == true`): `rotate-client-key`, `buildx`, `buildx-validator`, `bump-manifest`, `wait-validator-live`, and `trigger-ci` are skipped. `pages-publish` runs against the checked-out git ref, reading the current (un-rotated) ConfigMap key and re-publishing the old bundle. Existing installed clients keep verifying because the live `current` hasn't changed. The phone-smoke pass is not re-run because the re-published bundle is byte-identical to a prior main-branch release that already passed CI.
+- **PR preview builds** (`branch == pr-<n>`): only `checkout`, lint/test/size-limit, and `pages-publish` (to preview slot `pr-<n>`) execute. The `when:` gates on `rotate-client-key`, `build-api`, `build-validator`, `bump-manifest`, `wait-validator-live`, and `trigger-ci` suppress rotation, image pushes, manifest promotion, the live-version check, and the post-publish CI kick-off. PR previews read the production ConfigMap's `current` at `pages-publish` build time and embed it unmodified; they never mutate production state. PR CI runs independently of `drawrace-build` — triggered directly by the PR webhook — with its `preview-url` parameter left empty (phone-smoke skips when `preview-url == ""`).
+- **Main-branch releases** (`branch == main && republish_only == false`): every DAG node runs. Lint and test gates run first; `rotate-client-key` advances the ConfigMap; `build-api` and `build-validator` produce Docker images (Kaniko); `bump-manifest` updates declarative-config; `wait-validator-live` blocks until ArgoCD has synced the validator Deployment and its `/internal/version` endpoint reports the freshly built `physics_version` (see §Multiplayer & Backend 3 and 7 for the endpoint contracts); `pages-publish` only then ships the client bundle; `trigger-ci` submits a `drawrace-ci` Workflow against the fresh preview URL so the phone-smoke step runs on the live production bundle.
+- **Rollback republish** (`branch == main && republish_only == true`): `rotate-client-key`, `build-api`, `build-validator`, `bump-manifest`, `wait-validator-live`, and `trigger-ci` are skipped. `pages-publish` runs against the checked-out git ref, reading the current (un-rotated) ConfigMap key and re-publishing the old bundle. Existing installed clients keep verifying because the live `current` hasn't changed. The phone-smoke pass is not re-run because the re-published bundle is byte-identical to a prior main-branch release that already passed CI.
 
 **Ordering promise.** Because the top-level template is a DAG (not a sequential `steps:` list), Argo's dependency-resolution skips a task whose dependency failed. If `wait-validator-live` times out on a main-branch release, the workflow is marked Failed and `pages-publish` does not execute — the prior Pages production build remains live. Operators drain the validator deployment issue first, then re-trigger `drawrace-build` (with `republish_only=false` to retry the full rollout, or `republish_only=true` to revert to a known-good ref while the validator is fixed).
 
@@ -2093,55 +2128,212 @@ Single WorkflowTemplate `drawrace-ci` in jedarden/declarative-config, synced to 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
-metadata: { name: drawrace-ci, namespace: argo-workflows }
+metadata:
+  name: drawrace-ci
+  namespace: argo-workflows
+  labels:
+    app: drawrace-ci
 spec:
-  entrypoint: ci
+  # ── Top-level parameters ────────────────────────────────────────────────────
   arguments:
     parameters:
-      - { name: ref }
-      - { name: mode, value: pr }          # pr | nightly | release
-      - { name: preview-url, value: "" }   # injected by drawrace-build's trigger-ci step on main; empty for manual/local runs
+      - name: ref
+        value: main
+      - name: mode
+        # pr | nightly | release
+        value: pr
+      - name: preview-url
+        # Injected by drawrace-build's trigger-ci step after Pages publish.
+        # Empty on manual/local runs; phone-smoke step is skipped when empty.
+        value: ""
+
+  entrypoint: ci
+
   templates:
-  - name: ci
-    dag:
-      tasks:
-      - { name: lint,            template: step, arguments: { parameters: [{name: cmd, value: "pnpm lint"}] } }
-      - { name: unit,            template: step, dependencies: [lint],  arguments: { parameters: [{name: cmd, value: "pnpm vitest run --coverage"}] } }
-      - { name: physics-golden,  template: step, dependencies: [unit],  arguments: { parameters: [{name: cmd, value: "pnpm -F engine-core test:golden"}] } }
-      - { name: replay-verify,   template: step, dependencies: [unit],  arguments: { parameters: [{name: cmd, value: "cargo test -p validator --test replay"}] } }
-      - { name: build,           template: step, dependencies: [physics-golden], arguments: { parameters: [{name: cmd, value: "pnpm build && docker buildx bake api validator"}] } }
-      - { name: render-snap,     template: step, dependencies: [build], arguments: { parameters: [{name: cmd, value: "pnpm test:snap"}] } }
-      - { name: e2e,             template: step, dependencies: [build], arguments: { parameters: [{name: cmd, value: "pnpm test:e2e"}] } }
-      - { name: backend-contract,template: step, dependencies: [build], arguments: { parameters: [{name: cmd, value: "pnpm test:contract"}] } }
-      - { name: perf,            template: step, dependencies: [build], arguments: { parameters: [{name: cmd, value: "pnpm test:perf"}] } }
-      - { name: phone-smoke,     template: phone, dependencies: [build], when: "'{{workflow.parameters.preview-url}}' != ''", arguments: { parameters: [{name: cmd, value: "pnpm test:phone --preview-url {{workflow.parameters.preview-url}}"}] } }
-        # The `preview-url` workflow parameter is supplied by the caller. In the
-        # deployment pipeline, `drawrace-build`'s `pages-publish` step (see
-        # §Multiplayer & Backend 10) creates a `drawrace-ci` Workflow as a final
-        # `trigger-ci` step after the Pages publish succeeds, injecting its own
-        # `pages-publish.outputs.parameters.preview-url` as the child workflow's
-        # `preview-url` parameter. This is Argo's standard parent-submits-child
-        # pattern — Argo DAGs cannot reference another workflow's outputs via
-        # `{{tasks.*}}`, so the preview URL must arrive as a top-level parameter.
-        # Manual or local runs can pass `preview-url=<any-published-url>` on the
-        # `argo submit` command line. There is no GitHub Actions path — wrangler
-        # runs inside Argo on `iad-ci`, per CLAUDE.md.
-      - { name: load,            template: step, dependencies: [e2e],   when: "{{workflow.parameters.mode}} == nightly", arguments: { parameters: [{name: cmd, value: "k6 run load/submit.js"}] } }
-      - { name: device-matrix,   template: step, dependencies: [e2e],   when: "{{workflow.parameters.mode}} == release", arguments: { parameters: [{name: cmd, value: "pnpm test:devices"}] } }
-  - name: step
-    inputs: { parameters: [{ name: cmd }] }
-    container:
-      image: ghcr.io/drawrace/ci-snap:2026-04-21
-      command: [bash, -lc, "{{inputs.parameters.cmd}}"]
-  - name: phone                  # singleton — acquires Redis lock on the Pixel 6
-    inputs: { parameters: [{ name: cmd }] }
-    synchronization:
-      mutex: { name: drawrace-phone }
-    container:
-      image: ghcr.io/drawrace/ci-phone:2026-04-21    # bundles adb + tesseract
-      command: [bash, -lc, "adb-check && {{inputs.parameters.cmd}}"]
-      env:
-        - { name: ADB_SERVER_SOCKET, value: "tcp:adb-relay.tailnet:5037" }
+    # ── CI DAG ─────────────────────────────────────────────────────────────────
+    - name: ci
+      dag:
+        tasks:
+          - name: lint
+            template: step
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm lint"}
+
+          - name: unit
+            template: step
+            dependencies: [lint]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm vitest run --coverage"}
+
+          - name: physics-golden
+            template: step
+            dependencies: [unit]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm -F engine-core test:golden"}
+
+          - name: replay-verify
+            template: step
+            dependencies: [unit]
+            arguments:
+              parameters:
+                - {name: cmd, value: "cargo test -p drawrace-validator --test replay"}
+
+          - name: build
+            template: step
+            dependencies: [physics-golden]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm build"}
+
+          - name: render-snap
+            template: snap-step
+            dependencies: [build]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm test:snapshot"}
+
+          - name: e2e
+            template: step
+            dependencies: [build]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm test:e2e"}
+
+          - name: backend-contract
+            template: step
+            dependencies: [build]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm test:contract"}
+
+          - name: perf
+            template: step
+            dependencies: [build]
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm test:perf"}
+
+          # phone-smoke: serialized via mutex, runs only when a preview URL is available
+          - name: phone-smoke
+            template: phone-smoke
+            dependencies: [build]
+            when: "'{{workflow.parameters.preview-url}}' != ''"
+            arguments:
+              parameters:
+                - name: preview-url
+                  value: "{{workflow.parameters.preview-url}}"
+
+          - name: load
+            template: step
+            dependencies: [e2e]
+            when: "'{{workflow.parameters.mode}}' == 'nightly'"
+            arguments:
+              parameters:
+                - {name: cmd, value: "k6 run load/submit.js"}
+
+          - name: device-matrix
+            template: step
+            dependencies: [e2e]
+            when: "'{{workflow.parameters.mode}}' == 'release'"
+            arguments:
+              parameters:
+                - {name: cmd, value: "pnpm test:devices"}
+
+    # ── Generic step template ───────────────────────────────────────────────
+    - name: step
+      inputs:
+        parameters:
+          - name: cmd
+      activeDeadlineSeconds: 600
+      container:
+        image: ghcr.io/drawrace/ci-snap:2026-04-21
+        command: [bash, -lc, "{{inputs.parameters.cmd}}"]
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      volumes:
+        - name: workspace
+          emptyDir: {}
+
+    # ── Snapshot step template (pinned image for deterministic rendering) ───
+    - name: snap-step
+      inputs:
+        parameters:
+          - name: cmd
+      activeDeadlineSeconds: 600
+      container:
+        image: ghcr.io/drawrace/ci-snap:2026-04-24
+        command: [bash, -lc, "{{inputs.parameters.cmd}}"]
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      volumes:
+        - name: workspace
+          emptyDir: {}
+
+    # ── Phone-smoke template ────────────────────────────────────────────────
+    # Serialized via mutex so concurrent PRs queue rather than fight over the
+    # single Pixel 6.  ADB_SERVER_SOCKET points at the adb-relay service which
+    # bridges the CI pod to the persistent ADB server on the coding host.
+    - name: phone-smoke
+      inputs:
+        parameters:
+          - name: preview-url
+      activeDeadlineSeconds: 300
+      # Serialize access to the Pixel 6 — concurrent PRs queue behind this mutex
+      synchronization:
+        mutex:
+          name: drawrace-phone
+      container:
+        image: ghcr.io/drawrace/ci-phone:2026-04-21
+        command: [bash, -lc]
+        args:
+          - |
+            set -euo pipefail
+            # Verify ADB is reachable before spending time on the run
+            adb-check
+            # Run the smoke against the provided preview URL
+            # --skip-build: dist is already published to Cloudflare Pages
+            PHONE_SMOKE_URL="{{inputs.parameters.preview-url}}" \
+              bash e2e/phone-smoke/run.sh --skip-build
+        env:
+          - name: ADB_SERVER_SOCKET
+            value: "tcp:adb-relay.tailnet:5037"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      # Upload screenshots on failure so engineers can see what the phone saw
+      outputs:
+        artifacts:
+          - name: phone-smoke-screenshots
+            path: /workspace/e2e/phone-smoke/artifacts
+            archive:
+              tar: {}
+            # s3 destination configured by the Argo controller's artifact repo
 ```
 
 **PR wall-clock budget: <10 minutes.** Measured slice (parallelism=6): lint 30s / unit 90s / physics-golden 45s / build 90s / render-snap 150s / e2e 240s / contract 90s / perf 180s / phone-smoke ~120s (serialized, runs in parallel with other post-build steps) → ~7 min critical path. Nightly adds load (7m); release adds device-matrix (~12m).
