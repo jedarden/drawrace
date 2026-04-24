@@ -1,5 +1,5 @@
 {
-  "physicsVersion": 3,
+  "physicsVersion": 4,
   "goldens": [
     {
       "id": "circ-32-r40",
@@ -140,7 +140,7 @@
       "finishTicks": 711,
       "finalX": 39.02571140405268,
       "streamHash": "7bd4bcd3",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "circ-32-r20",
@@ -281,7 +281,7 @@
       "finishTicks": 1404,
       "finalX": 39.00156261177009,
       "streamHash": "ad0077d7",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "circ-32-r80",
@@ -422,7 +422,7 @@
       "finishTicks": 10801,
       "finalX": 1.730896153278646,
       "streamHash": "db460b0d",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "circ-16-r80",
@@ -499,7 +499,7 @@
       "finishTicks": 10801,
       "finalX": 1.8430366534598477,
       "streamHash": "5332b0f0",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "circ-08-r80",
@@ -544,7 +544,7 @@
       "finishTicks": 10801,
       "finalX": 1.9095206161826719,
       "streamHash": "c1c78ff2",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "circ-24-r60",
@@ -653,7 +653,7 @@
       "finishTicks": 489,
       "finalX": 39.027033962308806,
       "streamHash": "0fd20947",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "oval-slim",
@@ -762,7 +762,7 @@
       "finishTicks": 685,
       "finalX": 39.00309027531105,
       "streamHash": "9e74761b",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "oval-fat",
@@ -871,7 +871,7 @@
       "finishTicks": 623,
       "finalX": 39.00424035795828,
       "streamHash": "5165f4e0",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "tri-equi-40",
@@ -896,7 +896,7 @@
       "finishTicks": 844,
       "finalX": 39.03510769919801,
       "streamHash": "0cf7fae2",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "tri-right",
@@ -921,7 +921,7 @@
       "finishTicks": 948,
       "finalX": 39.00421089820054,
       "streamHash": "b94b722c",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "square-40",
@@ -950,7 +950,7 @@
       "finishTicks": 816,
       "finalX": 39.01498379910257,
       "streamHash": "7f6ecf04",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "rect-wide",
@@ -979,7 +979,7 @@
       "finishTicks": 764,
       "finalX": 39.04842410904488,
       "streamHash": "8734a753",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "penta-40",
@@ -1012,7 +1012,7 @@
       "finishTicks": 807,
       "finalX": 39.03374814089822,
       "streamHash": "c0d1fef0",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "hexa-40",
@@ -1049,7 +1049,7 @@
       "finishTicks": 783,
       "finalX": 39.02344747643059,
       "streamHash": "a3f6bf07",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "star-5-sharp",
@@ -1102,7 +1102,7 @@
       "finishTicks": 713,
       "finalX": 39.016780579898224,
       "streamHash": "f5d6d965",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "star-5-soft",
@@ -1155,7 +1155,7 @@
       "finishTicks": 730,
       "finalX": 39.034496708468566,
       "streamHash": "aa43ab27",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "star-4",
@@ -1200,7 +1200,7 @@
       "finishTicks": 816,
       "finalX": 39.01498379910257,
       "streamHash": "7f6ecf04",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "crescent-a",
@@ -1309,7 +1309,7 @@
       "finishTicks": 696,
       "finalX": 39.0495155048673,
       "streamHash": "553666b2",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "blob-self-intx-1",
@@ -1386,7 +1386,7 @@
       "finishTicks": 661,
       "finalX": 39.02296295305916,
       "streamHash": "eaf81587",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "blob-self-intx-2",
@@ -1479,7 +1479,7 @@
       "finishTicks": 701,
       "finalX": 39.00887467004236,
       "streamHash": "33f80746",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "blob-smooth",
@@ -1588,7 +1588,7 @@
       "finishTicks": 546,
       "finalX": 39.06961930661636,
       "streamHash": "2962e40e",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "figure8-sm",
@@ -1697,7 +1697,7 @@
       "finishTicks": 10801,
       "finalX": 2.062804821358585,
       "streamHash": "c5b1eeec",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "figure8-lg",
@@ -1838,7 +1838,7 @@
       "finishTicks": 10801,
       "finalX": 2.06724236851554,
       "streamHash": "541267b6",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "swap-tri-to-circ-t300",
@@ -1999,7 +1999,7 @@
       "finishTicks": 706,
       "finalX": 39.01741125955204,
       "streamHash": "18f2de82",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "swap-circ-to-tri-t600",
@@ -2160,7 +2160,7 @@
       "finishTicks": 703,
       "finalX": 39.03562540016574,
       "streamHash": "3e1a0cf4",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "swap-chain-3",
@@ -2450,7 +2450,7 @@
       "finishTicks": 680,
       "finalX": 39.060339929853896,
       "streamHash": "3495d7e4",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "swap-cap-20",
@@ -4214,7 +4214,7 @@
       "finishTicks": 742,
       "finalX": 39.04558168124165,
       "streamHash": "e0de401c",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "swap-cooldown-violation",
@@ -4374,7 +4374,7 @@
       ],
       "structuralReject": true,
       "rejectReason": "cooldown_violation",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "swap-position-continuity",
@@ -4547,7 +4547,7 @@
       "finishTicks": 729,
       "finalX": 39.0221610384241,
       "streamHash": "6df750c1",
-      "physicsVersion": 3
+      "physicsVersion": 4
     }
   ]
 }

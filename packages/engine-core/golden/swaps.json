@@ -1,5 +1,5 @@
 {
-  "physicsVersion": 3,
+  "physicsVersion": 4,
   "swapGoldens": [
     {
       "id": "swap-tick0-only",
@@ -143,7 +143,7 @@
       "finishTicks": 711,
       "finalX": 39.02571140405268,
       "streamHash": "7bd4bcd3",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "swap-circ-to-tri-t60",
@@ -208,7 +208,7 @@
       "finishTicks": 876,
       "finalX": 39.04806046933967,
       "streamHash": "6cab5970",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "swap-tri-to-circ-t120",
@@ -273,7 +273,7 @@
       "finishTicks": 766,
       "finalX": 39.0333808753816,
       "streamHash": "7c74f050",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "swap-chain-3",
@@ -371,7 +371,7 @@
       "finishTicks": 794,
       "finalX": 39.01665816838345,
       "streamHash": "123f8f68",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "swap-5-determinism",
@@ -527,7 +527,7 @@
       "finishTicks": 772,
       "finalX": 39.02974635157343,
       "streamHash": "ed7e2441",
-      "physicsVersion": 3
+      "physicsVersion": 4
     },
     {
       "id": "swap-position-continuity",
@@ -700,7 +700,7 @@
       "finishTicks": 729,
       "finalX": 39.0221610384241,
       "streamHash": "6df750c1",
-      "physicsVersion": 3
+      "physicsVersion": 4
     }
   ]
 }

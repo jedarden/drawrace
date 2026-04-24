@@ -22,7 +22,7 @@ const MAX_TICKS = 60 * 180; // 3-minute DNF ceiling
 const CHASSIS_DENSITY = 1.0;
 const SUSPENSION_FREQ_HZ = 4.0;
 const SUSPENSION_DAMPING_RATIO = 0.7;
-const MOTOR_SPEED = -8;
+const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 
 export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
@@ -105,12 +105,12 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
   const wcX = wv.reduce((s, v) => s + v[0], 0) / wv.length;
   const wcY = wv.reduce((s, v) => s + v[1], 0) / wv.length;
   const wheelRadius = Math.max(...wv.map((v) => Math.hypot(v[0] - wcX, v[1] - wcY)));
-  const wheelSpawnY = terrainY + wheelRadius;
+  const wheelSpawnY = terrainY - wheelRadius;
 
   // --- bodies ---
   let wheelBody = buildWheelBody(world, initialPoly, startX, wheelSpawnY);
 
-  const chassisSpawnY = wheelSpawnY + 1.5;
+  const chassisSpawnY = wheelSpawnY - 1.5;
   const chassisBody = world.createBody({ position: Vec2(startX, chassisSpawnY), type: "dynamic" });
   chassisBody.createFixture(Box(1.2, 0.4), {
     density: CHASSIS_DENSITY,
@@ -125,7 +125,7 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
     WheelJoint({
       bodyA: chassisBody,
       bodyB: wheelBody,
-      localAnchorA: Vec2(0.5, -0.5),
+      localAnchorA: Vec2(0.5, 0.5),
       localAnchorB: Vec2(0, 0),
       localAxisA: Vec2(0, 1),
       frequencyHz: SUSPENSION_FREQ_HZ,
@@ -140,7 +140,7 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
     WheelJoint({
       bodyA: chassisBody,
       bodyB: rearWheelBody,
-      localAnchorA: Vec2(-0.9, -0.5),
+      localAnchorA: Vec2(-0.9, 0.5),
       localAnchorB: Vec2(0, 0),
       localAxisA: Vec2(0, 1),
       frequencyHz: SUSPENSION_FREQ_HZ,

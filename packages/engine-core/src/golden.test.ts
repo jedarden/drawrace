@@ -8,8 +8,8 @@ import {
   Edge,
   Box,
   WheelJoint,
-  RevoluteJoint,
-  Circle,
+
+
 } from "planck";
 import {
   createHeadlessRace,
@@ -17,7 +17,7 @@ import {
   type WheelDef,
 } from "./headless-race.js";
 import { runHeadless } from "./headless.js";
-import { buildWheelBody, executeWheelSwap, type WheelSwap } from "./swap.js";
+import { buildWheelBody, executeTwinWheelSwap, type WheelSwap } from "./swap.js";
 import { PHYSICS_VERSION } from "./version.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -175,20 +175,12 @@ function captureWheelPositionAtTick(
     type: "dynamic",
   });
   chassisBody.createFixture(Box(1.2, 0.4), {
-    density: 2.0,
+    density: 1.0,
     friction: 0.5,
     restitution: 0.1,
   });
 
-  const rearWheelBody = world.createBody({
-    position: Vec2(startX - 0.9, wheelSpawnY),
-    type: "dynamic",
-  });
-  rearWheelBody.createFixture(Circle(0.35), {
-    density: 1.0,
-    friction: 0.8,
-    restitution: 0.3,
-  });
+  let rearWheelBody = buildWheelBody(world, initialPoly, startX - 0.9, wheelSpawnY);
 
   let wheelJoint = world.createJoint(
     WheelJoint({
@@ -205,15 +197,20 @@ function captureWheelPositionAtTick(
     }),
   )!;
 
-  world.createJoint(
-    RevoluteJoint({
+  let rearWheelJoint = world.createJoint(
+    WheelJoint({
       bodyA: chassisBody,
       bodyB: rearWheelBody,
       localAnchorA: Vec2(-0.9, 0.5),
       localAnchorB: Vec2(0, 0),
-      enableMotor: false,
+      localAxisA: Vec2(0, 1),
+      frequencyHz: 4.0,
+      dampingRatio: 0.7,
+      enableMotor: true,
+      motorSpeed: 8,
+      maxMotorTorque: 40,
     }),
-  );
+  )!;
 
   const pendingSwaps = wheels.slice(1).sort((a, b) => a.swap_tick - b.swap_tick);
   let swapIdx = 0;
@@ -226,17 +223,21 @@ function captureWheelPositionAtTick(
       swapIdx < pendingSwaps.length &&
       pendingSwaps[swapIdx].swap_tick === currentTick
     ) {
-      const res = executeWheelSwap(
+      const res = executeTwinWheelSwap(
         world,
         chassisBody,
         wheelBody,
         wheelJoint,
+        rearWheelBody,
+        rearWheelJoint,
         pendingSwaps[swapIdx].polygon,
         pendingSwaps[swapIdx].swap_tick,
         swapLog,
       );
-      wheelBody = res.newWheelBody;
-      wheelJoint = res.newWheelJoint;
+      wheelBody = res.newFrontBody;
+      wheelJoint = res.newFrontJoint;
+      rearWheelBody = res.newRearBody;
+      rearWheelJoint = res.newRearJoint;
       swapIdx++;
     }
   }

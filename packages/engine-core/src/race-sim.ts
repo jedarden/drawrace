@@ -48,7 +48,7 @@ const WHEEL_DENSITY = 1.0;
 const WHEEL_FRICTION = 0.8;
 const WHEEL_RESTITUTION = 0.3;
 const CHASSIS_DENSITY = 1.0;
-const MOTOR_SPEED = -8;
+const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 const SUSPENSION_FREQ_HZ = 4.0;
 const SUSPENSION_DAMPING_RATIO = 0.7;
@@ -146,8 +146,8 @@ export class RaceSim {
       }
     }
 
-    // Place wheel center above terrain surface; gravity [0,-10] pulls down to rest on it
-    const wheelSpawnY = terrainY + wheelRadius;
+    // Place wheel center above terrain surface; gravity [0,+10] pulls down to rest on it
+    const wheelSpawnY = terrainY - wheelRadius;
 
     // Front wheel (player-drawn)
     const wheelVerts = wv.map((v) => Vec2(v.x, v.y));
@@ -171,8 +171,8 @@ export class RaceSim {
       }
     }
 
-    // Chassis (higher Y = further from terrain in gravity-down convention)
-    const chassisSpawnY = wheelSpawnY + 1.5;
+    // Chassis above wheel (lower Y = above in Y-down convention)
+    const chassisSpawnY = wheelSpawnY - 1.5;
     this.chassisBody = this.world.createBody({
       position: Vec2(startX, chassisSpawnY),
       type: "dynamic",
@@ -191,7 +191,7 @@ export class RaceSim {
       WheelJoint({
         bodyA: this.chassisBody,
         bodyB: this.wheelBody,
-        localAnchorA: Vec2(0.5, -0.5),
+        localAnchorA: Vec2(0.5, 0.5),
         localAnchorB: Vec2(0, 0),
         localAxisA: Vec2(0, 1),
         frequencyHz: SUSPENSION_FREQ_HZ,
@@ -213,7 +213,7 @@ export class RaceSim {
       WheelJoint({
         bodyA: this.chassisBody,
         bodyB: this.rearWheelBody,
-        localAnchorA: Vec2(-0.9, -0.5),
+        localAnchorA: Vec2(-0.9, 0.5),
         localAnchorB: Vec2(0, 0),
         localAxisA: Vec2(0, 1),
         frequencyHz: SUSPENSION_FREQ_HZ,
