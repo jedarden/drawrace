@@ -63,7 +63,7 @@ pub async fn get_top(
         "SELECT g.ghost_id, n.name, g.time_ms
          FROM ghosts g
          LEFT JOIN names n ON n.player_uuid = g.player_uuid
-         WHERE g.track_id = $1 AND g.is_pb = true
+         WHERE g.track_id = $1 AND g.is_pb = true AND g.is_legacy = false
          ORDER BY g.time_ms ASC
          LIMIT $2",
     )
@@ -104,7 +104,7 @@ pub async fn get_context(
     // Check if player has a PB on this track
     let player_best: Option<(i32,)> = sqlx::query_as(
         "SELECT MIN(time_ms) FROM ghosts
-         WHERE player_uuid = $1 AND track_id = $2 AND is_pb = true",
+         WHERE player_uuid = $1 AND track_id = $2 AND is_pb = true AND is_legacy = false",
     )
     .bind(query.player_uuid)
     .bind(track_id)
@@ -124,7 +124,7 @@ pub async fn get_context(
         Some(best) => {
             let rank: i64 = sqlx::query_scalar(
                 "SELECT COUNT(*) + 1 FROM ghosts
-                 WHERE track_id = $1 AND is_pb = true AND time_ms < $2",
+                 WHERE track_id = $1 AND is_pb = true AND is_legacy = false AND time_ms < $2",
             )
             .bind(track_id)
             .bind(best)
@@ -154,7 +154,7 @@ pub async fn get_context(
                 (g.player_uuid = $2) AS is_self
          FROM ghosts g
          LEFT JOIN names n ON n.player_uuid = g.player_uuid
-         WHERE g.track_id = $1 AND g.is_pb = true
+         WHERE g.track_id = $1 AND g.is_pb = true AND g.is_legacy = false
          ORDER BY g.time_ms ASC
          LIMIT $3 OFFSET $4",
     )

@@ -221,6 +221,7 @@ async fn fetch_ghosts_from_bucket(
          WHERE lb.track_id = $1
            AND lb.pr > $2 AND lb.pr <= $3
            AND g.player_uuid != $4
+           AND g.is_legacy = false
          ORDER BY RANDOM()
          LIMIT $5",
     )
@@ -260,6 +261,7 @@ async fn fetch_shadow_ghost(
          FROM ghosts g
          LEFT JOIN names n ON n.player_uuid = g.player_uuid
          WHERE g.player_uuid = $1 AND g.track_id = $2 AND g.is_pb = true
+           AND g.is_legacy = false
          ORDER BY g.time_ms ASC
          LIMIT 1",
     )
