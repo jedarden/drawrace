@@ -1,5 +1,6 @@
 # Marathon coding session logs (regenerated each run)
 .marathon/logs/
+.marathon/artifacts/
 
 # Beads — issue tracker database and state
 .beads/
@@ -20,6 +21,9 @@ Cargo.lock.bak
 # Playwright
 playwright-report/
 test-results/
+
+# Phone-smoke artifacts (regenerated each run; baselines are committed)
+e2e/phone-smoke/artifacts/
 
 # Editor / OS
 .DS_Store
