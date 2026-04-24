@@ -99,8 +99,8 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn healthz_handler() -> &'static str {
-    "ok"
+async fn healthz_handler() -> axum::Json<serde_json::Value> {
+    axum::Json(json!({"ok": true}))
 }
 
 async fn version_handler() -> axum::Json<serde_json::Value> {
