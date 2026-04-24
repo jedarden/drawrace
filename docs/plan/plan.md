@@ -359,7 +359,23 @@ Tracks are static JSON assets under `/public/tracks/`. The game reads a track ma
 - `obstacles`, `ramps`, and `hazards` are optional arrays. Hazard type `pit` is a trigger region that ends the race as DNF.
 - Every track declares a stable `numeric_id` (uint16) assigned at track authoring time; it is the identifier used on the wire (submission header, ghost blob `track_id`, leaderboard URLs). The string `id` is a human-readable slug used for filenames and in-repo references only. Numeric IDs are never re-used.
 
-Adding a new track is: drop a JSON file, add its id to `tracks/manifest.json`, record a handful of seed ghost replays, ship.
+**Zone-based terrain (v1 design requirement — pairs with mid-race redraw).**
+
+A track whose terrain is uniform gives the redraw mechanic nothing to do — one optimal wheel beats every other wheel for the whole race. v1's `hills-01` is authored as **four distinct zones** of different terrain character, each long enough that observing → redrawing → benefitting from the new wheel is worthwhile. Zone length must comfortably exceed `look-ahead + cooldown + rebuild + a few seconds of payoff`: with 500 ms cooldown and the camera look-ahead spring, **8 seconds minimum per zone** hits the sweet spot.
+
+| Zone | Approx window (v1 targets) | Terrain character | Rewards |
+|---|---|---|---|
+| A — Warm-up flats | 0–8s | Smooth gentle polyline, +/-0.2m oscillation | Low rolling resistance wheels (near-circles). Triangles visibly slow. |
+| B — The ramp | 8–18s | Steady +20° incline for 7s then plateau | High-torque grippy shapes (hex, squat ellipse, rough circle with teeth). Smooth circles spin out on the incline. |
+| C — Rough rocks | 18–28s | Spiked polyline amplitude +/-0.8m at ~1m spacing, plus 3 box obstacles | Large-diameter wheels smooth over bumps. Small wheels rattle and lose speed. |
+| D — Descent & jump | 28–40s | Steep descent -25° into a short ramp and a 4m gap hazard | Small tight wheels (low moment of inertia) land cleanly. Big wheels oversteer and miss the ramp landing. |
+
+Authoring conventions:
+- The zone boundaries are marked in the track JSON as `zones: [{ id: "A", x_start: 0.0, x_end: 48.0 }, ...]` and rendered subtly at runtime (a faint ink marker at the zone boundary, only visible when the camera is close).
+- Each zone's terrain is designed so the "optimal" wheel shape is *obvious from the silhouette* — players learn which wheel wins where by watching ghosts visibly swap into that shape in that zone.
+- Horizon visibility: camera look-ahead (§Graphics 8) is tuned so the next zone's terrain appears in frame at least 4 seconds before the chassis reaches it, giving the player a full cooldown + rebuild + settle window.
+
+Adding a new track is: drop a JSON file (zones + terrain + obstacles), add its id to `tracks/manifest.json`, record a handful of seed ghost replays that visibly swap into each zone's optimal shape, ship.
 
 ### 6. Deterministic Simulation
 
