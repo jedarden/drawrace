@@ -45,7 +45,12 @@ async function loadHillSvg(path: string): Promise<ImageBitmap | HTMLCanvasElemen
     if (!resp.ok) return null;
     const blob = await resp.blob();
     if (typeof createImageBitmap === "function") {
-      return createImageBitmap(blob);
+      try {
+        return await createImageBitmap(blob);
+      } catch {
+        // createImageBitmap does not support SVG on Chrome — fall through
+        // to the Image+canvas path below.
+      }
     }
     // Fallback: draw SVG onto an offscreen canvas
     const url = URL.createObjectURL(blob);

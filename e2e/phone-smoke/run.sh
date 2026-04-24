@@ -94,8 +94,15 @@ sleep 5
 # 6. Run the CDP driver
 echo "=== Running phone-smoke driver ==="
 mkdir -p "$ARTIFACTS_DIR"
-python3 "$SCRIPT_DIR/driver.py" \
-  --url "$URL" \
-  --artifacts "$ARTIFACTS_DIR" \
-  --baseline-dir "$BASELINE_DIR" \
-  "${DRIVER_ARGS[@]:-}"
+if [[ ${#DRIVER_ARGS[@]} -gt 0 ]]; then
+  python3 "$SCRIPT_DIR/driver.py" \
+    --url "$URL" \
+    --artifacts "$ARTIFACTS_DIR" \
+    --baseline-dir "$BASELINE_DIR" \
+    "${DRIVER_ARGS[@]}"
+else
+  python3 "$SCRIPT_DIR/driver.py" \
+    --url "$URL" \
+    --artifacts "$ARTIFACTS_DIR" \
+    --baseline-dir "$BASELINE_DIR"
+fi

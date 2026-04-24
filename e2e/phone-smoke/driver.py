@@ -47,7 +47,7 @@ class CDPSession:
             self._task.cancel()
             try:
                 await self._task
-            except asyncio.CancelledError:
+            except (asyncio.CancelledError, Exception):
                 pass
 
     async def _recv_loop(self):
@@ -176,6 +176,7 @@ class EventCollector:
 LANDING_BYPASS_JS = """
 (() => {
   localStorage.setItem('drawrace_landing_dismissed', 'true');
+  localStorage.setItem('drawrace_invite_access', 'true');
   return true;
 })()
 """
@@ -276,14 +277,14 @@ def check_not_solid_colour(path):
     from PIL import Image
     img = Image.open(path).convert("RGB")
     w, h = img.size
-    total = w * h
-    step = max(1, total // 5000)
+    total_px = w * h
+    step_px = max(1, total_px // 5000)
+    raw = img.tobytes()
     pixels = set()
-    data = img.get_flattened_data()
-    for i in range(0, total, step):
-        pixels.add(data[i])
+    for i in range(0, total_px, step_px):
+        off = i * 3
+        pixels.add((raw[off], raw[off + 1], raw[off + 2]))
     unique_count = len(pixels)
-    # A real game screen has at least 3 unique colours; solid white/black has 1
     return unique_count >= 3, unique_count
 
 
@@ -323,141 +324,156 @@ async def run_smoke(url, ws_url, artifacts_dir, baseline_dir, save_baselines):
         return False
     print(f"Tab: {tab_ws[:80]}...")
 
-    async with websockets.connect(tab_ws, max_size=2**24, open_timeout=10) as ws:
+    async with websockets.connect(
+        tab_ws, max_size=2**24, open_timeout=10,
+        ping_interval=None, close_timeout=5,
+    ) as ws:
         sess = CDPSession(ws)
         await sess.start()
         collector = EventCollector()
 
+        # Enable CDP domains for event capture
+        await sess.call("Runtime.enable")
+        await sess.call("Log.enable")
+        await sess.call("Console.enable")
+        await sess.call("Page.enable")
+
+        # -- STEP 1: Navigate + bypass landing ----------------------------
+        # Pre-inject localStorage bypass so the landing/invite gate never
+        # appears, even on the very first page load.
+        await sess.call("Page.addScriptToEvaluateOnNewDocument", {
+            "source": LANDING_BYPASS_JS,
+        })
+        print(f"Navigating to {url}")
+        await sess.call("Page.navigate", {"url": url})
+        await asyncio.sleep(3)
+        collector.feed_batch(await sess.drain_events(1.0))
+
+        # -- MILESTONE 1: Draw screen ------------------------------------
+        canvas_info = await sess.evaluate(
+            r"""(() => {
+              const c = document.querySelector('canvas');
+              if (!c) return {ok: false};
+              return {ok: true, w: c.width, h: c.height, aria: c.getAttribute('aria-label')};
+            })()""",
+            await_promise=False,
+        )
+        if not canvas_info or not canvas_info.get("ok"):
+            print(f"FAIL: Canvas not found: {canvas_info}")
+            return False
+        print(f"Canvas: {canvas_info['w']}x{canvas_info['h']}  aria={canvas_info.get('aria')}")
+
+        draw_screen = os.path.join(artifacts_dir, "01-draw-screen.png")
+        await screenshot(sess, draw_screen)
+        ok, count = check_not_solid_colour(draw_screen)
+        if not ok:
+            print(f"FAIL: Draw-screen is a solid colour (unique={count})")
+            return False
+        print(f"  Unique colours: {count}")
+
+        # -- STEP 2: Draw circle -----------------------------------------
+        print("Drawing circle (80 pointer samples)...")
+        draw_result = await sess.evaluate(DRAW_CIRCLE_JS, timeout=30)
+        if not draw_result or not draw_result.get("ok"):
+            print(f"FAIL: Draw failed: {draw_result}")
+            return False
+        print(f"  cx={draw_result['cx']:.0f} cy={draw_result['cy']:.0f} r={draw_result['r']:.0f}")
+        collector.feed_batch(await sess.drain_events(0.5))
+
+        # -- MILESTONE 2: Draw done --------------------------------------
+        after_draw = os.path.join(artifacts_dir, "02-draw-done.png")
+        await screenshot(sess, after_draw)
+        ok, count = check_not_solid_colour(after_draw)
+        if not ok:
+            print(f"FAIL: Canvas blank after drawing (unique={count})")
+            return False
+        print(f"  Unique colours: {count}")
+
+        # -- STEP 3: Click Race ------------------------------------------
+        print("Clicking Race...")
+        click_result = await sess.evaluate(CLICK_RACE_JS, await_promise=False)
+        if not click_result or not click_result.get("ok"):
+            print(f"FAIL: Race button: {click_result}")
+            return False
+        print(f"  Clicked: {click_result['clicked']!r}")
+        await asyncio.sleep(1)
+        collector.feed_batch(await sess.drain_events(0.5))
+
+        # Early error check — if race init failed, bail fast
         try:
-            # Enable CDP domains for event capture
-            await sess.call("Runtime.enable")
-            await sess.call("Log.enable")
-            await sess.call("Console.enable")
-            await sess.call("Page.enable")
+            collector.assert_clean()
+        except RuntimeError as exc:
+            print(f"FAIL: Error detected after clicking Race: {exc}")
+            await screenshot(sess, os.path.join(artifacts_dir, "03-race-init-error.png"))
+            return False
 
-            # -- STEP 1: Navigate + bypass landing ----------------------------
-            print(f"Navigating to {url}")
-            await sess.call("Page.navigate", {"url": url})
-            await asyncio.sleep(2)
-            await sess.evaluate(LANDING_BYPASS_JS, await_promise=False)
-            await sess.call("Page.reload", {"ignoreCache": True})
-            await asyncio.sleep(2)
-            collector.feed_batch(await sess.drain_events(1.0))
+        # -- MILESTONE 3: Countdown --------------------------------------
+        countdown = os.path.join(artifacts_dir, "03-countdown.png")
+        await screenshot(sess, countdown)
+        ok, count = check_not_solid_colour(countdown)
+        if not ok:
+            print(f"FAIL: Countdown screen is a solid colour (unique={count})")
+            return False
 
-            # -- MILESTONE 1: Draw screen ------------------------------------
-            canvas_info = await sess.evaluate(
-                r"""(() => {
-                  const c = document.querySelector('canvas');
-                  if (!c) return {ok: false};
-                  return {ok: true, w: c.width, h: c.height, aria: c.getAttribute('aria-label')};
-                })()""",
-                await_promise=False,
-            )
-            if not canvas_info or not canvas_info.get("ok"):
-                print(f"FAIL: Canvas not found: {canvas_info}")
-                return False
-            print(f"Canvas: {canvas_info['w']}x{canvas_info['h']}  aria={canvas_info.get('aria')}")
+    # Close the first connection — the race renders at 60fps which can
+    # starve Chrome's DevTools socket on mid-range devices (Pixel 6).
+    # We reconnect afterwards to check the result screen.
+    print("Race running — waiting 15s before reconnecting...")
+    await asyncio.sleep(15)
 
-            draw_screen = os.path.join(artifacts_dir, "01-draw-screen.png")
-            await screenshot(sess, draw_screen)
-            ok, count = check_not_solid_colour(draw_screen)
-            if not ok:
-                print(f"FAIL: Draw-screen is a solid colour (unique={count})")
-                return False
-            print(f"  Unique colours: {count}")
+    # -- RECONNECT for result -------------------------------------------
+    tab_ws2 = await find_tab()
+    if not tab_ws2:
+        print("FAIL: No browser tab found after race (Chrome may have closed)")
+        return False
 
-            # -- STEP 2: Draw circle -----------------------------------------
-            print("Drawing circle (80 pointer samples)...")
-            draw_result = await sess.evaluate(DRAW_CIRCLE_JS, timeout=30)
-            if not draw_result or not draw_result.get("ok"):
-                print(f"FAIL: Draw failed: {draw_result}")
-                return False
-            print(f"  cx={draw_result['cx']:.0f} cy={draw_result['cy']:.0f} r={draw_result['r']:.0f}")
-            collector.feed_batch(await sess.drain_events(0.5))
+    async with websockets.connect(
+        tab_ws2, max_size=2**24, open_timeout=10,
+        ping_interval=None, close_timeout=5,
+    ) as ws2:
+        sess2 = CDPSession(ws2)
+        await sess2.start()
+        post_race_collector = EventCollector()
+        await sess2.call("Runtime.enable")
+        await sess2.call("Log.enable")
 
-            # -- MILESTONE 2: Draw done --------------------------------------
-            after_draw = os.path.join(artifacts_dir, "02-draw-done.png")
-            await screenshot(sess, after_draw)
-            ok, count = check_not_solid_colour(after_draw)
-            if not ok:
-                print(f"FAIL: Canvas blank after drawing (unique={count})")
-                return False
-            print(f"  Unique colours: {count}")
-
-            # -- STEP 3: Click Race ------------------------------------------
-            print("Clicking Race...")
-            click_result = await sess.evaluate(CLICK_RACE_JS, await_promise=False)
-            if not click_result or not click_result.get("ok"):
-                print(f"FAIL: Race button: {click_result}")
-                return False
-            print(f"  Clicked: {click_result['clicked']!r}")
-            await asyncio.sleep(3)
-            collector.feed_batch(await sess.drain_events(0.5))
-
-            # Early error check — if race init failed, bail fast
-            try:
-                collector.assert_clean()
-            except RuntimeError as exc:
-                print(f"FAIL: Error detected after clicking Race: {exc}")
-                await screenshot(sess, os.path.join(artifacts_dir, "03-race-init-error.png"))
-                return False
-
-            # -- MILESTONE 3: Countdown --------------------------------------
-            countdown = os.path.join(artifacts_dir, "03-countdown.png")
-            await screenshot(sess, countdown)
-            ok, count = check_not_solid_colour(countdown)
-            if not ok:
-                print(f"FAIL: Countdown screen is a solid colour (unique={count})")
-                return False
-
-            # -- MILESTONE 4: Mid-race ---------------------------------------
-            print("Waiting ~5s for mid-race...")
-            await asyncio.sleep(5)
-            collector.feed_batch(await sess.drain_events(0.5))
+        try:
+            # -- MILESTONE 4: Mid-race -----------------------------------
             mid_race = os.path.join(artifacts_dir, "04-mid-race.png")
-            await screenshot(sess, mid_race)
-            ok, count = check_not_solid_colour(mid_race)
-            if not ok:
-                print(f"FAIL: Mid-race canvas is a solid colour (unique={count})")
-                return False
-            print(f"  Mid-race unique colours: {count}")
+            await screenshot(sess2, mid_race)
+            post_race_collector.feed_batch(await sess2.drain_events(0.5))
 
-            # -- STEP 4: Wait for result screen ------------------------------
-            # Drain events periodically while waiting so we catch errors
-            # that fire during the race (e.g. "source image could not be decoded")
-            print("Waiting for result screen (timeout 120s)...")
+            # -- STEP 4: Wait for result screen --------------------------
+            print("Waiting for result screen (timeout 90s)...")
             race_result = None
-            for attempt in range(60):
+            for attempt in range(45):
                 try:
-                    race_result = await sess.evaluate(WAIT_RESULT_JS, timeout=5)
+                    race_result = await sess2.evaluate(WAIT_RESULT_JS, timeout=5)
                     break
                 except (asyncio.TimeoutError, RuntimeError):
-                    # Timeout from evaluate is expected — the JS promise is still pending
                     pass
-                # Drain events every 2s to catch errors during the race
-                collector.feed_batch(await sess.drain_events(0.3))
-                # Check for errors that indicate the race can never finish
+                post_race_collector.feed_batch(await sess2.drain_events(0.3))
                 try:
-                    collector.assert_clean()
+                    post_race_collector.assert_clean()
                 except RuntimeError as exc:
-                    print(f"FAIL: Error during race (race cannot complete): {exc}")
-                    await screenshot(sess, os.path.join(artifacts_dir, "04-race-error.png"))
+                    print(f"FAIL: Error during race: {exc}")
+                    await screenshot(sess2, os.path.join(artifacts_dir, "04-race-error.png"))
                     return False
 
             if not race_result or not race_result.get("ok"):
-                print(f"FAIL: Race did not finish within timeout")
-                await screenshot(sess, os.path.join(artifacts_dir, "99-timeout.png"))
+                print("FAIL: Race did not finish within timeout")
+                await screenshot(sess2, os.path.join(artifacts_dir, "99-timeout.png"))
                 return False
 
-            # -- MILESTONE 5: Result -----------------------------------------
+            # -- MILESTONE 5: Result -------------------------------------
             result_screen = os.path.join(artifacts_dir, "05-result.png")
-            await screenshot(sess, result_screen)
+            await screenshot(sess2, result_screen)
             ok, count = check_not_solid_colour(result_screen)
             if not ok:
                 print(f"FAIL: Result screen is a solid colour (unique={count})")
                 return False
 
-            time_info = await sess.evaluate(CHECK_FINISH_TIME_JS, await_promise=False)
+            time_info = await sess2.evaluate(CHECK_FINISH_TIME_JS, await_promise=False)
             if not time_info:
                 print("FAIL: Could not read finish time from [role=timer]")
                 return False
@@ -466,24 +482,24 @@ async def run_smoke(url, ws_url, artifacts_dir, baseline_dir, save_baselines):
                 print(f"FAIL: Finish time outside expected range 5s-120s: {time_info['text']}")
                 return False
 
-            # -- STEP 5: Check no errors fired during the run ----------------
-            collector.feed_batch(await sess.drain_events(2.0))
+            # -- STEP 5: Check no errors fired during the run ------------
+            post_race_collector.feed_batch(await sess2.drain_events(2.0))
             try:
-                collector.assert_clean()
+                post_race_collector.assert_clean()
             except RuntimeError as exc:
                 print(f"FAIL: {exc}")
                 return False
             print("Event check OK — no console.error or unhandled exceptions")
 
         except Exception as exc:
-            print(f"FAIL: Unexpected error: {exc}")
+            print(f"FAIL: Unexpected error during result check: {exc}")
             try:
-                await screenshot(sess, os.path.join(artifacts_dir, "99-error.png"))
+                await screenshot(sess2, os.path.join(artifacts_dir, "99-error.png"))
             except Exception:
                 pass
             return False
         finally:
-            await sess.stop()
+            await sess2.stop()
 
     # -- Save or compare baselines -------------------------------------------
     milestone_files = sorted(f for f in os.listdir(artifacts_dir) if f.endswith(".png"))

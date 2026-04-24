@@ -115,13 +115,17 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
     (e: React.PointerEvent<HTMLCanvasElement>) => {
       if (e.pointerId !== activePointerRef.current) return;
       const pts = rawPointsRef.current;
+      const canvas = canvasRef.current;
+      const rect = canvas?.getBoundingClientRect();
       const events = e.nativeEvent instanceof PointerEvent
         ? (e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent])
         : [e.nativeEvent];
 
       for (const ce of events) {
-        const x = ce.offsetX;
-        const y = ce.offsetY;
+        // Coalesced events on Android Chrome may not have offsetX/offsetY set.
+        // Fall back to computing from clientX/clientY.
+        const x = ce.offsetX != null ? ce.offsetX : (rect ? ce.clientX - rect.left : 0);
+        const y = ce.offsetY != null ? ce.offsetY : (rect ? ce.clientY - rect.top : 0);
         if (pts.length > 0) {
           const prev = pts[pts.length - 1];
           const d = Math.hypot(x - prev.x, y - prev.y);

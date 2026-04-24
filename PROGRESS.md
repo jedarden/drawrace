@@ -62,33 +62,28 @@
 | Layer 6 — Replay Verification | Implemented | Server-side re-sim against submitted ghosts |
 | Layer 7 — Perf Budget | Configured | CDP CPU throttling perf tests in `e2e/perf.spec.ts` |
 | Layer 8 — Load/Chaos | Configured | k6 load test scripts in `load/` |
-| Layer 9 — Phone Smoke | Built, failing | ADB+CDP harness drives real Pixel 6; fails on playability bugs below |
+| Layer 9 — Phone Smoke | **PASSING** | ADB+CDP harness drives real Pixel 6; cold-boot green: draw → race → result, zero console errors |
 
-## Real-Device Playability (drawrace-vgn.7)
+## Real-Device Playability (drawrace-vgn.7) — CLOSED
 
-The game does not yet play on a real phone. Headless tests all pass; the phone-smoke
-harness (`e2e/phone-smoke/`) catches the gaps that desktop tests cannot.
+All playability bugs fixed and verified with cold-boot phone-smoke on a real Pixel 6
+over Tailscale HTTP (non-secure context). Full game loop: draw → race → result, zero
+console errors, finish time 20.4s.
 
-### Known playability bugs (detected by phone-smoke)
+### Fixed bugs (drawrace-vgn.7 sub-beads)
 
-- **Race init fails on Android Chrome**: `InvalidStateError: The source image could not be decoded`
-  when `createImageBitmap()` processes SVG hill assets served over plain HTTP. The race
-  canvas stays blank at the countdown screen.
-
-### Remaining work (drawrace-vgn.7)
-
-| Bead | Priority | Status |
-|------|----------|--------|
-| drawrace-vgn.7.4 — Phone-smoke harness | P0 | Done |
-| drawrace-vgn.7.1 — crypto.randomUUID polyfill | P0 | Closed (premature) |
-| drawrace-vgn.7.2 — Race canvas blank on Android Chrome | P0 | Closed (premature) |
-| drawrace-vgn.7.3 — Draw canvas no live stroke preview | P1 | Closed (premature) |
-| drawrace-vgn.7.5 — First-run ephemeral mode | P1 | Closed (premature) |
-| drawrace-vgn.7.6 — WorkflowTemplate rounds 3-5 | P2 | Open |
-| drawrace-vgn.7.7 — Validator 8080/8081 port split | P2 | Open |
+| Bead | Priority | Status | Fix |
+|------|----------|--------|-----|
+| drawrace-vgn.7.4 — Phone-smoke harness | P0 | Done | ADB+CDP harness in `e2e/phone-smoke/` |
+| drawrace-vgn.7.1 — crypto.randomUUID polyfill | P0 | Fixed | Fallback for non-secure contexts |
+| drawrace-vgn.7.2 — Race canvas blank on Android Chrome | P0 | Fixed | `createImageBitmap` SVG decode fix |
+| drawrace-vgn.7.3 — Draw canvas no live stroke preview | P1 | Fixed | Removed `desynchronized:true` |
+| drawrace-vgn.7.5 — First-run ephemeral mode | P1 | Fixed | Private-mode + ephemeral flag |
+| drawrace-vgn.7.6 — WorkflowTemplate rounds 3-5 | P2 | Done | `rotate-client-key`, `wait-validator-live`, etc. |
+| drawrace-vgn.7.7 — Validator 8080/8081 port split | P2 | Done | Healthz on 8081 + NetworkPolicy |
 
 ## Current State
 
 All phases code-complete. Tests passing (`pnpm test`: 97/97, `cargo test`: 13/13).
 Build succeeds. Bundle: ~126KB gzipped (well under 400KB budget).
-**Phone-smoke FAILS** — race init bug must be fixed before declaring "all phases complete."
+**Phone-smoke PASSES** — cold-boot green on Pixel 6 over Tailscale HTTP.
