@@ -7,6 +7,7 @@ import { getPerformanceManager } from "./PerformanceManager.js";
 import { getHaptics } from "./Haptics.js";
 import { getSoundManager } from "./Sound.js";
 import { DrawOverlay } from "./DrawOverlay.js";
+import { PauseMenu } from "./PauseMenu.js";
 import { MAX_SWAPS } from "./cooldown-machine.js";
 
 interface GhostDef {
@@ -22,6 +23,8 @@ interface RaceScreenProps {
   wheelDraw: DrawResult;
   ghosts: GhostDef[];
   onFinished: (elapsedMs: number) => void;
+  onRestart: () => void;
+  onQuit: () => void;
 }
 
 type RacePhase = "countdown" | "racing" | "done";
@@ -38,7 +41,7 @@ function formatTime(ms: number): string {
   return `${min}:${String(sec).padStart(2, "0")}.${String(centis).padStart(2, "0")}`;
 }
 
-export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenProps) {
+export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, onQuit }: RaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const phaseRef = useRef<RacePhase>("countdown");
   const countdownRef = useRef(3);
@@ -419,56 +422,13 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
         onSwapCommit={handleSwapCommit}
       />
 
-      {/* ── Pause dialog ── */}
+      {/* ── Pause menu ── */}
       {paused && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Game paused"
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(244,234,213,0.92)",
-            zIndex: 20,
-            fontFamily: '"Caveat", "Patrick Hand", cursive, system-ui',
-          }}
-        >
-          <div
-            style={{
-              background: "#FBF4E3",
-              border: "2px solid #2B2118",
-              borderRadius: 12,
-              padding: "32px 40px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 20,
-              minWidth: 200,
-            }}
-          >
-            <span style={{ fontSize: 28, color: "#2B2118", fontWeight: 600 }}>Paused</span>
-            <button
-              onClick={handleResume}
-              autoFocus
-              style={{
-                padding: "14px 32px",
-                fontSize: 20,
-                fontWeight: 600,
-                fontFamily: "inherit",
-                backgroundColor: "#D94F3A",
-                color: "#2B2118",
-                border: "2px solid #2B2118",
-                borderRadius: 8,
-                cursor: "pointer",
-              }}
-            >
-              Resume
-            </button>
-          </div>
-        </div>
+        <PauseMenu
+          onResume={handleResume}
+          onRestart={onRestart}
+          onQuit={onQuit}
+        />
       )}
 
       {/* Accessible aria-live region for screen readers */}

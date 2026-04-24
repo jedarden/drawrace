@@ -522,6 +522,51 @@ export function createRenderer(
     ctx.strokeRect(sx - 5, topSy - 1, 10, lineLen + 2);
   }
 
+  function drawZoneBoundaries(playerWorldX: number) {
+    for (const bx of zoneBoundaries) {
+      const distToPlayer = Math.abs(bx - playerWorldX);
+      const FADE_DISTANCE = 6;
+      if (distToPlayer > FADE_DISTANCE) continue;
+
+      const alpha = 0.45 * (1 - distToPlayer / FADE_DISTANCE);
+      if (alpha < 0.02) continue;
+
+      let boundaryY = track.terrain[0][1];
+      for (let i = 0; i < track.terrain.length - 1; i++) {
+        const ax = track.terrain[i][0];
+        const bxx = track.terrain[i + 1][0];
+        if (ax <= bx && bx <= bxx) {
+          const t = (bx - ax) / (bxx - ax);
+          boundaryY = track.terrain[i][1] + t * (track.terrain[i + 1][1] - track.terrain[i][1]);
+          break;
+        }
+      }
+
+      const topSy = worldToScreen(bx, boundaryY + 3).sy;
+      const botSy = worldToScreen(bx, boundaryY).sy;
+      const { sx } = worldToScreen(bx, boundaryY);
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = "#2B2118";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(sx, topSy);
+      ctx.lineTo(sx, botSy);
+      ctx.stroke();
+
+      ctx.font = '12px "Caveat", system-ui, sans-serif';
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      const zoneLabel = track.zones!.find((z) => z.x_start === bx);
+      if (zoneLabel) {
+        ctx.fillText(`Zone ${zoneLabel.id}`, sx, topSy - 2);
+      }
+      ctx.restore();
+    }
+  }
+
   function drawWheel(body: SimBody, path: Path2D, cosmeticPath: Path2D | null, fillStyle: string, alpha: number) {
     const { sx, sy } = worldToScreen(body.x, body.y);
     ctx.save();
@@ -652,7 +697,7 @@ export function createRenderer(
     ctx.restore();
   }
 
-  function drawHUD(elapsedMs: number) {
+  function drawHUD(elapsedMs: number, playerWorldX: number) {
     const totalSec = elapsedMs / 1000;
     const min = Math.floor(totalSec / 60);
     const sec = Math.floor(totalSec % 60);
@@ -668,8 +713,7 @@ export function createRenderer(
     ctx.textBaseline = "top";
     ctx.fillText(timeStr, 16, 16);
 
-    const playerWX = (camera.x + width * 0.35) / PPM;
-    const progress = Math.min(1, playerWX / track.finish.pos[0]);
+    const progress = Math.min(1, playerWorldX / track.finish.pos[0]);
     const barW = width - 32;
     const barH = 6;
     const barY = 44;
@@ -679,6 +723,18 @@ export function createRenderer(
 
     ctx.fillStyle = "#D94F3A";
     ctx.fillRect(16, barY, barW * progress, barH);
+
+    // Active zone label
+    if (track.zones) {
+      const activeZone = track.zones.find(
+        (z) => playerWorldX >= z.x_start && playerWorldX < z.x_end
+      );
+      if (activeZone) {
+        ctx.font = '14px "Caveat", system-ui, sans-serif';
+        ctx.textAlign = "right";
+        ctx.fillText(`Zone ${activeZone.id}`, width - 16, 16);
+      }
+    }
 
     ctx.restore();
   }
@@ -745,6 +801,7 @@ export function createRenderer(
       drawNearHills();
       drawTerrain();
       drawFinishLine();
+      drawZoneBoundaries(snapshot.wheel.x);
 
       // Dust particles behind player (layer 5, behind wheel)
       particles.renderDust(ctx);
@@ -791,7 +848,7 @@ export function createRenderer(
       particles.renderConfetti(ctx);
 
       // HUD (layer 7)
-      drawHUD(snapshot.elapsedMs);
+      drawHUD(snapshot.elapsedMs, snapshot.wheel.x);
 
       // Countdown overlay
       if (countdown !== undefined && countdown >= 0) {

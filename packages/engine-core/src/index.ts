@@ -32,3 +32,13 @@ export {
   SNAPSHOT_TICKS,
 } from "./replay-driver.js";
 export type { ReplayFrame, ReplayRecording } from "./replay-driver.js";
+export {
+  SURFACE_PRESETS,
+  SURFACE_TYPES,
+  parseSurfaces,
+  lookupSurface,
+  applyDrag,
+  createSurfaceContactFilter,
+  isValidSurfaceType,
+} from "./surface.js";
+export type { SurfaceType, SurfacePreset, SurfaceSegment } from "./surface.js";

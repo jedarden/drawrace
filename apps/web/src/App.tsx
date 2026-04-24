@@ -154,6 +154,8 @@ export function App() {
           wheelDraw={drawResult}
           ghosts={ghosts}
           onFinished={handleRaceFinished}
+          onRestart={handleRetry}
+          onQuit={handleRetry}
         />
       )}
       {screen === "result" && drawResult && (

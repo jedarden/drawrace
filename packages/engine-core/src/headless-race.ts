@@ -2,6 +2,8 @@ import { World, Vec2, Edge, Polygon, Circle, Box, WheelJoint, RevoluteJoint } fr
 import { PHYSICS_VERSION } from "./version.js";
 import { sfc32, hashSeed } from "./prng.js";
 import { InjectedClock } from "./clock.js";
+import { parseSurfaces, applyDrag, createSurfaceContactFilter } from "./surface.js";
+import { buildWheelBody } from "./swap.js";
 
 export interface TrackDef {
   id: string;
@@ -16,6 +18,9 @@ export interface TrackDef {
     friction?: number;
   }>;
   zones?: Array<{ id: string; x_start: number; x_end: number }>;
+  ramps?: Array<{ zone: string; x_start: number; x_end: number }>;
+  hazards?: Array<{ zone: string; type: string; x_start: number; x_end: number }>;
+  surfaces?: unknown;
   start: { pos: [number, number]; facing: number };
   finish: { pos: [number, number]; width: number };
 }
@@ -43,15 +48,15 @@ const DT = 1 / 60;
 const VELOCITY_ITERATIONS = 8;
 const POSITION_ITERATIONS = 3;
 const MAX_TICKS = 60 * 180; // 3 minute DNF
+const CHASSIS_DENSITY = 2.0;
 const WHEEL_DENSITY = 1.0;
 const WHEEL_FRICTION = 0.8;
 const WHEEL_RESTITUTION = 0.3;
-const CHASSIS_DENSITY = 2.0;
+const REAR_WHEEL_RADIUS = 0.35;
 const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 const SUSPENSION_FREQ_HZ = 4.0;
 const SUSPENSION_DAMPING_RATIO = 0.7;
-const REAR_WHEEL_RADIUS = 0.35;
 
 export function createHeadlessRace(
   input: HeadlessRaceInput
@@ -76,6 +81,14 @@ export function createHeadlessRace(
     );
   }
 
+  // Parse surfaces; register contact filter only when explicitly defined
+  const terrainMinX = terrain[0][0];
+  const terrainMaxX = terrain[terrain.length - 1][0];
+  const surfaces = parseSurfaces(track.surfaces, terrainMinX, terrainMaxX);
+  if (track.surfaces && Array.isArray(track.surfaces) && track.surfaces.length > 0) {
+    world.on("pre-solve", createSurfaceContactFilter(ground, surfaces));
+  }
+
   // Add obstacles
   if (track.obstacles) {
     for (const obs of track.obstacles) {
@@ -90,15 +103,15 @@ export function createHeadlessRace(
           { friction: obs.friction ?? 0.8, restitution: 0.0 }
         );
       } else if (obs.type === "circle" && obs.radius) {
-        obsBody.createFixture(Circle(obs.radius), {
-          friction: obs.friction ?? 0.6,
-          restitution: 0.0,
-        });
+        obsBody.createFixture(
+          Circle(obs.radius),
+          { friction: obs.friction ?? 0.6, restitution: 0.0 }
+        );
       }
     }
   }
 
-  // Strip trailing duplicate vertex to prevent degenerate triangle in fan decomposition
+  // Strip trailing duplicate vertex
   const rawVerts = wheel.vertices;
   const wv = rawVerts.length > 1 &&
     Math.hypot(rawVerts[0][0] - rawVerts[rawVerts.length - 1][0],
@@ -124,41 +137,11 @@ export function createHeadlessRace(
   // Place wheel center just below terrain surface; gravity pushes it up to rest on surface
   const wheelSpawnY = terrainY - wheelRadius;
 
-  // Create front wheel body from polygon vertices
-  const wheelVerts = wv.map((v) => Vec2(v[0], v[1]));
-  const wheelBody = world.createBody({
-    position: Vec2(startX, wheelSpawnY),
-    type: "dynamic",
-  });
+  // Front wheel (drawn polygon — AWD)
+  const wheelBody = buildWheelBody(world, wv, startX, wheelSpawnY);
 
-  if (wheelVerts.length <= 8) {
-    wheelBody.createFixture(Polygon(wheelVerts), {
-      density: WHEEL_DENSITY,
-      friction: WHEEL_FRICTION,
-      restitution: WHEEL_RESTITUTION,
-    });
-  } else {
-    // Fan triangulate from centroid
-    const cx = wheelVerts.reduce((s, v) => s + v.x, 0) / wheelVerts.length;
-    const cy = wheelVerts.reduce((s, v) => s + v.y, 0) / wheelVerts.length;
-    const center = Vec2(cx, cy);
-    for (let i = 0; i < wheelVerts.length; i++) {
-      const next = (i + 1) % wheelVerts.length;
-      wheelBody.createFixture(
-        Polygon([center, wheelVerts[i], wheelVerts[next]]),
-        {
-          density: WHEEL_DENSITY,
-          friction: WHEEL_FRICTION,
-          restitution: WHEEL_RESTITUTION,
-        }
-      );
-    }
-  }
-
-  // Chassis positioned below wheel (lower Y = below in planck gravity convention)
+  // Chassis positioned below wheel
   const chassisSpawnY = wheelSpawnY - 1.5;
-
-  // Create chassis body
   const chassisBody = world.createBody({
     position: Vec2(startX, chassisSpawnY),
     type: "dynamic",
@@ -169,20 +152,10 @@ export function createHeadlessRace(
     restitution: 0.1,
   });
 
-  // Rear wheel (simple circle, same as RaceSim)
-  const rearSpawnX = startX - 0.9;
-  const rearSpawnY = wheelSpawnY;
-  const rearWheelBody = world.createBody({
-    position: Vec2(rearSpawnX, rearSpawnY),
-    type: "dynamic",
-  });
-  rearWheelBody.createFixture(Circle(REAR_WHEEL_RADIUS), {
-    density: 1.0,
-    friction: 0.8,
-    restitution: 0.3,
-  });
+  // Rear wheel (drawn polygon — AWD, same shape as front)
+  const rearWheelBody = buildWheelBody(world, wv, startX - 0.9, wheelSpawnY);
 
-  // Front wheel joint (suspension + motor) — anchor at Vec2(0.5, 0.5) matching RaceSim
+  // Front wheel joint (suspension + motor)
   world.createJoint(
     WheelJoint({
       bodyA: chassisBody,
@@ -198,14 +171,19 @@ export function createHeadlessRace(
     })
   );
 
-  // Rear wheel joint (revolute, no suspension) — matching RaceSim
+  // Rear wheel joint (suspension + motor — AWD)
   world.createJoint(
-    RevoluteJoint({
+    WheelJoint({
       bodyA: chassisBody,
       bodyB: rearWheelBody,
       localAnchorA: Vec2(-0.9, 0.5),
       localAnchorB: Vec2(0, 0),
-      enableMotor: false,
+      localAxisA: Vec2(0, 1),
+      frequencyHz: SUSPENSION_FREQ_HZ,
+      dampingRatio: SUSPENSION_DAMPING_RATIO,
+      enableMotor: true,
+      motorSpeed: MOTOR_SPEED,
+      maxMotorTorque: MOTOR_MAX_TORQUE,
     })
   );
 
@@ -215,6 +193,7 @@ export function createHeadlessRace(
   const hashAccum: number[] = [];
 
   for (ticks = 0; ticks < MAX_TICKS; ticks++) {
+    applyDrag(chassisBody, surfaces);
     world.step(DT, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
     clock.advance(DT * 1000);
 

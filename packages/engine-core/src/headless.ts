@@ -1,9 +1,10 @@
-import { World, Vec2, Edge, Circle, Box, WheelJoint, RevoluteJoint, type Joint } from "planck";
+import { World, Vec2, Edge, Circle, Box, WheelJoint, type Joint } from "planck";
 import { PHYSICS_VERSION } from "./version.js";
 import { sfc32 } from "./prng.js";
 import { InjectedClock } from "./clock.js";
 import { type TrackDef, type HeadlessRaceResult } from "./headless-race.js";
-import { buildWheelBody, executeWheelSwap, type WheelSwap } from "./swap.js";
+import { buildWheelBody, executeTwinWheelSwap, type WheelSwap } from "./swap.js";
+import { parseSurfaces, applyDrag, createSurfaceContactFilter } from "./surface.js";
 
 export type { WheelSwap };
 
@@ -19,7 +20,6 @@ const VELOCITY_ITERATIONS = 8;
 const POSITION_ITERATIONS = 3;
 const MAX_TICKS = 60 * 180; // 3-minute DNF ceiling
 const CHASSIS_DENSITY = 2.0;
-const REAR_WHEEL_RADIUS = 0.35;
 const SUSPENSION_FREQ_HZ = 4.0;
 const SUSPENSION_DAMPING_RATIO = 0.7;
 const MOTOR_SPEED = 8;
@@ -49,6 +49,15 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
       Edge(Vec2(terrain[i][0], terrain[i][1]), Vec2(terrain[i + 1][0], terrain[i + 1][1])),
       { friction: 0.9, restitution: 0.0 },
     );
+  }
+
+  // --- surface contact filter + drag ---
+  // Only register contact filter when surfaces are explicitly defined
+  const terrainMinX = terrain[0][0];
+  const terrainMaxX = terrain[terrain.length - 1][0];
+  const surfaces = parseSurfaces(track.surfaces, terrainMinX, terrainMaxX);
+  if (track.surfaces && Array.isArray(track.surfaces) && track.surfaces.length > 0) {
+    world.on("pre-solve", createSurfaceContactFilter(ground, surfaces));
   }
 
   // --- obstacles ---
@@ -109,18 +118,9 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
     restitution: 0.1,
   });
 
-  const rearWheelBody = world.createBody({
-    position: Vec2(startX - 0.9, wheelSpawnY),
-    type: "dynamic",
-  });
-  rearWheelBody.createFixture(Circle(REAR_WHEEL_RADIUS), {
-    density: 1.0,
-    friction: 0.8,
-    restitution: 0.3,
-  });
+  let rearWheelBody = buildWheelBody(world, initialPoly, startX - 0.9, wheelSpawnY);
 
   // --- joints ---
-  // Typed as Joint (not WheelJoint) so executeWheelSwap can rebind it later
   let wheelJoint: Joint = world.createJoint(
     WheelJoint({
       bodyA: chassisBody,
@@ -136,15 +136,20 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
     }),
   )!;
 
-  world.createJoint(
-    RevoluteJoint({
+  let rearWheelJoint: Joint = world.createJoint(
+    WheelJoint({
       bodyA: chassisBody,
       bodyB: rearWheelBody,
       localAnchorA: Vec2(-0.9, 0.5),
       localAnchorB: Vec2(0, 0),
-      enableMotor: false,
+      localAxisA: Vec2(0, 1),
+      frequencyHz: SUSPENSION_FREQ_HZ,
+      dampingRatio: SUSPENSION_DAMPING_RATIO,
+      enableMotor: true,
+      motorSpeed: MOTOR_SPEED,
+      maxMotorTorque: MOTOR_MAX_TORQUE,
     }),
-  );
+  )!;
 
   const swapLog: WheelSwap[] = [{ swap_tick: 0, polygon: initialPoly }];
   const finishX = track.finish.pos[0];
@@ -152,6 +157,7 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
   const hashAccum: number[] = [];
 
   for (ticks = 0; ticks < MAX_TICKS; ticks++) {
+    applyDrag(chassisBody, surfaces);
     world.step(DT, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
     clock.advance(DT * 1000);
 
@@ -160,17 +166,21 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
     // Apply any swap scheduled exactly at this tick
     while (swapIdx < pendingSwaps.length && pendingSwaps[swapIdx].swap_tick === currentTick) {
       const swap = pendingSwaps[swapIdx];
-      const res = executeWheelSwap(
+      const res = executeTwinWheelSwap(
         world,
         chassisBody,
         wheelBody,
         wheelJoint,
+        rearWheelBody,
+        rearWheelJoint,
         swap.polygon,
         swap.swap_tick,
         swapLog,
       );
-      wheelBody = res.newWheelBody;
-      wheelJoint = res.newWheelJoint;
+      wheelBody = res.newFrontBody;
+      wheelJoint = res.newFrontJoint;
+      rearWheelBody = res.newRearBody;
+      rearWheelJoint = res.newRearJoint;
       swapIdx++;
     }
 
