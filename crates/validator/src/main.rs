@@ -1,3 +1,5 @@
+mod resim;
+
 use anyhow::Context;
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::config::Region;
@@ -192,6 +194,19 @@ async fn validate_ghost(
         });
     }
 
+    // Finish time must be nonzero (checked before deriving finish_ticks).
+    if header.finish_time_ms == 0 {
+        return Ok(Verdict {
+            status: "rejected".to_string(),
+            ghost_id: None,
+            time_ms: None,
+            reject_reason: Some("finish_time_ms is zero".to_string()),
+        });
+    }
+
+    // Derive the client's claimed finish tick (1/60 s per tick).
+    let client_finish_ticks = (header.finish_time_ms as u64 * 60 / 1000) as u32;
+
     // Parse full blob for structural validation
     let ghost = GhostBlob::parse(blob).context("Failed to parse ghost blob")?;
 
@@ -227,6 +242,21 @@ async fn validate_ghost(
         }
     }
 
+    // Final swap_tick must not exceed the finish tick.
+    if let Some(last_wheel) = ghost.wheels.last() {
+        if last_wheel.swap_tick > client_finish_ticks {
+            return Ok(Verdict {
+                status: "rejected".to_string(),
+                ghost_id: None,
+                time_ms: None,
+                reject_reason: Some(format!(
+                    "final swap_tick {} exceeds finishTicks {}",
+                    last_wheel.swap_tick, client_finish_ticks
+                )),
+            });
+        }
+    }
+
     // Checkpoint splits must be monotonically increasing
     for window in ghost.checkpoint_splits.windows(2) {
         if window[0] >= window[1] {
@@ -239,19 +269,34 @@ async fn validate_ghost(
         }
     }
 
-    // Finish time must be nonzero
-    if header.finish_time_ms == 0 {
-        return Ok(Verdict {
-            status: "rejected".to_string(),
-            ghost_id: None,
-            time_ms: None,
-            reject_reason: Some("finish_time_ms is zero".to_string()),
-        });
+    // Layer 3: run re-simulation — apply wheel swaps at their recorded ticks
+    // and verify the finish tick is within tolerance of the client's claim.
+    let resim_result = resim::run_resim_stub(&ghost.wheels, client_finish_ticks);
+    match resim_result.finish_ticks {
+        None => {
+            return Ok(Verdict {
+                status: "rejected".to_string(),
+                ghost_id: None,
+                time_ms: None,
+                reject_reason: Some("resim did not finish within timeout".to_string()),
+            });
+        }
+        Some(server_finish_ticks) => {
+            if !resim::finish_within_tolerance(server_finish_ticks, client_finish_ticks) {
+                return Ok(Verdict {
+                    status: "rejected".to_string(),
+                    ghost_id: None,
+                    time_ms: None,
+                    reject_reason: Some(format!(
+                        "resim finish tick {} differs from client {} by more than {} ticks",
+                        server_finish_ticks,
+                        client_finish_ticks,
+                        resim::FINISH_TICK_TOLERANCE
+                    )),
+                });
+            }
+        }
     }
-
-    // Physics re-simulation (Layer 3) deferred until engine-core WASM is compiled.
-    // Structural validation (Layer 2) covers blob format, vertex bounds, and
-    // checkpoint monotonicity — sufficient to reject garbage submissions.
 
     let time_ms = header.finish_time_ms as i32;
 
@@ -550,5 +595,75 @@ mod tests {
         let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000]);
         let result = validate_ghost(&blob, 1, "2").await;
         assert!(result.is_err(), "blob with 22 wheels should fail parse");
+    }
+
+    // ── New Layer 2: final swap_tick <= finishTicks ───────────────────────────
+
+    #[tokio::test]
+    async fn swap_tick_exceeds_finish_ticks_rejected() {
+        // finish_time_ms = 1000 → finishTicks = 60 (floor(1000*60/1000))
+        // final swap_tick = 90 > 60 → must reject
+        let blob = make_blob(1, 1000, &[12, 12], &[0, 90], &[]);
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        assert_eq!(verdict.status, "rejected");
+        assert!(
+            verdict.reject_reason.as_deref().unwrap().contains("swap_tick"),
+            "reason: {:?}",
+            verdict.reject_reason
+        );
+    }
+
+    #[tokio::test]
+    async fn swap_tick_equals_finish_ticks_accepted() {
+        // finish_time_ms = 1500 → finishTicks = 90 (floor(1500*60/1000))
+        // final swap_tick = 90 == 90 → boundary: must accept
+        let blob = make_blob(1, 1500, &[12, 12], &[0, 90], &[]);
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        assert_eq!(verdict.status, "accepted");
+    }
+
+    // ── New Layer 3: resim scheduler integration ──────────────────────────────
+
+    /// Regression: single-wheel run passes through the resim scheduler.
+    #[tokio::test]
+    async fn single_wheel_resim_accepted() {
+        let blob = make_valid_blob();
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        assert_eq!(verdict.status, "accepted");
+        assert!(verdict.ghost_id.is_some());
+    }
+
+    /// Five mid-race swaps are scheduled and applied by the resim stub.
+    #[tokio::test]
+    async fn five_swap_resim_accepted() {
+        // Irregular spacing to exercise non-uniform scheduler paths.
+        let blob = make_blob(
+            1,
+            28441,
+            &[12, 10, 14, 8, 12, 16],
+            &[0, 30, 90, 200, 350, 500],
+            &[5000, 15000, 25000],
+        );
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        assert_eq!(verdict.status, "accepted");
+    }
+
+    /// 20 swaps (the cap, 21 wheels total) — resim handles all without timeout.
+    #[tokio::test]
+    async fn twenty_swap_resim_accepted() {
+        let vertex_counts: Vec<u8> = (0..21).map(|_| 12u8).collect();
+        let swap_ticks: Vec<u32> = (0..21).map(|i| i * 60).collect();
+        let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000]);
+        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        assert_eq!(verdict.status, "accepted");
+    }
+
+    /// Non-increasing swap_ticks are caught at parse time (out-of-order reject).
+    #[tokio::test]
+    async fn out_of_order_swap_ticks_rejected() {
+        // swap_ticks [0, 60, 30] — third entry decreases → parse error
+        let blob = make_blob(1, 28441, &[12, 12, 12], &[0, 60, 30], &[5000]);
+        let result = validate_ghost(&blob, 1, "2").await;
+        assert!(result.is_err(), "non-increasing swap_ticks must fail parse");
     }
 }
