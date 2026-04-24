@@ -86,6 +86,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
       countdownRef.current = 3;
       let lastCountdownVal = 3;
 
+      const MAX_ACCUM_MS = 200;
       let lastTime = performance.now();
       let accumTime = 0;
       let maxObservedSpeed = 1;
@@ -133,6 +134,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished }: RaceScreenP
 
         if (phaseRef.current === "racing") {
           accumTime += dt;
+          if (accumTime > MAX_ACCUM_MS) accumTime = MAX_ACCUM_MS;
           const simDt = perf.simDt * 1000;
 
           while (accumTime >= simDt) {
