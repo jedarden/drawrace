@@ -924,7 +924,7 @@ This creates the Pages project. Subsequent deploys are fully automated via the `
 
 **Argo Events sensor** — add `k8s/iad-ci/argo-events/drawrace-sensor.yml` to `jedarden/declarative-config`, modelled after the existing `website-build-sensor.yml`, pointing at the `jedarden/drawrace` GitHub webhook. On `push` to any branch, the sensor submits a `drawrace-build` Workflow with the parameters above. On `main` it deploys to production; on PR branches wrangler automatically creates a preview URL under `*.drawrace.pages.dev`.
 
-**Backend CI build** — new WorkflowTemplate in `jedarden/declarative-config` at `k8s/iad-ci/argo-workflows/drawrace-build.yaml`, patterned after the existing `container-build` / `kalshi-weather-build`, handles only the Rust image builds and manifest bumps (not Pages):
+**Build CI pipeline** — `drawrace-build` WorkflowTemplate in `jedarden/declarative-config` at `k8s/iad-ci/argo-workflows/drawrace-build.yaml`, handling the full CI pipeline: Rust lint/test, JS lint/test/size-limit, Docker builds (Kaniko), manifest promotion, client-key rotation, validator live-check, Pages deploy, and downstream CI trigger:
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -932,6 +932,8 @@ kind: WorkflowTemplate
 metadata:
   name: drawrace-build
   namespace: argo-workflows
+  labels:
+    app: drawrace-build
 spec:
   entrypoint: build
   serviceAccountName: argo-workflow
@@ -1071,15 +1073,6 @@ spec:
 
           - name: pages-publish
             template: wrangler-pages
-            # Depends on both rotate-client-key (so the bundle embeds the
-            # just-rotated `current`) AND wait-validator-live (so the
-            # validator is live with the matching physics_version before the
-            # client ships). On PR branches and republish_only runs, those
-            # deps are SKIPPED rather than FAILED — DAG semantics treat a
-            # skipped dep as satisfied, so pages-publish still runs for
-            # previews and rollbacks. On main non-republish runs, if
-            # wait-validator-live FAILS, pages-publish is auto-skipped and
-            # the prior production Pages build remains live.
             dependencies: [rotate-client-key, wait-validator-live]
             arguments:
               parameters:
@@ -1090,42 +1083,143 @@ spec:
 
           - name: trigger-ci
             template: submit-drawrace-ci
-            # Only on main-branch, non-republish runs. PR previews and rollbacks
-            # skip the post-publish CI kick-off; PR CI runs independently of the
-            # build workflow, and a rollback republish does not need a fresh
-            # phone-smoke pass (the bundle is byte-identical to a previously
-            # tested main-branch release).
-            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             dependencies: [pages-publish]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
                 - name: preview-url
                   value: "{{tasks.pages-publish.outputs.parameters.preview-url}}"
                 - name: ref
                   value: "{{workflow.parameters.branch}}"
-    # ── submit-drawrace-ci ───────────────────────────────────────────────────
-    # Submits a drawrace-ci Workflow via `argo submit --from workflowtemplate/…`
-    # so the child workflow inherits the template's full DAG. The preview-url
-    # is passed as a top-level workflow parameter.
-    - name: submit-drawrace-ci
-      inputs:
-        parameters:
-          - name: preview-url
-          - name: ref
-      serviceAccountName: argo-workflow-submitter
+
+    # ── git-checkout ─────────────────────────────────────────────────────────
+    - name: git-checkout
+      activeDeadlineSeconds: 300
       container:
-        image: ghcr.io/drawrace/ci-snap:2026-04-21
+        image: alpine/git:2.43.0
+        command: [sh, -c]
+        args:
+          - |
+            set -e
+            git clone --depth 1 --branch "{{workflow.parameters.branch}}" \
+              "https://x-access-token:${GH_TOKEN}@github.com/{{workflow.parameters.repo}}.git" \
+              /workspace
+        env:
+          - name: GH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: github-webhook-secret
+                key: token
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      volumeClaimTemplates:
+        - metadata:
+            name: workspace
+          spec:
+            accessModes: [ReadWriteOnce]
+            resources:
+              requests:
+                storage: 4Gi
+      outputs:
+        artifacts:
+          - name: workspace
+            path: /workspace
+
+    # ── rotate-client-key ────────────────────────────────────────────────────
+    # Atomically writes previous=<old_current>, current=<new_random_hex>,
+    # rotated_at=now() to the drawrace-client-key ConfigMap.  Runs only on
+    # main-branch, non-republish builds.  On first-run (previous == ""),
+    # still promotes current -> previous; the api verifier treats empty
+    # previous as "ignore".
+    - name: rotate-client-key
+      container:
+        image: bitnami/kubectl:1.29
         command: [bash, -lc]
         args:
           - |
             set -euo pipefail
-            argo submit \
-              --from workflowtemplate/drawrace-ci \
-              -n argo-workflows \
-              --parameter preview-url="{{inputs.parameters.preview-url}}" \
-              --parameter ref="{{inputs.parameters.ref}}" \
-              --parameter mode=release \
-              --wait=false
+            OLD=$(kubectl -n drawrace get configmap drawrace-client-key -o jsonpath='{.data.current}')
+            NEW=$(openssl rand -hex 16)
+            NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            kubectl -n drawrace apply -f - <<EOF
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: drawrace-client-key
+              namespace: drawrace
+            data:
+              current: "$NEW"
+              previous: "$OLD"
+              rotated_at: "$NOW"
+            EOF
+
+    # ── read-expected-physics-version ────────────────────────────────────────
+    # Extracts PHYSICS_VERSION from packages/engine-core/src/version.ts.
+    # The webhook dispatcher runs before checkout, so the workflow must
+    # extract the version itself.
+    - name: read-expected-physics-version
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            set -eu
+            V=$(grep -oE 'PHYSICS_VERSION *= *[0-9]+' /workspace/packages/engine-core/src/version.ts | grep -oE '[0-9]+$')
+            if [ -z "$V" ]; then
+              echo "failed to extract PHYSICS_VERSION from packages/engine-core/src/version.ts" >&2
+              exit 1
+            fi
+            echo -n "$V" > /tmp/physics_version
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      outputs:
+        parameters:
+          - name: physics_version
+            valueFrom: { path: /tmp/physics_version }
+
+    # ── wait-validator-live ──────────────────────────────────────────────────
+    # Polls the prod api's /v1/health until the validator reports the same
+    # physics_version the client bundle was built against.  On timeout the
+    # workflow fails and pages-publish never runs — the last-good client
+    # stays live in production.
+    - name: wait-validator-live
+      inputs:
+        parameters:
+          - name: expected-physics-version
+          - name: health-url
+            value: "https://api.drawrace.ardenone.com/v1/health"
+          - name: timeout-seconds
+            value: "1200"
+          - name: poll-interval-seconds
+            value: "10"
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            set -euo pipefail
+            want="{{inputs.parameters.expected-physics-version}}"
+            url="{{inputs.parameters.health-url}}"
+            deadline=$(( $(date +%s) + {{inputs.parameters.timeout-seconds}} ))
+            until [ "$(curl -sf "$url" | jq -r '.validator.physics_version // empty')" = "$want" ]; do
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "timeout: validator never reported physics_version=$want"
+                curl -sf "$url" | jq . || true
+                exit 1
+              fi
+              sleep {{inputs.parameters.poll-interval-seconds}}
+            done
+            echo "validator live at physics_version=$want"
+
     # ── wrangler-pages ───────────────────────────────────────────────────────
     - name: wrangler-pages
       inputs:
@@ -1168,92 +1262,179 @@ spec:
         parameters:
           - name: preview-url
             valueFrom: { path: /tmp/preview_url }
-    # ── read-expected-physics-version ────────────────────────────────────────
-    # Extracts PHYSICS_VERSION from packages/engine-core/src/version.ts.
-    # The webhook dispatcher runs before checkout, so the workflow must
-    # extract the version itself.
-    - name: read-expected-physics-version
-      container:
-        image: alpine:3.19
-        command: [sh, -c]
-        args:
-          - |
-            set -eu
-            V=$(grep -oE 'PHYSICS_VERSION *= *[0-9]+' /workspace/packages/engine-core/src/version.ts | grep -oE '[0-9]+$')
-            if [ -z "$V" ]; then
-              echo "failed to extract PHYSICS_VERSION from packages/engine-core/src/version.ts" >&2
-              exit 1
-            fi
-            echo -n "$V" > /tmp/physics_version
-        volumeMounts:
-          - name: workspace
-            mountPath: /workspace
-      outputs:
-        parameters:
-          - name: physics_version
-            valueFrom: { path: /tmp/physics_version }
-    # ── wait-validator-live ──────────────────────────────────────────────────
-    # Polls the prod api's /v1/health until the validator reports the same
-    # physics_version the client bundle was built against.  On timeout the
-    # workflow fails and pages-publish never runs — the last-good client
-    # stays live in production.
-    - name: wait-validator-live
+
+    # ── submit-drawrace-ci ───────────────────────────────────────────────────
+    # Submits a drawrace-ci Workflow via `argo submit --from workflowtemplate/…`
+    # so the child workflow inherits the template's full DAG. The preview-url
+    # is passed as a top-level workflow parameter.
+    - name: submit-drawrace-ci
       inputs:
         parameters:
-          - name: expected-physics-version
-          - name: health-url
-            value: "https://api.drawrace.ardenone.com/v1/health"
-          - name: timeout-seconds
-            value: "1200"
-          - name: poll-interval-seconds
-            value: "10"
+          - name: preview-url
+          - name: ref
+      serviceAccountName: argo-workflow-submitter
       container:
-        image: curlimages/curl:latest
-        command: [sh, -c]
-        args:
-          - |
-            set -euo pipefail
-            want="{{inputs.parameters.expected-physics-version}}"
-            url="{{inputs.parameters.health-url}}"
-            deadline=$(( $(date +%s) + {{inputs.parameters.timeout-seconds}} ))
-            until [ "$(curl -sf "$url" | jq -r '.validator.physics_version // empty')" = "$want" ]; do
-              if [ "$(date +%s)" -ge "$deadline" ]; then
-                echo "timeout: validator never reported physics_version=$want"
-                curl -sf "$url" | jq . || true
-                exit 1
-              fi
-              sleep {{inputs.parameters.poll-interval-seconds}}
-            done
-            echo "validator live at physics_version=$want"
-    # ── rotate-client-key ────────────────────────────────────────────────────
-    # Atomically writes previous=<old_current>, current=<new_random_hex>,
-    # rotated_at=now() to the drawrace-client-key ConfigMap.  Runs only on
-    # main-branch, non-republish builds.  On first-run (previous == ""),
-    # still promotes current -> previous; the api verifier treats empty
-    # previous as "ignore".
-    - name: rotate-client-key
-      container:
-        image: bitnami/kubectl:1.29
+        image: ghcr.io/drawrace/ci-snap:2026-04-21
         command: [bash, -lc]
         args:
           - |
             set -euo pipefail
-            OLD=$(kubectl -n drawrace get configmap drawrace-client-key -o jsonpath='{.data.current}')
-            NEW=$(openssl rand -hex 16)
-            NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-            kubectl -n drawrace apply -f - <<EOF
-            apiVersion: v1
-            kind: ConfigMap
-            metadata:
-              name: drawrace-client-key
-              namespace: drawrace
-            data:
-              current: "$NEW"
-              previous: "$OLD"
-              rotated_at: "$NOW"
-            EOF
-```
+            argo submit \
+              --from workflowtemplate/drawrace-ci \
+              -n argo-workflows \
+              --parameter preview-url="{{inputs.parameters.preview-url}}" \
+              --parameter ref="{{inputs.parameters.ref}}" \
+              --parameter mode=release \
+              --wait=false
 
+    # ── update-declarative-config ────────────────────────────────────────────
+    - name: update-declarative-config
+      inputs:
+        parameters:
+          - name: path
+      container:
+        image: alpine/git:2.43.0
+        command: [sh, -c]
+        args:
+          - |
+            set -ex
+            git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/jedarden/declarative-config" /tmp/dc
+            cd /tmp/dc
+            # Update image tags in the declarative-config path
+            echo "ronaldraygun/drawrace-api:latest" > {{inputs.parameters.path}}/images.txt
+            echo "ronaldraygun/drawrace-validator:latest" >> {{inputs.parameters.path}}/images.txt
+            git config user.name "DrawRace CI"
+            git config user.email "ci@drawrace.ardenone.com"
+            git add {{inputs.parameters.path}}/images.txt
+            git diff --cached --quiet || git commit -m "drawrace: update images"
+            git push
+        env:
+          - name: GH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: github-webhook-secret
+                key: token
+
+    # ── cargo-lint ───────────────────────────────────────────────────────────
+    - name: cargo-lint
+      inputs:
+        parameters:
+          - name: crate
+      activeDeadlineSeconds: 600
+      container:
+        image: rust:1.85-slim
+        command: [bash, -c]
+        args:
+          - |
+            set -e
+            apt-get update -qq && apt-get install -y -qq pkg-config libssl-dev >/dev/null 2>&1
+            cd /workspace/crates/{{inputs.parameters.crate}}
+            cargo fmt --all -- --check
+            cargo clippy --all-targets -- -D warnings
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+
+    # ── cargo-test ───────────────────────────────────────────────────────────
+    - name: cargo-test
+      inputs:
+        parameters:
+          - name: crate
+      activeDeadlineSeconds: 600
+      container:
+        image: rust:1.85-slim
+        command: [bash, -c]
+        args:
+          - |
+            set -e
+            apt-get update -qq && apt-get install -y -qq pkg-config libssl-dev >/dev/null 2>&1
+            cd /workspace
+            export CARGO_TARGET_DIR=/workspace/target-test
+            cargo test -p drawrace-{{inputs.parameters.crate}}
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+
+    # ── pnpm-ci-step ─────────────────────────────────────────────────────────
+    - name: pnpm-ci-step
+      inputs:
+        parameters:
+          - name: command
+      activeDeadlineSeconds: 600
+      container:
+        image: node:20-alpine
+        command: [sh, -c]
+        args:
+          - |
+            set -e
+            corepack enable
+            cd /workspace
+            {{inputs.parameters.command}}
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+
+    # ── docker-build (Kaniko) ────────────────────────────────────────────────
+    - name: docker-build
+      inputs:
+        parameters:
+          - name: binary
+          - name: image
+      retryStrategy:
+        limit: "2"
+        retryPolicy: OnError
+        backoff:
+          duration: 30s
+          factor: "2"
+      activeDeadlineSeconds: 1800
+      container:
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+          - --context=git://github.com/{{workflow.parameters.repo}}.git#refs/heads/{{workflow.parameters.branch}}
+          - --dockerfile=Dockerfile.{{inputs.parameters.binary}}
+          - --destination={{inputs.parameters.image}}:latest
+          - --cache=true
+          - --cache-repo=ronaldraygun/cache
+          - --snapshot-mode=redo
+          - --use-new-run=true
+        env:
+          - name: GIT_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: github-webhook-secret
+                key: token
+        volumeMounts:
+          - name: docker-config
+            mountPath: /kaniko/.docker
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+          limits:
+            cpu: 4000m
+            memory: 4Gi
+```
 Triggered by a webhook from the drawrace repo (existing pattern). GitHub Actions stays off, per convention. The webhook passes `branch=main` on push-to-main and `branch=pr-<number>` on PR synchronize events, plus `republish_only=true` when an operator triggers a rollback re-publish.
 
 - **PR preview builds** (`branch == pr-<n>`): only `checkout`, lint/test/size-limit, and `pages-publish` (to preview slot `pr-<n>`) execute. The `when:` gates on `rotate-client-key`, `build-api`, `build-validator`, `bump-manifest`, `wait-validator-live`, and `trigger-ci` suppress rotation, image pushes, manifest promotion, the live-version check, and the post-publish CI kick-off. PR previews read the production ConfigMap's `current` at `pages-publish` build time and embed it unmodified; they never mutate production state. PR CI runs independently of `drawrace-build` — triggered directly by the PR webhook — with its `preview-url` parameter left empty (phone-smoke skips when `preview-url == ""`).
