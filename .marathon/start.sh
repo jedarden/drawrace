@@ -5,14 +5,11 @@
 # this repo. Each iteration reads .marathon/instruction.md and invokes
 # headless claude-code routed through the ZAI MCP proxy.
 #
-# Model choice: GLM-5-Turbo.
-#   The previous run used glm-5.1. With Claude Code 2.1.119 + the ZAI proxy,
-#   every glm-5.1 request returns HTTP 422 "body: Field required" — the
-#   proxy's handler accepts Claude Code's request shape for glm-5-turbo and
-#   glm-4.7 but rejects glm-5.1 (opus-class) requests. A direct claude --print
-#   test against glm-5-turbo succeeds, so we ship on turbo until the proxy
-#   handler catches up. Off-peak through April, glm-5-turbo is 1x cost on the
-#   ZAI Max plan.
+# Model choice: GLM-5.1.
+#   Previously ran on glm-5-turbo due to HTTP 422 errors from the ZAI proxy on
+#   glm-5.1 (opus-class request shape mismatch in Claude Code 2.1.119). Proxy
+#   was fixed 2026-04-25 — glm-5.1 now responds correctly. Switched back to
+#   glm-5.1 for full capability.
 #
 # Usage:
 #   ./.marathon/start.sh                  # default session name "drawrace"
@@ -81,11 +78,11 @@ LOOP_CMD="cd '$REPO_DIR' && \
     export NODE_TLS_REJECT_UNAUTHORIZED=0 && \
     export ANTHROPIC_BASE_URL='$ZAI_BASE_URL' && \
     export ANTHROPIC_AUTH_TOKEN='proxy-handles-auth' && \
-    export ANTHROPIC_MODEL='glm-5-turbo' && \
-    export ANTHROPIC_DEFAULT_OPUS_MODEL='glm-5-turbo' && \
-    export ANTHROPIC_DEFAULT_SONNET_MODEL='glm-5-turbo' && \
-    export ANTHROPIC_DEFAULT_HAIKU_MODEL='glm-5-turbo' && \
-    export CLAUDE_CODE_SUBAGENT_MODEL='glm-5-turbo' && \
+    export ANTHROPIC_MODEL='glm-5.1' && \
+    export ANTHROPIC_DEFAULT_OPUS_MODEL='glm-5.1' && \
+    export ANTHROPIC_DEFAULT_SONNET_MODEL='glm-5.1' && \
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL='glm-5.1' && \
+    export CLAUDE_CODE_SUBAGENT_MODEL='glm-5.1' && \
     export API_TIMEOUT_MS='900000' && \
     export DISABLE_AUTOUPDATER=1 && \
     export DISABLE_TELEMETRY=1 && \
@@ -95,13 +92,13 @@ LOOP_CMD="cd '$REPO_DIR' && \
         --log-dir '$LOG_DIR'"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║          DrawRace Marathon — claude-code @ GLM-5.1           ║"
+echo "║          DrawRace Marathon — claude-code @ GLM-5.1 (opus)    ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 echo "  Repo:        $REPO_DIR"
 echo "  Instruction: $INSTRUCTION_FILE"
 echo "  Session:     $SESSION_NAME"
-echo "  Model:       glm-5-turbo (all tiers — opus, sonnet, haiku, subagent)"
+echo "  Model:       glm-5.1 (all tiers — opus, sonnet, haiku, subagent)"
 echo "  Proxy:       $ZAI_BASE_URL"
 echo "  Logs:        $LOG_DIR"
 echo ""

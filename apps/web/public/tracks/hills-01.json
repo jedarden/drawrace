@@ -4,7 +4,7 @@
   "name": "Scribble Slope",
   "version": 8,
   "world": {
-    "gravity": [0.0, 10.0],
+    "gravity": [0.0, -10.0],
     "pixelsPerMeter": 30
   },
   "camera": {

@@ -53,7 +53,7 @@ const WHEEL_DENSITY = 1.0;
 const WHEEL_FRICTION = 0.8;
 const WHEEL_RESTITUTION = 0.3;
 const REAR_WHEEL_RADIUS = 0.35;
-const MOTOR_SPEED = 8;
+const MOTOR_SPEED = -8;
 const MOTOR_MAX_TORQUE = 40;
 const SUSPENSION_FREQ_HZ = 4.0;
 const SUSPENSION_DAMPING_RATIO = 0.7;
@@ -134,14 +134,14 @@ export function createHeadlessRace(
     }
   }
 
-  // Place wheel center just below terrain surface; gravity pushes it up to rest on surface
-  const wheelSpawnY = terrainY - wheelRadius;
+  // Place wheel center just above terrain surface; gravity pulls it down to rest on surface
+  const wheelSpawnY = terrainY + wheelRadius;
 
   // Front wheel (drawn polygon — AWD)
   const wheelBody = buildWheelBody(world, wv, startX, wheelSpawnY);
 
-  // Chassis positioned below wheel
-  const chassisSpawnY = wheelSpawnY - 1.5;
+  // Chassis positioned above wheel
+  const chassisSpawnY = wheelSpawnY + 1.5;
   const chassisBody = world.createBody({
     position: Vec2(startX, chassisSpawnY),
     type: "dynamic",
@@ -160,7 +160,7 @@ export function createHeadlessRace(
     WheelJoint({
       bodyA: chassisBody,
       bodyB: wheelBody,
-      localAnchorA: Vec2(0.5, 0.5),
+      localAnchorA: Vec2(0.5, -0.5),
       localAnchorB: Vec2(0, 0),
       localAxisA: Vec2(0, 1),
       frequencyHz: SUSPENSION_FREQ_HZ,
@@ -176,7 +176,7 @@ export function createHeadlessRace(
     WheelJoint({
       bodyA: chassisBody,
       bodyB: rearWheelBody,
-      localAnchorA: Vec2(-0.9, 0.5),
+      localAnchorA: Vec2(-0.9, -0.5),
       localAnchorB: Vec2(0, 0),
       localAxisA: Vec2(0, 1),
       frequencyHz: SUSPENSION_FREQ_HZ,

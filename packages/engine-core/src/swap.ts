@@ -11,7 +11,7 @@ const WHEEL_FRICTION = 0.8;
 const WHEEL_RESTITUTION = 0.3;
 const SUSPENSION_FREQ_HZ = 4.0;
 const SUSPENSION_DAMPING_RATIO = 0.7;
-const MOTOR_SPEED = 8;
+const MOTOR_SPEED = -8;
 const MOTOR_MAX_TORQUE = 40;
 
 export function buildWheelBody(
@@ -97,7 +97,7 @@ export function executeWheelSwap(
     WheelJoint({
       bodyA: chassisBody,
       bodyB: newWheelBody,
-      localAnchorA: Vec2(0.5, 0.5),
+      localAnchorA: Vec2(0.5, -0.5),
       localAnchorB: Vec2(0, 0),
       localAxisA: Vec2(0, 1),
       frequencyHz: SUSPENSION_FREQ_HZ,
@@ -113,7 +113,7 @@ export function executeWheelSwap(
   return { newWheelBody, newWheelJoint };
 }
 
-const REAR_LOCAL_ANCHOR_A = Vec2(-0.9, 0.5);
+const REAR_LOCAL_ANCHOR_A = Vec2(-0.9, -0.5);
 
 export function executeTwinWheelSwap(
   world: World,
@@ -142,7 +142,7 @@ export function executeTwinWheelSwap(
     WheelJoint({
       bodyA: chassisBody,
       bodyB: newFrontBody,
-      localAnchorA: Vec2(0.5, 0.5),
+      localAnchorA: Vec2(0.5, -0.5),
       localAnchorB: Vec2(0, 0),
       localAxisA: Vec2(0, 1),
       frequencyHz: SUSPENSION_FREQ_HZ,
