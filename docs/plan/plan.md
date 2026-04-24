@@ -380,8 +380,8 @@ Tracks are static JSON assets under `/public/tracks/`. The game reads a track ma
 **Rules for track authors:**
 
 - `terrain` is a single left-to-right polyline in meters (world units). The loader builds a Planck chain shape along it. Points must be strictly increasing in X for the v1 engine (no overhangs).
-- Y increases downward in screen space but we render with negative-Y-up; the authoring tool handles the flip. Y < 0 is above the start line.
-- `start.pos` is where the chassis spawns; the wheel is placed beneath it at the normalized wheel radius.
+- **Coordinate system (canonical, non-negotiable):** Planck.js uses Y-down convention — Y increases downward, gravity is `(0, +10)`. The renderer maps physics `(x, y)` directly to canvas `(x, y)` with **no Y-axis flip**. Terrain Y values are positive (road surface sits at positive Y in world space). The chassis and wheels must always spawn **above** the road surface, meaning their Y position must be **less than** the terrain Y at that X. A chassis spawning at a Y value greater than the terrain Y is underground; wheels spawning above the chassis are upside-down. Both are bugs.
+- `start.pos` is where the chassis centre spawns. It must have a Y value strictly less than the terrain surface Y at `start.pos.x` by at least the chassis half-height plus the wheel radius — i.e., the chassis sits in the air above the road, wheels hanging down to touch the surface. On first tick, gravity pulls the chassis down onto the terrain; the car settles during the countdown.
 - `finish.pos.x` is the trigger; crossing it right-to-left does not count.
 - `obstacles`, `ramps`, and `hazards` are optional arrays. Hazard type `pit` is a trigger region that ends the race as DNF.
 - `surfaces[]` is optional; omitted or empty defaults to a single `normal` segment covering the full terrain extent. Segments must tile the terrain with no gaps or overlaps (validated at load time).
