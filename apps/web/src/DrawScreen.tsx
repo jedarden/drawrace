@@ -42,7 +42,11 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
     const off = offCanvasRef.current;
     if (!canvas || !off) return;
 
-    const ctx = canvas.getContext("2d", { desynchronized: true });
+    // Do NOT use desynchronized:true — on Android Chrome that context flag
+    // causes the offscreen→onscreen blit to never appear visually even though
+    // the 2D API calls succeed.  The race canvas (Renderer.ts) has the same
+    // constraint.  A 300×300 draw canvas has no latency requirement anyway.
+    const ctx = canvas.getContext("2d");
     const offCtx = off.getContext("2d");
     if (!ctx || !offCtx) return;
 
