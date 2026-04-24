@@ -1,6 +1,6 @@
 import { describe, it } from "vitest";
-import { RaceSim } from "../packages/engine-core/src/race-sim.js";
-import type { TrackDef } from "../packages/engine-core/src/headless-race.js";
+import { RaceSim } from "./race-sim.js";
+import type { TrackDef } from "./headless-race.js";
 
 const TEST_TRACK: TrackDef = {
   id: "hills-01",

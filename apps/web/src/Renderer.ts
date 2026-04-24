@@ -251,19 +251,20 @@ export function createRenderer(
     wy: y,
   }));
 
-  // Physics-accurate wheel Path2D
-  const wheelPath = new Path2D();
-  const verts = wheelDraw.vertices;
-  if (verts.length > 0) {
-    wheelPath.moveTo(verts[0].x * PPM, -verts[0].y * PPM);
-    for (let i = 1; i < verts.length; i++) {
-      wheelPath.lineTo(verts[i].x * PPM, -verts[i].y * PPM);
+  // Physics-accurate wheel Path2D (mutable — updated on mid-race swap)
+  let wheelPath = new Path2D();
+  let wobblePath: Path2D | null = null;
+  {
+    const verts = wheelDraw.vertices;
+    if (verts.length > 0) {
+      wheelPath.moveTo(verts[0].x * PPM, -verts[0].y * PPM);
+      for (let i = 1; i < verts.length; i++) {
+        wheelPath.lineTo(verts[i].x * PPM, -verts[i].y * PPM);
+      }
+      wheelPath.closePath();
     }
-    wheelPath.closePath();
+    wobblePath = buildWobblePath(verts, fnvHash("wobble"));
   }
-
-  // Wobble cosmetic stroke (§Graphics & UX 4)
-  const wobblePath = buildWobblePath(verts, fnvHash("wobble"));
 
   // Pre-rendered ink blot sprite
   const inkBlotSprite = createInkBlotSprite();
@@ -597,19 +598,8 @@ export function createRenderer(
     ctx.restore();
   }
 
-  function drawRearWheel(body: SimBody, alpha: number) {
-    const { sx, sy } = worldToScreen(body.x, body.y);
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.translate(sx, sy);
-    ctx.rotate(-body.angle);
-
-    ctx.fillStyle = alpha < 1 ? "#8896A3" : "#2B2118";
-    ctx.beginPath();
-    ctx.arc(0, 0, REAR_WHEEL_RADIUS * PPM, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
+  function drawRearWheel(body: SimBody, path: Path2D, cosmeticPath: Path2D | null, fillStyle: string, alpha: number) {
+    drawWheel(body, path, cosmeticPath, fillStyle, alpha);
   }
 
   function drawChassis(body: SimBody, alpha: number) {
@@ -810,7 +800,7 @@ export function createRenderer(
       for (const ghost of ghosts) {
         drawWheel(ghost.snapshot.wheel, ghost.wheelPath, null, "#8896A3", 0.6);
         drawChassis(ghost.snapshot.chassis, 0.6);
-        drawRearWheel(ghost.snapshot.rearWheel, 0.6);
+        drawRearWheel(ghost.snapshot.rearWheel, ghost.wheelPath, null, "#8896A3", 0.6);
 
         // Ghost name tag (floating label with ink stroke behind for readability)
         if (ghost.name) {
@@ -835,7 +825,7 @@ export function createRenderer(
       }
 
       // Player (layer 5)
-      drawRearWheel(snapshot.rearWheel, 1);
+      drawRearWheel(snapshot.rearWheel, wheelPath, wobblePath, "#D94F3A", 1);
       drawWheel(snapshot.wheel, wheelPath, wobblePath, "#D94F3A", 1);
       drawChassis(snapshot.chassis, 1);
 
@@ -868,6 +858,19 @@ export function createRenderer(
       if (!reducedMotion) {
         shakeAmount = Math.max(shakeAmount, intensity);
       }
+    },
+
+    updateWheelPath(vertices: Array<{ x: number; y: number }>) {
+      const newPath = new Path2D();
+      if (vertices.length > 0) {
+        newPath.moveTo(vertices[0].x * PPM, -vertices[0].y * PPM);
+        for (let i = 1; i < vertices.length; i++) {
+          newPath.lineTo(vertices[i].x * PPM, -vertices[i].y * PPM);
+        }
+        newPath.closePath();
+      }
+      wheelPath = newPath;
+      wobblePath = buildWobblePath(vertices, fnvHash("wobble"));
     },
   };
 }

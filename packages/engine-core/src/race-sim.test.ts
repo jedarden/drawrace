@@ -27,7 +27,7 @@ function makeCircle(radius: number, n: number): Array<{ x: number; y: number }> 
 
 describe("RaceSim", () => {
   it("finishes the race", () => {
-    const sim = new RaceSim(TEST_TRACK, makeCircle(0.8, 16), 42);
+    const sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
     sim.enableMotor();
 
     let snap = sim.snapshot();
@@ -44,7 +44,7 @@ describe("RaceSim", () => {
   it("produces deterministic results", () => {
     const results: number[] = [];
     for (let run = 0; run < 5; run++) {
-      const sim = new RaceSim(TEST_TRACK, makeCircle(0.8, 16), 42);
+      const sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
       sim.enableMotor();
       let snap;
       for (let i = 0; i < 10800; i++) {
@@ -61,7 +61,7 @@ describe("RaceSim", () => {
   });
 
   it("motor disabled during countdown prevents forward motion", () => {
-    const sim = new RaceSim(TEST_TRACK, makeCircle(0.8, 16), 42);
+    const sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
     // Don't enable motor — simulate countdown phase
     const snap60 = sim.step(); // first step
     for (let i = 0; i < 60; i++) sim.step();

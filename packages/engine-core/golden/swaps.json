@@ -1,5 +1,5 @@
 {
-  "physicsVersion": 2,
+  "physicsVersion": 3,
   "swapGoldens": [
     {
       "id": "swap-tick0-only",
@@ -140,10 +140,10 @@
           ]
         }
       ],
-      "finishTicks": 736,
-      "finalX": 39.04225892507806,
-      "streamHash": "8b655dcf",
-      "physicsVersion": 2
+      "finishTicks": 711,
+      "finalX": 39.02571140405268,
+      "streamHash": "7bd4bcd3",
+      "physicsVersion": 3
     },
     {
       "id": "swap-circ-to-tri-t60",
@@ -205,10 +205,10 @@
           ]
         }
       ],
-      "finishTicks": 10801,
-      "finalX": 15.966884495300791,
-      "streamHash": "d03fdd11",
-      "physicsVersion": 2
+      "finishTicks": 876,
+      "finalX": 39.04806046933967,
+      "streamHash": "6cab5970",
+      "physicsVersion": 3
     },
     {
       "id": "swap-tri-to-circ-t120",
@@ -270,10 +270,10 @@
           ]
         }
       ],
-      "finishTicks": 896,
-      "finalX": 39.006549361948245,
-      "streamHash": "4b9635eb",
-      "physicsVersion": 2
+      "finishTicks": 766,
+      "finalX": 39.0333808753816,
+      "streamHash": "7c74f050",
+      "physicsVersion": 3
     },
     {
       "id": "swap-chain-3",
@@ -368,10 +368,10 @@
           ]
         }
       ],
-      "finishTicks": 860,
-      "finalX": 39.033089499167104,
-      "streamHash": "eb87a367",
-      "physicsVersion": 2
+      "finishTicks": 794,
+      "finalX": 39.01665816838345,
+      "streamHash": "123f8f68",
+      "physicsVersion": 3
     },
     {
       "id": "swap-5-determinism",
@@ -524,10 +524,10 @@
           ]
         }
       ],
-      "finishTicks": 846,
-      "finalX": 39.01615932571013,
-      "streamHash": "6b8a30e3",
-      "physicsVersion": 2
+      "finishTicks": 772,
+      "finalX": 39.02974635157343,
+      "streamHash": "ed7e2441",
+      "physicsVersion": 3
     },
     {
       "id": "swap-position-continuity",
@@ -697,10 +697,10 @@
           ]
         }
       ],
-      "finishTicks": 748,
-      "finalX": 39.01181881079232,
-      "streamHash": "2ecefb5f",
-      "physicsVersion": 2
+      "finishTicks": 729,
+      "finalX": 39.0221610384241,
+      "streamHash": "6df750c1",
+      "physicsVersion": 3
     }
   ]
 }
