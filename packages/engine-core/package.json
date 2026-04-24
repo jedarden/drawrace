@@ -12,7 +12,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "pnpm run build",
+    "test:golden": "vitest run --root ../.. packages/engine-core/src/golden.test.ts",
+    "regenerate-golden": "npx tsx golden/regenerate.ts"
   },
   "dependencies": {
     "planck": "^1.0.5",
