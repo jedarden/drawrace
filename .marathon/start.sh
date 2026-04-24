@@ -1,11 +1,18 @@
 #!/bin/bash
-# DrawRace Marathon Launcher — GLM-5.1 via ZAI Proxy
+# DrawRace Marathon Launcher — GLM-5-Turbo via ZAI Proxy
 #
 # Runs the central marathon-coding skill in a dedicated tmux session against
 # this repo. Each iteration reads .marathon/instruction.md and invokes
-# headless claude-code routed through the ZAI MCP proxy to ZhipuAI's
-# GLM-5.1 model. Mirrors the env var set used by NEEDLE's
-# claude-code-glm-5.1 agent (~/.needle/agents/claude-code-glm-5.1.yaml).
+# headless claude-code routed through the ZAI MCP proxy.
+#
+# Model choice: GLM-5-Turbo.
+#   The previous run used glm-5.1. With Claude Code 2.1.119 + the ZAI proxy,
+#   every glm-5.1 request returns HTTP 422 "body: Field required" — the
+#   proxy's handler accepts Claude Code's request shape for glm-5-turbo and
+#   glm-4.7 but rejects glm-5.1 (opus-class) requests. A direct claude --print
+#   test against glm-5-turbo succeeds, so we ship on turbo until the proxy
+#   handler catches up. Off-peak through April, glm-5-turbo is 1x cost on the
+#   ZAI Max plan.
 #
 # Usage:
 #   ./.marathon/start.sh                  # default session name "drawrace"
@@ -20,7 +27,7 @@ INSTRUCTION_FILE="$SCRIPT_DIR/instruction.md"
 LOG_DIR="$SCRIPT_DIR/logs"
 SESSION_NAME="${1:-drawrace}"
 
-# ZAI proxy endpoint (matches ~/.needle/agents/claude-code-glm-5.1.yaml)
+# ZAI proxy endpoint (same HTTPS MCP endpoint NEEDLE uses)
 ZAI_BASE_URL="https://zai-proxy-mcp-ardenone-hub-ts.ardenone.com:8444"
 
 # Sanity checks
@@ -50,7 +57,7 @@ fi
 # loop that will just emit connection errors every iteration.
 if ! curl -sk --max-time 8 -o /dev/null -w "%{http_code}" "$ZAI_BASE_URL/health" | grep -q '^2'; then
     echo "Error: ZAI proxy at $ZAI_BASE_URL is not reachable." >&2
-    echo "       (glm-5.1 routing would fail; aborting before launch.)" >&2
+    echo "       (glm-5-turbo routing would fail; aborting before launch.)" >&2
     echo "       Check Tailscale + proxy pod on ardenone-hub." >&2
     exit 1
 fi
@@ -59,12 +66,13 @@ mkdir -p "$LOG_DIR"
 
 # Build the loop command that runs inside tmux.
 #
-# Env var set mirrors NEEDLE's claude-code-glm-5.1 agent:
+# Env var set mirrors NEEDLE's claude-code-glm-5-turbo agent:
+# (see ~/.needle/agents/claude-code-glm-5-turbo.yaml)
 #   - NODE_TLS_REJECT_UNAUTHORIZED=0 — proxy uses a self-signed cert
 #   - ANTHROPIC_BASE_URL points at the ZAI MCP proxy (not anthropic.com)
 #   - ANTHROPIC_AUTH_TOKEN is a sentinel; proxy handles real auth
 #   - ANTHROPIC_MODEL + the three DEFAULT_*_MODEL overrides + subagent model
-#     all pin to glm-5.1 so every model tier the CLI references resolves
+#     all pin to glm-5-turbo so every model tier the CLI references resolves
 #     to GLM-5.1 rather than a real Claude model.
 #   - `unset CLAUDECODE` avoids nested-session detection when this script
 #     is itself launched from a Claude Code terminal.
@@ -73,11 +81,11 @@ LOOP_CMD="cd '$REPO_DIR' && \
     export NODE_TLS_REJECT_UNAUTHORIZED=0 && \
     export ANTHROPIC_BASE_URL='$ZAI_BASE_URL' && \
     export ANTHROPIC_AUTH_TOKEN='proxy-handles-auth' && \
-    export ANTHROPIC_MODEL='glm-5.1' && \
-    export ANTHROPIC_DEFAULT_OPUS_MODEL='glm-5.1' && \
-    export ANTHROPIC_DEFAULT_SONNET_MODEL='glm-5.1' && \
-    export ANTHROPIC_DEFAULT_HAIKU_MODEL='glm-5.1' && \
-    export CLAUDE_CODE_SUBAGENT_MODEL='glm-5.1' && \
+    export ANTHROPIC_MODEL='glm-5-turbo' && \
+    export ANTHROPIC_DEFAULT_OPUS_MODEL='glm-5-turbo' && \
+    export ANTHROPIC_DEFAULT_SONNET_MODEL='glm-5-turbo' && \
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL='glm-5-turbo' && \
+    export CLAUDE_CODE_SUBAGENT_MODEL='glm-5-turbo' && \
     export API_TIMEOUT_MS='900000' && \
     export DISABLE_AUTOUPDATER=1 && \
     export DISABLE_TELEMETRY=1 && \
@@ -93,7 +101,7 @@ echo ""
 echo "  Repo:        $REPO_DIR"
 echo "  Instruction: $INSTRUCTION_FILE"
 echo "  Session:     $SESSION_NAME"
-echo "  Model:       glm-5.1 (all tiers — opus, sonnet, haiku, subagent)"
+echo "  Model:       glm-5-turbo (all tiers — opus, sonnet, haiku, subagent)"
 echo "  Proxy:       $ZAI_BASE_URL"
 echo "  Logs:        $LOG_DIR"
 echo ""
