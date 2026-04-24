@@ -2,14 +2,14 @@
 # Usage: docker-compose -f docker-compose.snapshot.yml run --rm snapshot-test
 services:
   snapshot-test:
-    image: drawrace/ci-snap:local
+    image: ghcr.io/drawrace/ci-snap:2026-04-24
     volumes:
       - .:/work
     working_dir: /work
     environment:
       - SNAPSHOT_UPDATE=${SNAPSHOT_UPDATE:-}
       - CI=true
-    command: sh -c "pnpm install && pnpm exec playwright install --with-deps chromium && pnpm test:snapshot"
+    command: sh -c "pnpm install && pnpm test:snapshot"
     # Keep container running for debugging (uncomment to use)
     # tty: true
     # stdin_open: true

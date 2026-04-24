@@ -8,7 +8,7 @@ snap:
         -v {{cwd() }}:/work \
         -w /work \
         -e SNAPSHOT_UPDATE={{env_var_or_default("SNAPSHOT_UPDATE", "")}} \
-        ghcr.io/drawrace/ci-snap:2026-04-21 \
+        ghcr.io/drawrace/ci-snap:2026-04-24 \
         sh -c "pnpm install && pnpm test:snapshot"
 
 # Run snapshot tests in update mode (generates new baselines)

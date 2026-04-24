@@ -14,10 +14,14 @@
     "test:snapshot": "playwright test e2e/snapshot.spec.ts --project chromium",
     "test:snapshot:update": "SNAPSHOT_UPDATE=1 playwright test e2e/snapshot.spec.ts --project chromium",
     "test:perf": "playwright test e2e/perf.spec.ts --project perf",
+    "test:snap": "docker run --rm -v ${PWD}:/work -w /work -e CI=true ghcr.io/drawrace/ci-snap:2026-04-24 sh -c 'pnpm install && pnpm test:snapshot'",
+    "test:snap:update": "docker run --rm -v ${PWD}:/work -w /work -e CI=true -e SNAPSHOT_UPDATE=1 ghcr.io/drawrace/ci-snap:2026-04-24 sh -c 'pnpm install && pnpm test:snapshot'",
     "snap:docker": "docker-compose -f docker-compose.snapshot.yml run --rm snapshot-test",
     "snap:docker:update": "SNAPSHOT_UPDATE=1 docker-compose -f docker-compose.snapshot.yml run --rm snapshot-test",
     "regen-snapshot-fixture": "npx tsx packages/engine-core/scripts/gen-snapshot-fixture.ts && cp packages/engine-core/fixtures/snapshot-fixture.json apps/web/public/fixtures/",
     "regen-golden": "npx tsx packages/engine-core/scripts/regen-golden.ts",
+    "e2e:phone-smoke": "bash e2e/phone-smoke/run.sh",
+    "e2e:phone-smoke:save-baselines": "bash e2e/phone-smoke/run.sh --save-baselines",
     "size": "size-limit"
   },
   "devDependencies": {

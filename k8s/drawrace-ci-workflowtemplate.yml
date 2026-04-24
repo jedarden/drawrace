@@ -61,7 +61,7 @@ spec:
                 - {name: cmd, value: "pnpm build"}
 
           - name: render-snap
-            template: step
+            template: snap-step
             dependencies: [build]
             arguments:
               parameters:
@@ -122,6 +122,29 @@ spec:
       activeDeadlineSeconds: 600
       container:
         image: ghcr.io/drawrace/ci-snap:2026-04-21
+        command: [bash, -lc, "{{inputs.parameters.cmd}}"]
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      volumes:
+        - name: workspace
+          emptyDir: {}
+
+    # ── Snapshot step template (pinned image for deterministic rendering) ───
+    - name: snap-step
+      inputs:
+        parameters:
+          - name: cmd
+      activeDeadlineSeconds: 600
+      container:
+        image: ghcr.io/drawrace/ci-snap:2026-04-24
         command: [bash, -lc, "{{inputs.parameters.cmd}}"]
         resources:
           requests:

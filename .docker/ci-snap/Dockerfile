@@ -1,13 +1,16 @@
 # ci-snap: Pinned container for Layer 3 snapshot tests
-# This ensures font rendering consistency across CI runs
-FROM debian:bookworm-slim
+# Ensures font / antialias rendering consistency across CI and local runs
+#
+# Tag convention: ghcr.io/drawrace/ci-snap:<date>
+
+FROM debian:bookworm-slim-20250410
 
 LABEL org.opencontainers.image.title="DrawRace CI Snapshot Container"
-LABEL org.opencontainers.image.description="Pinned environment for rendering snapshot tests"
-LABEL org.opencontainers.image.created="2024-04-11"
+LABEL org.opencontainers.image.description="Pinned environment for rendering snapshot tests (Playwright + webfonts)"
+LABEL org.opencontainers.image.created="2026-04-24"
 
-# Install runtime dependencies for Playwright's Chromium
-RUN apt-get update && apt-get install -y \
+# ── System deps for Playwright Chromium ──────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libnspr4 \
     libnss3 \
     libatk1.0-0 \
@@ -26,22 +29,38 @@ RUN apt-get update && apt-get install -y \
     libasound2 \
     libatspi2.0-0 \
     libxshmfence1 \
+    fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js and pnpm
+# ── Project webfonts (Caveat + Patrick Hand SC) ─────────────────────────────
+# Pre-installed as system fonts so Chromium rendering is deterministic even
+# if @font-face loading timing varies across runs.
+RUN mkdir -p /usr/local/share/fonts/drawrace && \
+    curl -fsSL -o /usr/local/share/fonts/drawrace/Caveat-Regular.ttf \
+      "https://github.com/google/fonts/raw/main/ofl/caveat/Caveat%5Bwght%5D.ttf" && \
+    curl -fsSL -o /usr/local/share/fonts/drawrace/PatrickHandSC-Regular.ttf \
+      "https://github.com/google/fonts/raw/main/ofl/patrickhandsc/PatrickHandSC-Regular.ttf" && \
+    fc-cache -f
+
+# ── Node.js 22 ──────────────────────────────────────────────────────────────
 ENV NODE_VERSION=22
-RUN apt-get update && apt-get install -y curl gnupg && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg ca-certificates && \
     install -m 0755 -d /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_VERSION}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list && \
-    apt-get update && apt-get install -y nodejs && \
+    apt-get update && apt-get install -y --no-install-recommends nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-# Install pnpm globally
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# ── pnpm (pinned to match project) ──────────────────────────────────────────
+ENV PNPM_VERSION=10.33.1
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
-# Set working directory
+# ── Playwright 1.59.1 with pre-installed Chromium ───────────────────────────
+ENV PLAYWRIGHT_VERSION=1.59.1
+RUN npm install -g playwright-core@${PLAYWRIGHT_VERSION} && \
+    npx playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium && \
+    rm -rf /root/.npm/_cacache
+
 WORKDIR /work
 
-# This is a test-only container, no entrypoint needed
 CMD ["/bin/bash"]
