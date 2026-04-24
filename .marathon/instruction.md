@@ -4,21 +4,31 @@ You are the implementation agent for **DrawRace**, a mobile-first wheel-drawing 
 
 ## What changed in plan.md on 2026-04-24
 
-The plan (`docs/plan/plan.md`) was revised from a one-shot "commit a wheel, then spectate the race" design to a continuous-redraw design: the player can redraw the wheel at any moment during the race, the new shape hot-swaps into the physics world at the next tick boundary, and the track has **zone-based terrain** that requires adapting the wheel shape to stay fast.
+The plan (`docs/plan/plan.md`) was revised several times on 2026-04-24. In order:
 
-Read these sections in order before you start. Do not skim — the binary layout changed, the edge cases changed, and the perf budget changed.
+1. **Mid-race redraw.** One-shot commit → continuous redraw with tick-boundary hot-swap, 500ms cooldown, 20-swap cap.
+2. **Zone-based terrain.** A single flat-ish track → four distinct zones each ≥10s long with geometry variety (flats / incline / bumps / descent+jump).
+3. **Both wheels are drawn (AWD).** Drawn-front + cartoon-rear → both wheels come from the same drawn polygon, each on its own Planck WheelJoint with its own motor. Chassis density halved to 1.0 to keep mass ratios stable. Hot-swap now swaps both wheels per tick.
+4. **Terrain surface types.** A single `friction: 0.9` terrain → six surface types (normal / ice / snow / water / mud / rock), declared per-segment in a `surfaces[]` array, combinable with geometry to multiply zone character. Water and mud apply drag to the chassis; rock is bouncy.
+
+Every section referenced below reflects the final merged state.
+
+Read these sections in order before you start. Do not skim — the binary layout changed, the edge cases changed, the physics tuning changed, and the perf budget changed.
 
 - **§Gameplay 1 Core Game Loop** — no longer three-phase-strict. New constraints: 80ms hot-swap deadline, 500ms cooldown between swaps, 20-swap cap.
 - **§Gameplay 2 Wheel-Drawing Input Pipeline** — new subsection "Mid-race draw overlay" (always-on bottom-40% overlay during the Race phase).
-- **§Gameplay 3 Shape-to-Physics Translation** — new subsection "Wheel hot-swap procedure" with tick-boundary body-swap pseudocode.
-- **§Gameplay 5 Track Design Format** — new subsection "Zone-based terrain" with four zones A/B/C/D in hills-01.
+- **§Gameplay 3 Shape-to-Physics Translation** — "Both wheels use the drawn polygon (AWD)" subsection + twin-wheel hot-swap procedure with tick-boundary body-swap pseudocode. Single polygon in `wheel_swaps[]` applies to both axles.
+- **§Gameplay 4 Physics Tuning Knobs** — revised: wheel friction is per-contact-multiplied by surface friction; chassis density `1.0` (down from 2.0); both axles carry independent motors.
+- **§Gameplay 5 Track Design Format** — new subsections "Terrain surface types" (6-surface enum + preset table) and "Zone-based terrain" (v1 hills-01 four zones combining geometry × surface).
 - **§Gameplay 6 Deterministic Simulation** — swap events are tick-indexed.
 - **§Gameplay 7 Difficulty & Progression** — new modifier options (`single-wheel` purist mode, `swap-capped`).
 - **§Gameplay 8 Edge Cases** — four new rows for mid-race conditions.
-- **§Gameplay 9 Performance Budget** — wheel rebuild cost analysis.
-- **§Multiplayer 5 Ghost Replay Format** — binary layout now stores `wheels[]` not a single polygon. Size grew from ~1.3 KB to ~1.5 KB median.
-- **§Multiplayer 8 Layer 2/3** — structural checks validate every polygon in `wheels[]` + swap_tick monotonicity/cooldown; validator re-sim applies swaps at recorded ticks.
-- **§Graphics 7 Ghost Rendering** — ghosts visibly swap wheels mid-race (200ms crossfade).
+- **§Gameplay 9 Performance Budget** — wheel rebuild cost analysis (twin-wheel: ~2-4 ms per swap frame).
+- **§Multiplayer 5 Ghost Replay Format** — binary layout stores `wheels[]` not a single polygon. Size grew from ~1.3 KB to ~1.5 KB median. **AWD does not change the blob format** — one polygon per swap applies to both axles on decode.
+- **§Multiplayer 8 Layer 2/3** — structural checks validate every polygon in `wheels[]` + swap_tick monotonicity/cooldown; validator re-sim applies swaps at recorded ticks and applies surface-friction contact filter.
+- **§Graphics 5 Car Body Design** — rewritten: both wheel wells render the drawn polygon; rear cartoon circle is gone. Two visually-identical wheels.
+- **§Graphics 6 Terrain Rendering** — fills, cross-hatches, and optional surface motifs are per-surface. Grass strip suppressed on ice/snow/water/rock. Ink edge constant for silhouette consistency.
+- **§Graphics 7 Ghost Rendering** — both ghost wheels crossfade in sync at each swap tick.
 - **§Graphics 8 Animations** — three new rows (mid-race wheel swap, ghost wheel swap, cooldown gauge).
 - **§Graphics 9.4 Race HUD** — redrawn ASCII wireframe with the always-on draw overlay at bottom + swap counter in HUD.
 - **§Testing 3 Layer 2** — goldens JSON shape changed to `wheels[]`; six new swap-scenario goldens added.
@@ -39,21 +49,25 @@ Read these sections in order before you start. Do not skim — the binary layout
 
 Everything lives under two epics:
 
-**Epic `drawrace-vgn.8` — Mid-race wheel redraw.** 11 child beads, dep-graphed so work can run in parallel where possible. Start here unless a bug elsewhere is actively blocking a user:
+**Epic `drawrace-vgn.8` — Mid-race wheel redraw.** 13 active child beads, dep-graphed so work can run in parallel where possible. Start here unless a bug elsewhere is actively blocking a user:
 
 | Bead | P | Title | Blocked by |
 |---|---|---|---|
 | `drawrace-vgn.8.1` | P0 | `wheel_swaps[]` ghost-blob binary layout — client encoder + validator parser | (root) |
 | `drawrace-vgn.8.2` | P0 | Wheel hot-swap procedure in engine-core (tick-boundary body swap) | (root) |
 | `drawrace-vgn.8.3` | P0 | Race-screen draw overlay — always-on + pointer-capture isolation | 8.2 |
-| `drawrace-vgn.8.10` | P0 | Redesign hills-01 as four terrain zones A/B/C/D | (root) |
-| `drawrace-vgn.8.4` | P1 | Validator re-sim applies `wheel_swaps[]` at recorded ticks | 8.1, 8.2 |
-| `drawrace-vgn.8.5` | P1 | Ghost playback visibly swaps wheels at recorded ticks | 8.2 |
+| `drawrace-vgn.8.12` | P0 | **Both wheels use the drawn polygon (AWD)** — engine-core + chassis density | (root) |
+| `drawrace-vgn.8.13` | P0 | **Track surface types (ice/snow/water/mud/rock)** + `surfaces[]` schema + contact filter | (root) |
+| `drawrace-vgn.8.14` | P0 | **hills-01 v2** — combine zones with surface types (icy incline, snowy rocks, water+descent) | 8.13 |
+| `drawrace-vgn.8.4` | P1 | Validator re-sim applies `wheel_swaps[]` at recorded ticks | 8.1, 8.2, 8.13 |
+| `drawrace-vgn.8.5` | P1 | Ghost playback visibly swaps wheels at recorded ticks (both axles) | 8.2, 8.12 |
 | `drawrace-vgn.8.7` | P1 | Layer 2 goldens — add 6 new mid-race-swap scenarios | 8.2 |
-| `drawrace-vgn.8.6` | P1 | Rebuild tutorial ghosts with ≥1 mid-race swap | 8.1, 8.2, 8.5 |
-| `drawrace-vgn.8.11` | P1 | Camera look-ahead: next zone visible ≥4s before chassis enters it | 8.10 |
-| `drawrace-vgn.8.8` | P2 | Phone-smoke (Layer 9) exercises mid-race redraw | 8.3, 8.4, 8.5 |
+| `drawrace-vgn.8.6` | P1 | Rebuild tutorial ghosts with ≥1 mid-race swap | 8.1, 8.2, 8.5, 8.14 |
+| `drawrace-vgn.8.11` | P1 | Camera look-ahead: next zone visible ≥4s before chassis enters it | 8.14 |
+| `drawrace-vgn.8.8` | P2 | Phone-smoke (Layer 9) exercises mid-race redraw | 8.3, 8.4, 8.5, 8.12, 8.13, 8.14 |
 | `drawrace-vgn.8.9` | P2 | Ghost format migration — flag legacy single-wheel ghosts | 8.1 |
+
+*(drawrace-vgn.8.10 — the original "zone redesign geometry-only" bead — is closed, superseded by 8.14 which combines zones with surface types.)*
 
 **Standalone bead `drawrace-vgn.9` — P1 rendering bug: racers below the road, should be above it.** Quick independent fix — please pick this up between larger tasks.
 
@@ -114,11 +128,11 @@ adb forward tcp:9222 localabstract:chrome_devtools_remote
 
 `drawrace-vgn.8` (the mid-race redraw epic) closes when:
 
-1. All 11 sub-beads closed with evidence.
-2. A single cold-boot phone-smoke on the Pixel 6 demonstrates: cold load → draw initial wheel → race starts → observe terrain zone A → redraw into zone-B-optimal shape before entering zone B → observe the hot-swap → finish in a time faster than a matched single-wheel baseline.
-3. PROGRESS.md reflects the new mechanic accurately.
+1. All 13 sub-beads closed with evidence.
+2. A single cold-boot phone-smoke on the Pixel 6 demonstrates: cold load → draw initial wheel → race starts with **twin drawn wheels** visible on the car → observe zone A (normal flats) → redraw into zone-B-optimal shape (angular/teeth) before entering the **icy incline** → observe the twin hot-swap → survive zone C (snowy rocks) and D (water + jump) → finish in a time faster than a matched single-wheel-no-redraw baseline.
+3. PROGRESS.md reflects the new mechanic accurately, including AWD, surface types, and the mid-race redraw.
 4. `drawrace-vgn.9` (cars-below-road render bug) closed separately with a before/after phone screenshot.
-5. Validator and client re-sim produce `|serverFinishTicks − clientFinishTicks| ≤ 2 ticks` on every multi-wheel golden.
+5. Validator and client re-sim produce `|serverFinishTicks − clientFinishTicks| ≤ 2 ticks` on every multi-wheel golden, including the new surface-type scenarios from 8.13.
 
 ## When in doubt
 
