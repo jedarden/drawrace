@@ -1,4 +1,4 @@
-import { World, Vec2, Edge, Polygon, Circle, Box, WheelJoint } from "planck";
+import { World, Vec2, Edge, Polygon, Circle, Box, WheelJoint, RevoluteJoint } from "planck";
 import { PHYSICS_VERSION } from "./version.js";
 import { sfc32, hashSeed } from "./prng.js";
 import { InjectedClock } from "./clock.js";
@@ -50,6 +50,7 @@ const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 const SUSPENSION_FREQ_HZ = 4.0;
 const SUSPENSION_DAMPING_RATIO = 0.7;
+const REAR_WHEEL_RADIUS = 0.35;
 
 export function createHeadlessRace(
   input: HeadlessRaceInput
@@ -96,8 +97,13 @@ export function createHeadlessRace(
     }
   }
 
-  // Compute approximate wheel radius from vertices (max distance from centroid)
-  const wv = wheel.vertices;
+  // Strip trailing duplicate vertex to prevent degenerate triangle in fan decomposition
+  const rawVerts = wheel.vertices;
+  const wv = rawVerts.length > 1 &&
+    Math.hypot(rawVerts[0][0] - rawVerts[rawVerts.length - 1][0],
+               rawVerts[0][1] - rawVerts[rawVerts.length - 1][1]) < 1e-6
+    ? rawVerts.slice(0, -1)
+    : rawVerts;
   const wcX = wv.reduce((s, v) => s + v[0], 0) / wv.length;
   const wcY = wv.reduce((s, v) => s + v[1], 0) / wv.length;
   const wheelRadius = Math.max(...wv.map((v) => Math.hypot(v[0] - wcX, v[1] - wcY)));
@@ -114,17 +120,16 @@ export function createHeadlessRace(
     }
   }
 
-  // Place wheel center just below terrain surface; gravity [0,10] pushes it up to rest on surface
+  // Place wheel center just below terrain surface; gravity pushes it up to rest on surface
   const wheelSpawnY = terrainY - wheelRadius;
 
-  // Create wheel body from polygon vertices
-  const wheelVerts = wheel.vertices.map((v) => Vec2(v[0], v[1]));
+  // Create front wheel body from polygon vertices
+  const wheelVerts = wv.map((v) => Vec2(v[0], v[1]));
   const wheelBody = world.createBody({
     position: Vec2(startX, wheelSpawnY),
     type: "dynamic",
   });
 
-  // Decompose into convex pieces (simple fan triangulation for now)
   if (wheelVerts.length <= 8) {
     wheelBody.createFixture(Polygon(wheelVerts), {
       density: WHEEL_DENSITY,
@@ -149,7 +154,7 @@ export function createHeadlessRace(
     }
   }
 
-  // Chassis positioned below wheel (lower Y = below in planck gravity [0,10])
+  // Chassis positioned below wheel (lower Y = below in planck gravity convention)
   const chassisSpawnY = wheelSpawnY - 1.5;
 
   // Create chassis body
@@ -163,12 +168,25 @@ export function createHeadlessRace(
     restitution: 0.1,
   });
 
-  // Wheel joint (acts as suspension + motor)
+  // Rear wheel (simple circle, same as RaceSim)
+  const rearSpawnX = startX - 0.9;
+  const rearSpawnY = wheelSpawnY;
+  const rearWheelBody = world.createBody({
+    position: Vec2(rearSpawnX, rearSpawnY),
+    type: "dynamic",
+  });
+  rearWheelBody.createFixture(Circle(REAR_WHEEL_RADIUS), {
+    density: 1.0,
+    friction: 0.8,
+    restitution: 0.3,
+  });
+
+  // Front wheel joint (suspension + motor) — anchor at Vec2(0.5, 0.5) matching RaceSim
   world.createJoint(
     WheelJoint({
       bodyA: chassisBody,
       bodyB: wheelBody,
-      localAnchorA: Vec2(0, 0.5),
+      localAnchorA: Vec2(0.5, 0.5),
       localAnchorB: Vec2(0, 0),
       localAxisA: Vec2(0, 1),
       frequencyHz: SUSPENSION_FREQ_HZ,
@@ -176,6 +194,17 @@ export function createHeadlessRace(
       enableMotor: true,
       motorSpeed: MOTOR_SPEED,
       maxMotorTorque: MOTOR_MAX_TORQUE,
+    })
+  );
+
+  // Rear wheel joint (revolute, no suspension) — matching RaceSim
+  world.createJoint(
+    RevoluteJoint({
+      bodyA: chassisBody,
+      bodyB: rearWheelBody,
+      localAnchorA: Vec2(-0.9, 0.5),
+      localAnchorB: Vec2(0, 0),
+      enableMotor: false,
     })
   );
 
