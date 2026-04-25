@@ -3,7 +3,7 @@ import { PHYSICS_VERSION } from "./version.js";
 import { sfc32, hashSeed } from "./prng.js";
 import { buildWheelBody, executeTwinWheelSwap } from "./swap.js";
 import type { WheelSwap } from "./swap.js";
-import { parseSurfaces, applyDrag, createSurfaceContactFilter, type SurfaceSegment } from "./surface.js";
+import { parseSurfaces, validateZones, applyDrag, createSurfaceContactFilter, type SurfaceSegment } from "./surface.js";
 
 export interface TrackDef {
   id: string;

@@ -36,9 +36,10 @@ export {
   SURFACE_PRESETS,
   SURFACE_TYPES,
   parseSurfaces,
+  validateZones,
   lookupSurface,
   applyDrag,
   createSurfaceContactFilter,
   isValidSurfaceType,
 } from "./surface.js";
-export type { SurfaceType, SurfacePreset, SurfaceSegment } from "./surface.js";
+export type { SurfaceType, SurfacePreset, SurfaceSegment, ZoneSegment } from "./surface.js";

@@ -115,6 +115,61 @@ export function applyDrag(chassisBody: Body, surfaces: SurfaceSegment[]): void {
   }
 }
 
+export interface ZoneSegment {
+  id: string;
+  x_start: number;
+  x_end: number;
+}
+
+export function validateZones(
+  raw: unknown,
+  terrainMinX: number,
+  terrainMaxX: number,
+): ZoneSegment[] {
+  if (!raw || !Array.isArray(raw) || raw.length === 0) {
+    throw new Error("zones[] is required and must be a non-empty array");
+  }
+
+  const zones: ZoneSegment[] = [];
+
+  for (let i = 0; i < raw.length; i++) {
+    const z = raw[i];
+    if (
+      !z || typeof z !== "object" || Array.isArray(z) ||
+      typeof (z as Record<string, unknown>).id !== "string" ||
+      typeof (z as Record<string, unknown>).x_start !== "number" ||
+      typeof (z as Record<string, unknown>).x_end !== "number"
+    ) {
+      throw new Error(`Invalid zone at index ${i}: ${JSON.stringify(z)}`);
+    }
+    const seg = z as { id: string; x_start: number; x_end: number };
+    if (seg.x_start >= seg.x_end) {
+      throw new Error(`Zone ${seg.id} has x_start >= x_end (${seg.x_start} >= ${seg.x_end})`);
+    }
+    zones.push(seg);
+  }
+
+  zones.sort((a, b) => a.x_start - b.x_start);
+
+  let prevEnd = terrainMinX;
+  for (let i = 0; i < zones.length; i++) {
+    const z = zones[i];
+    if (Math.abs(z.x_start - prevEnd) > 1e-6) {
+      throw new Error(
+        `Zone gap or overlap at x=${prevEnd}: zone "${z.id}" starts at ${z.x_start}`,
+      );
+    }
+    prevEnd = z.x_end;
+  }
+  if (Math.abs(prevEnd - terrainMaxX) > 1e-6) {
+    throw new Error(
+      `Zone coverage gap: last zone ends at ${prevEnd}, terrain ends at ${terrainMaxX}`,
+    );
+  }
+
+  return zones;
+}
+
 export function createSurfaceContactFilter(
   groundBody: Body,
   surfaces: SurfaceSegment[],

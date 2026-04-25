@@ -9,7 +9,7 @@ import { LeaderboardScreen } from "./LeaderboardScreen.js";
 import { fetchGhosts, submitCrashReport, type GhostData } from "./api.js";
 import { getHaptics } from "./Haptics.js";
 import type { DrawResult } from "@drawrace/engine-core";
-import { parseSurfaces } from "@drawrace/engine-core";
+import { parseSurfaces, validateZones } from "@drawrace/engine-core";
 
 type Screen = "draw" | "race" | "result";
 
@@ -44,20 +44,7 @@ function validateTrackData(track: TrackData): void {
   parseSurfaces(track.surfaces, terrainMinX, terrainMaxX);
 
   // Validate zones tile coverage
-  if (track.zones && track.zones.length > 0) {
-    const sorted = [...track.zones].sort((a, b) => a.x_start - b.x_start);
-    if (Math.abs(sorted[0].x_start - terrainMinX) > 1e-6) {
-      throw new Error(`Zone coverage: first zone starts at ${sorted[0].x_start}, terrain starts at ${terrainMinX}`);
-    }
-    for (let i = 1; i < sorted.length; i++) {
-      if (Math.abs(sorted[i].x_start - sorted[i - 1].x_end) > 1e-6) {
-        throw new Error(`Zone gap at x=${sorted[i - 1].x_end}`);
-      }
-    }
-    if (sorted[sorted.length - 1].x_end > terrainMaxX + 1e-6) {
-      throw new Error(`Zone coverage: last zone ends at ${sorted[sorted.length - 1].x_end}, terrain ends at ${terrainMaxX}`);
-    }
-  }
+  validateZones(track.zones, terrainMinX, terrainMaxX);
 }
 
 export function App() {

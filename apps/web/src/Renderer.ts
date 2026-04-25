@@ -172,16 +172,16 @@ function buildWobblePath(
   const rng = mulberry32(seed);
   const n = vertices.length;
 
-  path.moveTo(vertices[0].x * PPM, -vertices[0].y * PPM);
+  path.moveTo(vertices[0].x * PPM, vertices[0].y * PPM);
 
   for (let i = 0; i < n; i++) {
     const curr = vertices[i];
     const next = vertices[(i + 1) % n];
 
     const cx = curr.x * PPM;
-    const cy = -curr.y * PPM;
+    const cy = curr.y * PPM;
     const nx = next.x * PPM;
-    const ny = -next.y * PPM;
+    const ny = next.y * PPM;
 
     const ex = nx - cx;
     const ey = ny - cy;
@@ -272,9 +272,9 @@ export function createRenderer(
   {
     const verts = wheelDraw.vertices;
     if (verts.length > 0) {
-      wheelPath.moveTo(verts[0].x * PPM, -verts[0].y * PPM);
+      wheelPath.moveTo(verts[0].x * PPM, verts[0].y * PPM);
       for (let i = 1; i < verts.length; i++) {
-        wheelPath.lineTo(verts[i].x * PPM, -verts[i].y * PPM);
+        wheelPath.lineTo(verts[i].x * PPM, verts[i].y * PPM);
       }
       wheelPath.closePath();
     }
@@ -327,7 +327,7 @@ export function createRenderer(
   function worldToScreen(wx: number, wy: number): { sx: number; sy: number } {
     return {
       sx: wx * PPM - camera.x,
-      sy: -wy * PPM - camera.y,
+      sy: wy * PPM - camera.y,
     };
   }
 
@@ -352,7 +352,7 @@ export function createRenderer(
     const lookAheadY = reducedMotion ? 0 : vy * 0.02 * height * 0.6;
 
     const targetSX = playerX * PPM - width * 0.35 + lookAheadX;
-    const targetSY = -playerY * PPM - height * 0.6 + lookAheadY;
+    const targetSY = playerY * PPM - height * 0.6 + lookAheadY;
 
     if (reducedMotion) {
       // Simple lerp for reduced-motion (deterministic for snapshots)
@@ -580,6 +580,9 @@ export function createRenderer(
       ctx.moveTo(sx, topSy);
       ctx.lineTo(sx, botSy);
       ctx.stroke();
+
+      // Ink blot marker at terrain surface
+      ctx.drawImage(inkBlotSprite, sx - 6, botSy - 6, 12, 12);
 
       ctx.font = '12px "Caveat", system-ui, sans-serif';
       ctx.textAlign = "center";
@@ -829,7 +832,7 @@ export function createRenderer(
         // Ghost name tag (floating label with ink stroke behind for readability)
         if (ghost.name) {
           const gsx = ghost.snapshot.wheel.x * PPM - camera.x;
-          const gsy = -ghost.snapshot.wheel.y * PPM - camera.y;
+          const gsy = ghost.snapshot.wheel.y * PPM - camera.y;
           if (gsx > -50 && gsx < width + 50 && gsy > -50 && gsy < height + 50) {
             ctx.save();
             ctx.globalAlpha = 0.7;
@@ -887,9 +890,9 @@ export function createRenderer(
     updateWheelPath(vertices: Array<{ x: number; y: number }>) {
       const newPath = new Path2D();
       if (vertices.length > 0) {
-        newPath.moveTo(vertices[0].x * PPM, -vertices[0].y * PPM);
+        newPath.moveTo(vertices[0].x * PPM, vertices[0].y * PPM);
         for (let i = 1; i < vertices.length; i++) {
-          newPath.lineTo(vertices[i].x * PPM, -vertices[i].y * PPM);
+          newPath.lineTo(vertices[i].x * PPM, vertices[i].y * PPM);
         }
         newPath.closePath();
       }
@@ -902,9 +905,9 @@ export function createRenderer(
 export function createGhostWheelPath(vertices: Array<{ x: number; y: number }>): Path2D {
   const path = new Path2D();
   if (vertices.length > 0) {
-    path.moveTo(vertices[0].x * PPM, -vertices[0].y * PPM);
+    path.moveTo(vertices[0].x * PPM, vertices[0].y * PPM);
     for (let i = 1; i < vertices.length; i++) {
-      path.lineTo(vertices[i].x * PPM, -vertices[i].y * PPM);
+      path.lineTo(vertices[i].x * PPM, vertices[i].y * PPM);
     }
     path.closePath();
   }

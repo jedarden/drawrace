@@ -1,12 +1,15 @@
 /**
- * Temporary simulation to calibrate zone boundary ticks and verify swap advantage.
- * This file will be replaced by the actual playtest assertion.
+ * hills-01 zone validation and gameplay calibration.
+ *
+ * Layer 1: zone structure tests (fast, deterministic).
+ * Layer 2: headless simulation to measure shape/swap performance.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { createHeadlessRace, type TrackDef } from "./headless-race.js";
 import { runHeadless, type WheelSwap } from "./headless.js";
+import { validateZones } from "./surface.js";
 
 const TRACK_PATH = join(
   __dirname, "..", "..", "..", "apps", "web", "public", "tracks", "hills-01.json"
@@ -54,8 +57,51 @@ const TRI: [number, number][] = [[0,-0.4],[0.346,0.2],[-0.346,0.2]];
 
 const SEED = 42;
 
+// ── Layer 1: zone structure ──────────────────────────────────────────
+
+describe("hills-01 zone structure", () => {
+  it("loads four non-overlapping zones with ordered x_start/x_end", () => {
+    const track = loadRealTrack();
+    const terrainMinX = track.terrain[0][0];
+    const terrainMaxX = track.terrain[track.terrain.length - 1][0];
+
+    const zones = validateZones(track.zones, terrainMinX, terrainMaxX);
+
+    expect(zones).toHaveLength(4);
+    expect(zones.map((z) => z.id)).toEqual(["A", "B", "C", "D"]);
+
+    // Ordered x_start < x_end
+    for (const z of zones) {
+      expect(z.x_start).toBeLessThan(z.x_end);
+    }
+
+    // Non-overlapping and contiguous
+    for (let i = 1; i < zones.length; i++) {
+      expect(zones[i].x_start).toBe(zones[i - 1].x_end);
+    }
+
+    // Aggregate length matches terrain extent
+    const totalZoneLen = zones.reduce((s, z) => s + (z.x_end - z.x_start), 0);
+    const terrainLen = terrainMaxX - terrainMinX;
+    expect(totalZoneLen).toBeCloseTo(terrainLen, 4);
+  });
+
+  it("each zone is at least 8m long (≥8s at ~1 m/s)", () => {
+    const track = loadRealTrack();
+    const terrainMinX = track.terrain[0][0];
+    const terrainMaxX = track.terrain[track.terrain.length - 1][0];
+    const zones = validateZones(track.zones, terrainMinX, terrainMaxX);
+
+    for (const z of zones) {
+      expect(z.x_end - z.x_start).toBeGreaterThanOrEqual(8);
+    }
+  });
+});
+
+// ── Layer 2: gameplay calibration ────────────────────────────────────
+
 describe("hills-01 zone-surface calibration", () => {
-  it("measures single-wheel times and zone boundary ticks", () => {
+  it("measures single-wheel times and zone boundary ticks", { timeout: 120_000 }, () => {
     const track = loadRealTrack();
 
     const shapes = [
@@ -82,13 +128,17 @@ describe("hills-01 zone-surface calibration", () => {
     }
 
     console.log(`\nBest single-wheel: ${bestSingleName} at ${bestSingle} ticks (${(bestSingle/60).toFixed(2)}s)`);
+    expect(bestSingle).toBeLessThan(Infinity);
 
-    // Now test 3-swap runs with different swap tick offsets
+    // Test 3-swap runs: circle → teeth → large-circle → compact
+    // Swaps aligned to zone boundaries (8s, 18s, 28s) with offsets
     console.log("\n=== 3-swap runs (circle → star → big-circle → med-circle) ===");
 
-    // Try various swap tick offsets based on rough speed estimates
+    let bestSwapTicks = Infinity;
+    let bestSwapConfig = "";
+
     for (const offset of [0, -60, -120, 60, 120]) {
-      const baseTicks = [480, 1080, 1680]; // rough zone boundary ticks at ~1 m/s
+      const baseTicks = [480, 1080, 1680];
       const ticks = baseTicks.map(t => Math.max(1, t + offset));
 
       const result = runHeadless({
@@ -105,9 +155,18 @@ describe("hills-01 zone-surface calibration", () => {
       const time = (result.finishTicks / 60).toFixed(2);
       const improvement = ((1 - result.finishTicks / bestSingle) * 100).toFixed(1);
       console.log(`swap @ ${ticks}: ticks=${result.finishTicks}, time=${time}s, improvement=${improvement}%`);
+
+      if (result.finalX >= track.finish.pos[0] && result.finishTicks < bestSwapTicks) {
+        bestSwapTicks = result.finishTicks;
+        bestSwapConfig = ticks.join(", ");
+      }
     }
 
-    // This test always passes - it's just for calibration output
-    expect(true).toBe(true);
+    console.log(`\nBest swap: [${bestSwapConfig}] at ${bestSwapTicks} ticks (${(bestSwapTicks/60).toFixed(2)}s)`);
+    const bestImprovement = ((1 - bestSwapTicks / bestSingle) * 100).toFixed(1);
+    console.log(`Best swap improvement: ${bestImprovement}% over ${bestSingleName}`);
+
+    // Playtest assertion: 3-swap run finishes 20%+ faster than best single-wheel
+    expect(bestSwapTicks).toBeLessThan(bestSingle * 0.8);
   });
 });
