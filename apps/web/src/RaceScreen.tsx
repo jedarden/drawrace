@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { RaceSim } from "@drawrace/engine-core";
-import type { DrawResult, TrackDef } from "@drawrace/engine-core";
+import type { DrawResult, TrackDef, WheelSwap } from "@drawrace/engine-core";
 import { createRenderer, createGhostWheelPath, preloadAssets } from "./Renderer.js";
 import { ParticleSystem } from "./Particles.js";
 import { getPerformanceManager } from "./PerformanceManager.js";
@@ -16,6 +16,7 @@ interface GhostDef {
   wheelVertices: Array<{ x: number; y: number }>;
   finishTimeMs: number;
   seed: number;
+  wheels?: WheelSwap[]; // Optional multi-wheel swap data for ghosts with mid-race redraws
 }
 
 interface RaceScreenProps {
@@ -65,6 +66,12 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
   // Capture ghosts in a ref so a late-arriving fetch cannot restart the effect mid-race
   const ghostsRef = useRef(ghosts);
   ghostsRef.current = ghosts;
+
+  // Track ghost swap state: each ghost has its own swap index and pending swaps
+  const ghostSwapStateRef = useRef<Array<{
+    pendingSwaps: WheelSwap[];
+    swapIdx: number;
+  }>>([]);
 
   // ── Pause / resume ───────────────────────────────────────────────────────
   const handlePause = useCallback(() => {
@@ -129,6 +136,16 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
         const sim = new RaceSim(track, playerVerts);
         simRef.current = sim;
         const ghostSims = capturedGhosts.map((g) => new RaceSim(track, g.wheelVertices, g.seed));
+
+        // Initialize ghost swap state: extract pending swaps (excluding initial wheel at tick 0)
+        ghostSwapStateRef.current = capturedGhosts.map((g) => {
+          const wheels = g.wheels || [];
+          // Filter out the initial wheel (swap_tick === 0) and sort remaining swaps
+          const pendingSwaps = wheels
+            .filter(w => w.swap_tick > 0)
+            .sort((a, b) => a.swap_tick - b.swap_tick);
+          return { pendingSwaps, swapIdx: 0 };
+        });
 
         const particles = new ParticleSystem();
         particlesRef.current = particles;
@@ -215,7 +232,31 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
 
             while (accumTime >= simDt) {
               sim.step();
-              ghostSims.forEach((gs) => gs.step());
+
+              // Step ghosts and apply their wheel swaps at recorded ticks
+              ghostSims.forEach((gs, ghostIdx) => {
+                const swapState = ghostSwapStateRef.current[ghostIdx];
+                if (!swapState) {
+                  gs.step();
+                  return;
+                }
+
+                // Check if any swap is scheduled for this tick
+                const currentTick = sim.snapshot().tick;
+                while (
+                  swapState.swapIdx < swapState.pendingSwaps.length &&
+                  swapState.pendingSwaps[swapState.swapIdx].swap_tick === currentTick
+                ) {
+                  const swap = swapState.pendingSwaps[swapState.swapIdx];
+                  // Convert polygon format back to wheel vertices
+                  const verts = swap.polygon.map(([x, y]) => ({ x, y }));
+                  gs.swapWheel(verts);
+                  swapState.swapIdx++;
+                }
+
+                gs.step();
+              });
+
               accumTime -= simDt;
             }
 
