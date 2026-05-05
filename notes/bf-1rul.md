@@ -19,6 +19,27 @@ Created ArgoCD Application for drawrace on rs-manager pointing to `k8s/iad-acb/d
   - Has `CreateNamespace=true`
   - Automated sync enabled
 
-## Verification
-The ArgoCD Application should sync the manifests to rs-manager (iad-acb cluster).
-Namespace `drawrace` will be created automatically on first sync.
+## Verification (2026-05-05)
+
+```bash
+# Application exists in ArgoCD
+kubectl --kubeconfig=/home/coding/.kube/rs-manager.kubeconfig get application drawrace -n argocd
+
+# Namespace exists on iad-acb
+kubectl --kubeconfig=/home/coding/.kube/iad-acb.kubeconfig get namespace drawrace
+
+# Resources are syncing (some pods not healthy due to external dependencies)
+kubectl --kubeconfig=/home/coding/.kube/iad-acb.kubeconfig get all -n drawrace
+```
+
+## Status
+
+- ArgoCD Application: Synced to iad-acb cluster ✓
+- Namespace drawrace: Created ✓
+- k8s manifests: Synced from declarative-config ✓
+
+**Note:** Some pods show Pending/ImagePullBackOff due to:
+- ExternalSecrets not configured in OpenBao (expected - separate setup task)
+- Container images may need building
+
+All deliverables for this task are complete.
