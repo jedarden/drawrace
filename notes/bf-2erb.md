@@ -12,3 +12,9 @@ The stuck-DNF detection is implemented at lines 308-323 of `packages/engine-core
 4. **State variables**: `accumulatedRotations` and `progressBaselineX` (lines 74-75)
 
 All 187 tests pass, confirming the implementation works correctly.
+
+## Retrospective
+- **What worked:** Checked git log to confirm feature was already complete before starting implementation
+- **What didn't:** N/A - no implementation needed
+- **Surprise:** The bead task was based on outdated state; the feature had been completed in a prior commit
+- **Reusable pattern:** Always verify current git state (git log HEAD) before implementing, as beads may be created from stale issue descriptions
