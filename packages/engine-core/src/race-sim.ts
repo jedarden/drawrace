@@ -38,6 +38,7 @@ export interface RaceSnapshot {
   tick: number;
   elapsedMs: number;
   finished: boolean;
+  dnf: boolean;
 }
 
 const DT = 1 / 60;
@@ -64,11 +65,14 @@ export class RaceSim {
   private tick = 0;
   private elapsedMs = 0;
   private finished = false;
+  private dnf = false;
   private finishX: number;
   private motorEnabled = false;
   private wheelSwapLog: WheelSwap[] = [];
   private surfaces: SurfaceSegment[];
   readonly track: TrackDef;
+  private accumulatedRotations = 0;
+  private progressBaselineX = 0;
 
   constructor(
     track: TrackDef,
@@ -225,6 +229,8 @@ export class RaceSim {
     );
     if (!rearJoint) throw new Error("Failed to create rear wheel joint");
     this.rearWheelJoint = rearJoint;
+
+    this.progressBaselineX = this.chassisBody.getPosition().x;
   }
 
   swapWheel(vertices: Array<{ x: number; y: number }>): void {
@@ -245,6 +251,8 @@ export class RaceSim {
     this.wheelJoint = result.newFrontJoint;
     this.rearWheelBody = result.newRearBody;
     this.rearWheelJoint = result.newRearJoint;
+    this.accumulatedRotations = 0;
+    this.progressBaselineX = this.chassisBody.getPosition().x;
   }
 
   getSwapLog(): WheelSwap[] {
@@ -294,6 +302,24 @@ export class RaceSim {
     const wp = this.wheelBody.getPosition();
     if (wp.x >= this.finishX) {
       this.finished = true;
+      return this.snapshot();
+    }
+
+    // Stuck-DNF detection: accumulate rotations and check progress
+    const frontAngVel = Math.abs(this.wheelBody.getAngularVelocity());
+    const rearAngVel = Math.abs(this.rearWheelBody.getAngularVelocity());
+    const rotationIncrement = (frontAngVel + rearAngVel) * DT / (2 * Math.PI * 2);
+    this.accumulatedRotations += rotationIncrement;
+
+    const chassisX = this.chassisBody.getPosition().x;
+    const deltaX = chassisX - this.progressBaselineX;
+
+    if (deltaX >= 0.5) {
+      this.accumulatedRotations = 0;
+      this.progressBaselineX = chassisX;
+    } else if (this.accumulatedRotations >= 10) {
+      this.finished = true;
+      this.dnf = true;
     }
 
     return this.snapshot();
@@ -310,11 +336,16 @@ export class RaceSim {
       tick: this.tick,
       elapsedMs: this.elapsedMs,
       finished: this.finished,
+      dnf: this.dnf,
     };
   }
 
   isFinished(): boolean {
     return this.finished;
+  }
+
+  isDnf(): boolean {
+    return this.dnf;
   }
 
   getElapsedMs(): number {

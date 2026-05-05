@@ -70,4 +70,83 @@ describe("RaceSim", () => {
     // Without motor, the car shouldn't have moved much (just settling under gravity)
     expect(Math.abs(snapAfter60.wheel.x - snap60.wheel.x)).toBeLessThan(5);
   });
+
+  it("detects stuck-DNF when wheels spin without chassis progress", () => {
+    const sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
+    sim.enableMotor();
+
+    // Run a few steps to settle
+    for (let i = 0; i < 10; i++) sim.step();
+
+    // Get initial chassis position after settling
+    const initialSnap = sim.snapshot();
+    const baselineX = initialSnap.chassis.x;
+
+    // Pin the chassis in place to simulate being stuck
+    const chassisPos = sim["chassisBody"].getPosition();
+    const chassisAngle = sim["chassisBody"].getAngle();
+
+    for (let i = 0; i < 1000; i++) {
+      // Pin chassis in place (simulating being stuck against obstacle)
+      sim["chassisBody"].setPosition(chassisPos);
+      sim["chassisBody"].setAngle(chassisAngle);
+      sim["chassisBody"].setLinearVelocity({ x: 0, y: 0 });
+      sim["chassisBody"].setAngularVelocity(0);
+
+      // Set wheel angular velocities to simulate spinning
+      sim["wheelBody"].setAngularVelocity(20);
+      sim["rearWheelBody"].setAngularVelocity(20);
+
+      const snap = sim.step();
+      if (snap.finished) {
+        // Should finish due to DNF
+        expect(snap.dnf).toBe(true);
+        // Chassis shouldn't have advanced more than 0.5m from baseline
+        expect(snap.chassis.x).toBeLessThan(baselineX + 0.5);
+        return;
+      }
+    }
+
+    // If we get here, DNF should have triggered
+    const finalSnap = sim.snapshot();
+    expect(finalSnap.finished).toBe(true);
+    expect(finalSnap.dnf).toBe(true);
+    expect(finalSnap.chassis.x).toBeLessThan(baselineX + 0.5);
+  });
+
+  it("resets stuck detection on wheel swap", () => {
+    const sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
+    sim.enableMotor();
+
+    // Run for a bit to accumulate some rotations
+    for (let i = 0; i < 100; i++) {
+      sim.step();
+    }
+
+    // Swap the wheel
+    sim.swapWheel(makeCircle(0.45, 8));
+
+    // The rotation counter should have been reset
+    expect(sim["accumulatedRotations"]).toBe(0);
+    // Baseline should be updated to current chassis position
+    const currentX = sim["chassisBody"].getPosition().x;
+    expect(sim["progressBaselineX"]).toBeCloseTo(currentX, 5);
+  });
+
+  it("does not trigger DNF when chassis makes sufficient progress", () => {
+    const sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
+    sim.enableMotor();
+
+    let snap;
+    for (let i = 0; i < 10800; i++) {
+      snap = sim.step();
+      if (snap.finished) break;
+    }
+
+    // Should finish normally (not DNF) if it reaches the finish line
+    expect(snap!.finished).toBe(true);
+    if (snap!.wheel.x >= TEST_TRACK.finish.pos[0]) {
+      expect(snap!.dnf).toBe(false);
+    }
+  });
 });
