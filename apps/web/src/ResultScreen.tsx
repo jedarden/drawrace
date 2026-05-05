@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState } from "react";
-import type { DrawResult } from "@drawrace/engine-core";
+import type { DrawResult, WheelSwap } from "@drawrace/engine-core";
 import type { StrokePoint } from "./DrawScreen.js";
 import { submitGhost, waitForVerdict, isOnline, type SubmissionVerdict } from "./api.js";
 import { getSoundManager } from "./Sound.js";
@@ -15,6 +15,7 @@ interface ResultScreenProps {
   wheelDraw: DrawResult;
   rawStrokePoints: StrokePoint[];
   trackId: number;
+  swapLog: WheelSwap[];
   ghosts: GhostResult[];
   onRetry: () => void;
   onShowLeaderboard: () => void;
@@ -28,7 +29,7 @@ function formatTime(ms: number): string {
   return `${min}:${sec.toString().padStart(2, "0")}.${frac.toString().padStart(3, "0")}`;
 }
 
-export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId, ghosts, onRetry, onShowLeaderboard }: ResultScreenProps) {
+export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId, swapLog, ghosts, onRetry, onShowLeaderboard }: ResultScreenProps) {
   const [verdict, setVerdict] = useState<SubmissionVerdict | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -40,11 +41,17 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
 
     let cancelled = false;
     (async () => {
+      // Convert swap log from engine format to API format
+      const wheels = swapLog.map(swap => ({
+        swapTick: swap.swap_tick,
+        vertices: swap.polygon.map(([x, y]) => ({ x, y })),
+      }));
       const submissionId = await submitGhost({
         trackId,
         finishTimeMs,
         wheelVertices: wheelDraw.vertices,
         rawStrokePoints,
+        wheels,
       });
       if (!submissionId || cancelled) return;
 

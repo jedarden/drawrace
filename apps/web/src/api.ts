@@ -27,6 +27,7 @@ export interface GhostData {
   wheelVertices: Array<{ x: number; y: number }>;
   finishTimeMs: number;
   seed: number;
+  wheels?: Array<{ swap_tick: number; polygon: [number, number][] }>;
 }
 
 export interface SubmissionVerdict {
@@ -162,6 +163,7 @@ export interface SubmitInput {
   finishTimeMs: number;
   wheelVertices: Array<{ x: number; y: number }>;
   rawStrokePoints: Array<Point & { t: number }>;
+  wheels?: Array<{ swapTick: number; vertices: Array<{ x: number; y: number }> }>;
 }
 
 export async function submitGhost(input: SubmitInput): Promise<string | null> {
@@ -169,11 +171,13 @@ export async function submitGhost(input: SubmitInput): Promise<string | null> {
   if (!apiUrl) return null;
 
   const playerUuid = getPlayerUuid();
+  // Use provided wheels[] array, or fall back to single initial wheel for compatibility
+  const wheels = input.wheels ?? [{ swapTick: 0, vertices: input.wheelVertices }];
   const blob = encodeGhostBlob({
     trackId: input.trackId,
     finishTimeMs: input.finishTimeMs,
     playerUuid,
-    wheels: [{ swapTick: 0, vertices: input.wheelVertices }],
+    wheels,
     rawStrokePoints: input.rawStrokePoints,
   });
 

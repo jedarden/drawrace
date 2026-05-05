@@ -252,6 +252,68 @@ CHECK_FINISH_TIME_JS = """
 })()
 """
 
+DRAW_TRIANGLE_RACE_JS = """
+(async () => {
+  // Find the draw overlay (bottom 40% of viewport during race)
+  const overlay = document.querySelector('[role="region"][aria-label*="Mid-race draw" i]');
+  if (!overlay) return {ok: false, err: 'draw overlay not found'};
+  const rect = overlay.getBoundingClientRect();
+
+  // Wait for overlay to be active (not greyed out by cooldown)
+  await new Promise(r => {
+    const check = () => {
+      const style = window.getComputedStyle(overlay);
+      if (style.filter.includes('saturate(0.4)')) {
+        setTimeout(check, 100);
+      } else {
+        r();
+      }
+    };
+    check();
+  });
+
+  // Draw a triangle in the overlay
+  const cx = rect.left + rect.width * 0.5;
+  const cy = rect.top + rect.height * 0.5;
+  const size = Math.min(rect.width, rect.height) * 0.25;
+
+  const mk = (type, x, y) => new PointerEvent(type, {
+    bubbles: true, cancelable: true, composed: true,
+    pointerId: 1, pointerType: 'touch', isPrimary: true,
+    clientX: x, clientY: y,
+    pressure: type === 'pointerup' ? 0 : 0.5,
+    width: 30, height: 30,
+  });
+
+  // Triangle points: top, bottom-right, bottom-left
+  const pts = [
+    [cx, cy - size],
+    [cx + size * 0.866, cy + size * 0.5],
+    [cx - size * 0.866, cy + size * 0.5]
+  ];
+
+  overlay.dispatchEvent(mk('pointerdown', pts[0][0], pts[0][1]));
+  await new Promise(r => setTimeout(r, 20));
+  for (let i = 1; i < pts.length; i++) {
+    overlay.dispatchEvent(mk('pointermove', pts[i][0], pts[i][1]));
+    await new Promise(r => setTimeout(r, 30));
+  }
+  overlay.dispatchEvent(mk('pointerup', pts[2][0], pts[2][1]));
+
+  return {ok: true, drew: 'triangle'};
+})()
+"""
+
+CHECK_SWAP_COUNT_JS = """
+(() => {
+  const swapCounter = document.querySelector('[aria-label^="Swaps:"]');
+  if (!swapCounter) return {ok: false, err: 'swap counter not found'};
+  const m = swapCounter.getAttribute('aria-label').match(/Swaps:\\s*(\\d+)\\s*of\\s*(\\d+)/);
+  if (!m) return {ok: false, err: 'swap counter format invalid'};
+  return {ok: true, current: parseInt(m[1]), max: parseInt(m[2])};
+})()
+"""
+
 
 # ---------------------------------------------------------------------------
 # Screenshot + pixel helpers
@@ -415,6 +477,29 @@ async def run_smoke(url, ws_url, artifacts_dir, baseline_dir, save_baselines):
             print(f"FAIL: Countdown screen is a solid colour (unique={count})")
             return False
 
+        # -- STEP 3.5: Wait for race to progress then do mid-race redraw -----
+        print("Waiting 8s for race to progress before mid-race redraw...")
+        await asyncio.sleep(8)
+
+        print("Drawing mid-race triangle...")
+        swap_result = await sess.evaluate(DRAW_TRIANGLE_RACE_JS, timeout=30)
+        if not swap_result or not swap_result.get("ok"):
+            print(f"FAIL: Mid-race draw failed: {swap_result}")
+            await screenshot(sess, os.path.join(artifacts_dir, "03b-mid-race-draw-fail.png"))
+            return False
+        print(f"  Drew: {swap_result.get('drew')}")
+        collector.feed_batch(await sess.drain_events(0.5))
+
+        # Verify swap count increased
+        swap_count = await sess.evaluate(CHECK_SWAP_COUNT_JS, await_promise=False)
+        if not swap_count or not swap_count.get("ok"):
+            print(f"WARNING: Could not verify swap count: {swap_count}")
+        else:
+            print(f"  Swap count: {swap_count['current']}/{swap_count['max']}")
+            if swap_count['current'] < 1:
+                print(f"FAIL: Expected at least 1 swap after mid-race draw, got {swap_count['current']}")
+                return False
+
     # Close the first connection — the race renders at 60fps which can
     # starve Chrome's DevTools socket on mid-range devices (Pixel 6).
     # We reconnect afterwards to check the result screen.
@@ -502,8 +587,22 @@ async def run_smoke(url, ws_url, artifacts_dir, baseline_dir, save_baselines):
             await sess2.stop()
 
     # -- Save or compare baselines -------------------------------------------
+    # Expected milestone files (including new mid-race draw step)
+    expected_milestones = [
+        "01-draw-screen.png",
+        "02-draw-done.png",
+        "03-countdown.png",
+        "03b-mid-race-draw-fail.png",  # Only if error occurs
+        "04-mid-race.png",
+        "05-result.png",
+    ]
     milestone_files = sorted(f for f in os.listdir(artifacts_dir) if f.endswith(".png"))
     baseline_failures = []
+
+    # Check that we have the expected milestones (excluding error screenshots)
+    actual_milestones = [f for f in milestone_files if not f.startswith("99-") and not f.endswith("-fail.png")]
+    if "04-mid-race.png" not in actual_milestones or "05-result.png" not in actual_milestones:
+        print(f"WARNING: Not all expected milestones present. Got: {actual_milestones}")
 
     for fname in milestone_files:
         artifact = os.path.join(artifacts_dir, fname)

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { encodeGhostBlob, decodeGhostBlobVertices, decodeGhostBlobFinishTime } from "./ghost-blob.js";
+import { encodeGhostBlob, decodeGhostBlobVertices, decodeGhostBlobFinishTime, decodeGhostBlobWheels } from "./ghost-blob.js";
 import { _resetForTesting } from "./player-identity.js";
 import type { WheelSwap } from "./ghost-blob.js";
 
@@ -147,5 +147,53 @@ describe("ghost-blob (Layer 1)", () => {
     const buf = encodeGhostBlob(SAMPLE_INPUT);
     const view = new DataView(buf);
     expect(view.getUint8(7)).toBe(0x00);
+  });
+
+  describe("decodeGhostBlobWheels", () => {
+    it("decodes a single-wheel blob", () => {
+      const buf = encodeGhostBlob(SAMPLE_INPUT);
+      const wheels = decodeGhostBlobWheels(buf);
+      expect(wheels).toHaveLength(1);
+      expect(wheels[0].swapTick).toBe(0);
+      expect(wheels[0].vertices).toHaveLength(4);
+      expect(wheels[0].vertices[0].x).toBeCloseTo(1.0, 1);
+      expect(wheels[0].vertices[0].y).toBeCloseTo(0.0, 1);
+    });
+
+    it("decodes a multi-wheel blob with 3 swaps", () => {
+      const wheels: WheelSwap[] = [
+        { swapTick: 0, vertices: SAMPLE_VERTICES },
+        { swapTick: 300, vertices: SAMPLE_VERTICES.map((v) => ({ x: v.x + 0.5, y: v.y })) },
+        { swapTick: 600, vertices: SAMPLE_VERTICES.map((v) => ({ x: v.x - 0.5, y: v.y })) },
+      ];
+      const input = { ...SAMPLE_INPUT, wheels };
+      const buf = encodeGhostBlob(input);
+      const decoded = decodeGhostBlobWheels(buf);
+
+      expect(decoded).toHaveLength(3);
+      expect(decoded[0].swapTick).toBe(0);
+      expect(decoded[1].swapTick).toBe(300);
+      expect(decoded[2].swapTick).toBe(600);
+      expect(decoded[1].vertices[0].x).toBeCloseTo(1.5, 1);
+      expect(decoded[2].vertices[0].x).toBeCloseTo(0.5, 1);
+    });
+
+    it("decodes a 20-swap blob", () => {
+      const wheels: WheelSwap[] = [{ swapTick: 0, vertices: SAMPLE_VERTICES }];
+      for (let i = 1; i <= 20; i++) {
+        wheels.push({
+          swapTick: i * 60,
+          vertices: SAMPLE_VERTICES.map((v) => ({ x: v.x + i * 0.1, y: v.y })),
+        });
+      }
+      const input = { ...SAMPLE_INPUT, wheels };
+      const buf = encodeGhostBlob(input);
+      const decoded = decodeGhostBlobWheels(buf);
+
+      expect(decoded).toHaveLength(21);
+      expect(decoded[0].swapTick).toBe(0);
+      expect(decoded[20].swapTick).toBe(1200);
+      expect(decoded[20].vertices[0].x).toBeCloseTo(1.0 + 20 * 0.1, 1);
+    });
   });
 });

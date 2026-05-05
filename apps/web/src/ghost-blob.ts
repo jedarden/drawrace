@@ -163,6 +163,38 @@ export function decodeGhostBlobFinishTime(blob: ArrayBuffer): number {
   return view.getUint32(8, true);
 }
 
+export function decodeGhostBlobWheels(blob: ArrayBuffer): Array<{ swapTick: number; vertices: Array<{ x: number; y: number }> }> {
+  const view = new DataView(blob);
+  const bytes = new Uint8Array(blob);
+  let offset = 36; // skip header
+
+  const wheelCount = view.getUint8(offset);
+  offset += 1;
+
+  const wheels: Array<{ swapTick: number; vertices: Array<{ x: number; y: number }> }> = [];
+
+  for (let i = 0; i < wheelCount; i++) {
+    const swapTick = view.getUint32(offset, true);
+    offset += 4;
+
+    const vertexCount = view.getUint8(offset);
+    offset += 1;
+
+    const vertices: Array<{ x: number; y: number }> = [];
+    for (let j = 0; j < vertexCount; j++) {
+      const x = view.getInt16(offset, true) / 100;
+      offset += 2;
+      const y = view.getInt16(offset, true) / 100;
+      offset += 2;
+      vertices.push({ x, y });
+    }
+
+    wheels.push({ swapTick, vertices });
+  }
+
+  return wheels;
+}
+
 function parseUuidBytes(uuid: string): Uint8Array {
   const hex = uuid.replace(/-/g, "");
   const bytes = new Uint8Array(16);

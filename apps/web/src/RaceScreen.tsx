@@ -23,7 +23,7 @@ interface RaceScreenProps {
   track: TrackDef;
   wheelDraw: DrawResult;
   ghosts: GhostDef[];
-  onFinished: (elapsedMs: number) => void;
+  onFinished: (elapsedMs: number, swapLog: WheelSwap[]) => void;
   onRestart: () => void;
   onQuit: () => void;
 }
@@ -71,6 +71,15 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
   const ghostSwapStateRef = useRef<Array<{
     pendingSwaps: WheelSwap[];
     swapIdx: number;
+  }>>([]);
+
+  // Track ghost wheel paths so they can be updated on swaps
+  const ghostWheelPathsRef = useRef<Path2D[]>([]);
+
+  // Track ghost swap animations for crossfade effect
+  const ghostSwapAnimsRef = useRef<Array<{
+    startTime: number;
+    oldPath: Path2D;
   }>>([]);
 
   // ── Pause / resume ───────────────────────────────────────────────────────
@@ -146,6 +155,12 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
             .sort((a, b) => a.swap_tick - b.swap_tick);
           return { pendingSwaps, swapIdx: 0 };
         });
+
+        // Initialize ghost swap animations
+        ghostSwapAnimsRef.current = capturedGhosts.map(() => ({
+          startTime: 0,
+          oldPath: null as Path2D | null,
+        }));
 
         const particles = new ParticleSystem();
         particlesRef.current = particles;
@@ -251,6 +266,13 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
                   // Convert polygon format back to wheel vertices
                   const verts = swap.polygon.map(([x, y]) => ({ x, y }));
                   gs.swapWheel(verts);
+                  // Store old path and start animation for crossfade
+                  const oldPath = ghostWheelPathsRef.current[ghostIdx];
+                  ghostWheelPathsRef.current[ghostIdx] = createGhostWheelPath(verts);
+                  ghostSwapAnimsRef.current[ghostIdx] = {
+                    startTime: now,
+                    oldPath,
+                  };
                   swapState.swapIdx++;
                 }
 
@@ -293,10 +315,31 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
             prevWheelY = snap.wheel.y;
 
             const maxGhosts = perf.maxGhosts;
-            const activeGhostSnaps = ghostSims.slice(0, maxGhosts).map((gs, i) => ({
-              snapshot: gs.snapshot(),
-              wheelPath: ghostWheelPaths[i],
-            }));
+            const SWAP_DURATION = 200;
+            const activeGhostSnaps = ghostSims.slice(0, maxGhosts).map((gs, i) => {
+              const snap = gs.snapshot();
+              const anim = ghostSwapAnimsRef.current[i];
+              let swapAlpha = 0.6;
+              let oldWheelPath: Path2D | null = null;
+              if (anim && anim.oldPath && anim.startTime > 0) {
+                const elapsed = now - anim.startTime;
+                if (elapsed < SWAP_DURATION) {
+                  // Crossfade in progress: alpha goes from 0.3 to 0.6
+                  const t = elapsed / SWAP_DURATION;
+                  swapAlpha = 0.3 + 0.3 * t;
+                  oldWheelPath = anim.oldPath;
+                } else {
+                  // Animation complete, clear it
+                  ghostSwapAnimsRef.current[i] = { startTime: 0, oldPath: null };
+                }
+              }
+              return {
+                snapshot: snap,
+                wheelPath: ghostWheelPaths[i],
+                swapAlpha,
+                oldWheelPath,
+              };
+            });
 
             particles.setParticleLevel(perf.particleLevel);
             if (perf.particleLevel !== "none") {
@@ -331,7 +374,8 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
               setRacingPhase("done");
               if (!finishedCalledRef.current) {
                 finishedCalledRef.current = true;
-                onFinished(snap.elapsedMs);
+                const swapLog = sim.getSwapLog();
+                onFinished(snap.elapsedMs, swapLog);
               }
               return;
             }

@@ -8,7 +8,7 @@ import { LandingScreen } from "./LandingScreen.js";
 import { LeaderboardScreen } from "./LeaderboardScreen.js";
 import { fetchGhosts, submitCrashReport, type GhostData } from "./api.js";
 import { getHaptics } from "./Haptics.js";
-import type { DrawResult } from "@drawrace/engine-core";
+import type { DrawResult, WheelSwap } from "@drawrace/engine-core";
 import { parseSurfaces, validateZones } from "@drawrace/engine-core";
 
 type Screen = "draw" | "race" | "result";
@@ -52,6 +52,7 @@ export function App() {
   const [drawResult, setDrawResult] = useState<DrawResult | null>(null);
   const [rawStrokePoints, setRawStrokePoints] = useState<StrokePoint[]>([]);
   const [finishTimeMs, setFinishTimeMs] = useState(0);
+  const [swapLog, setSwapLog] = useState<WheelSwap[]>([]);
   const [track, setTrack] = useState<TrackData | null>(null);
   const [ghosts, setGhosts] = useState<GhostData[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -108,8 +109,9 @@ export function App() {
     setScreen("race");
   }, []);
 
-  const handleRaceFinished = useCallback((elapsedMs: number) => {
+  const handleRaceFinished = useCallback((elapsedMs: number, wheelSwaps: WheelSwap[]) => {
     setFinishTimeMs(elapsedMs);
+    setSwapLog(wheelSwaps);
     setScreen("result");
   }, []);
 
@@ -117,6 +119,7 @@ export function App() {
     setDrawResult(null);
     setRawStrokePoints([]);
     setFinishTimeMs(0);
+    setSwapLog([]);
     setScreen("draw");
     if (track) {
       fetchGhosts(track.numeric_id).then(setGhosts);
@@ -180,6 +183,7 @@ export function App() {
           wheelDraw={drawResult}
           rawStrokePoints={rawStrokePoints}
           trackId={track.numeric_id}
+          swapLog={swapLog}
           ghosts={ghosts.map((g) => ({ name: g.name, finishTimeMs: g.finishTimeMs }))}
           onRetry={handleRetry}
           onShowLeaderboard={() => setShowLeaderboard(true)}

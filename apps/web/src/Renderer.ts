@@ -825,9 +825,21 @@ export function createRenderer(
 
       // Ghosts (layer 4)
       for (const ghost of ghosts) {
-        drawWheel(ghost.snapshot.wheel, ghost.wheelPath, null, "#8896A3", 0.6);
+        const alpha = (ghost as any).swapAlpha ?? 0.6;
+        const oldPath = (ghost as any).oldWheelPath;
+        if (oldPath && alpha < 0.6) {
+          // Ghost swap crossfade: draw old wheel fading out, new wheel fading in
+          const progress = 1 - (alpha - 0.3) / 0.3; // 0 = start of swap, 1 = end
+          const oldAlpha = 0.6 * (1 - easeOutCubic(progress));
+          const newAlpha = 0.6 * easeOutCubic(progress);
+          drawWheel(ghost.snapshot.wheel, oldPath, null, "#8896A3", oldAlpha);
+          drawWheel(ghost.snapshot.wheel, ghost.wheelPath, null, "#8896A3", newAlpha);
+        } else {
+          drawWheel(ghost.snapshot.wheel, ghost.wheelPath, null, "#8896A3", 0.6);
+        }
         drawChassis(ghost.snapshot.chassis, 0.6);
-        drawRearWheel(ghost.snapshot.rearWheel, ghost.wheelPath, null, "#8896A3", 0.6);
+        const rearPath = oldPath && alpha < 0.6 ? ghost.wheelPath : ghost.wheelPath;
+        drawRearWheel(ghost.snapshot.rearWheel, rearPath, null, "#8896A3", 0.6);
 
         // Ghost name tag (floating label with ink stroke behind for readability)
         if (ghost.name) {
@@ -912,4 +924,9 @@ export function createGhostWheelPath(vertices: Array<{ x: number; y: number }>):
     path.closePath();
   }
   return path;
+}
+
+// easeOutCubic for ghost swap crossfade
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
 }
