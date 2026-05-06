@@ -340,15 +340,51 @@ export function createRenderer(
   const LERP_X = 0.08;
   const LERP_Y = 0.05;
 
-  function updateCamera(playerX: number, playerY: number, dtSec: number) {
+  // Zone visibility telemetry: track first tick each zone becomes visible
+  // and when chassis crosses each boundary
+  const zoneVisibilityTicks = new Map<number, number>();
+  const zoneChassisCrossTicks = new Map<number, number>();
+  let telemetryLogged = false;
+  let currentTick = 0; // Track current simulation tick
+  let prevChassisX = 0; // Track chassis position for boundary crossing detection
+
+  function updateCamera(playerX: number, playerY: number, chassisX: number, dtSec: number, tick: number) {
+    currentTick = tick;
+
     // Estimate velocity for look-ahead
     const vx = (playerX - prevPlayerX) / Math.max(dtSec, 1 / 60);
     const vy = (playerY - prevPlayerY) / Math.max(dtSec, 1 / 60);
     prevPlayerX = playerX;
     prevPlayerY = playerY;
 
-    // Look-ahead: offset target by velocity projection
-    const lookAheadX = reducedMotion ? 0 : vx * 0.08 * width * 0.15;
+    // Track chassis crossing zone boundaries for telemetry
+    if (!reducedMotion && zoneBoundaries.length > 0) {
+      for (const boundaryX of zoneBoundaries) {
+        // Check if chassis crossed this boundary in this frame
+        const wasBefore = prevChassisX < boundaryX;
+        const isAfter = chassisX >= boundaryX;
+        if (wasBefore && isAfter && !zoneChassisCrossTicks.has(boundaryX)) {
+          zoneChassisCrossTicks.set(boundaryX, tick);
+          console.log(`[Camera] Chassis crossed zone boundary at x=${boundaryX.toFixed(1)}m at tick ${tick} (t=${tick / 60}s)`);
+        }
+      }
+    }
+    prevChassisX = chassisX;
+
+    // Velocity-dependent look-ahead for consistent ~4s preview time
+    // Goal: look ahead by (velocity * 4 seconds) worth of distance
+    // Base viewport shows player at 35% of screen width, so ~65% is ahead
+    // At 800px width: 800 * 0.65 / 30 PPM = ~17.3m base viewport ahead
+    // At 5 m/s: need 20m total, base provides ~17.3m, need +2.7m look-ahead
+    // At 10 m/s: need 40m total, base provides ~17.3m, need +22.7m look-ahead
+    const absVx = Math.abs(vx);
+    const lookAheadSeconds = 4; // Target 4 seconds of preview
+    const baseViewportMeters = width * 0.65 / PPM;
+    const targetPreviewMeters = absVx * lookAheadSeconds;
+    const additionalLookAheadMeters = Math.max(0, targetPreviewMeters - baseViewportMeters);
+
+    // Convert to pixels: lookAheadX = additional meters * PPM
+    const lookAheadX = reducedMotion ? 0 : Math.sign(vx) * additionalLookAheadMeters * PPM;
     const lookAheadY = reducedMotion ? 0 : vy * 0.02 * height * 0.6;
 
     const targetSX = playerX * PPM - width * 0.35 + lookAheadX;
@@ -366,6 +402,26 @@ export function createRenderer(
       camera.vy += fy * dtSec;
       camera.x += camera.vx * dtSec;
       camera.y += camera.vy * dtSec;
+    }
+
+    // Zone visibility telemetry: check if any terrain from the next zone is now visible
+    // We define "visible" as the zone boundary appearing in the viewport
+    if (!reducedMotion && zoneBoundaries.length > 0) {
+      for (const boundaryX of zoneBoundaries) {
+        // Skip if already logged
+        if (zoneVisibilityTicks.has(boundaryX)) continue;
+
+        const boundaryScreenX = boundaryX * PPM - camera.x;
+
+        // Check if the boundary is visible in the viewport
+        // We consider it "visible" when it appears anywhere on screen
+        if (boundaryScreenX >= 0 && boundaryScreenX <= width) {
+          zoneVisibilityTicks.set(boundaryX, tick);
+
+          // Log visibility for debugging
+          console.log(`[Camera] Zone boundary at x=${boundaryX.toFixed(1)}m visible at tick ${tick} (t=${tick / 60}s)`);
+        }
+      }
     }
   }
 
@@ -802,7 +858,7 @@ export function createRenderer(
       lastFrameTime = now;
       const dtMs = dtSec * 1000;
 
-      updateCamera(snapshot.wheel.x, snapshot.wheel.y, dtSec);
+      updateCamera(snapshot.wheel.x, snapshot.wheel.y, snapshot.chassis.x, dtSec, snapshot.tick);
 
       ctx.save();
       // Camera shake (deterministic jitter)
@@ -915,6 +971,72 @@ export function createRenderer(
       }
       wheelPath = newPath;
       wobblePath = buildWobblePath(vertices, fnvHash("wobble"));
+    },
+
+    getZoneVisibilityData() {
+      return new Map(zoneVisibilityTicks);
+    },
+
+    verifyZoneVisibilityRule(chassisX: number) {
+      // Verify the 4-second rule: each zone boundary should be visible
+      // at least 240 ticks (4 seconds) before the chassis reaches it
+      const violations: Array<{ boundaryX: number; visibleAtTick: number; chassisCrossTick: number; leadTicks: number }> = [];
+
+      for (const [boundaryX, visibleAtTick] of zoneVisibilityTicks) {
+        // Check if we have recorded the chassis crossing this boundary
+        const chassisCrossTick = zoneChassisCrossTicks.get(boundaryX);
+        if (chassisCrossTick === undefined) {
+          // Chassis hasn't crossed this boundary yet, skip verification
+          continue;
+        }
+
+        const leadTicks = chassisCrossTick - visibleAtTick;
+        const MIN_LEAD_TICKS = 240; // 4 seconds at 60 Hz
+
+        if (leadTicks < MIN_LEAD_TICKS) {
+          violations.push({
+            boundaryX,
+            visibleAtTick,
+            chassisCrossTick,
+            leadTicks,
+          });
+        }
+      }
+
+      // Calculate summary statistics for boundaries that have been crossed
+      const leadTicksArray: number[] = [];
+      for (const [boundaryX, visibleAtTick] of zoneVisibilityTicks) {
+        const chassisCrossTick = zoneChassisCrossTicks.get(boundaryX);
+        if (chassisCrossTick !== undefined) {
+          leadTicksArray.push(chassisCrossTick - visibleAtTick);
+        }
+      }
+
+      const summary = leadTicksArray.length > 0 ? {
+        totalBoundaries: zoneBoundaries.length,
+        trackedBoundaries: zoneVisibilityTicks.size,
+        crossedBoundaries: leadTicksArray.length,
+        minLeadTicks: Math.min(...leadTicksArray),
+        maxLeadTicks: Math.max(...leadTicksArray),
+        avgLeadTicks: leadTicksArray.reduce((a, b) => a + b, 0) / leadTicksArray.length,
+      } : null;
+
+      const passed = violations.length === 0;
+
+      // Log results
+      console.log(`[Camera] Zone visibility verification: ${passed ? "PASSED" : "FAILED"}`);
+      if (summary) {
+        console.log(`[Camera] Summary:`, summary);
+      }
+      if (violations.length > 0) {
+        console.warn(`[Camera] Violations:`, violations);
+      }
+
+      return {
+        passed,
+        violations,
+        summary,
+      };
     },
   };
 }

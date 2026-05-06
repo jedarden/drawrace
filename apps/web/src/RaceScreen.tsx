@@ -375,6 +375,14 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
               if (!finishedCalledRef.current) {
                 finishedCalledRef.current = true;
                 const swapLog = sim.getSwapLog();
+
+                // Verify zone visibility rule (4-second look-ahead)
+                // This logs results to console and can be inspected in tests
+                const verification = renderer.verifyZoneVisibilityRule(snap.chassis.x);
+                if (!verification.passed) {
+                  console.warn("[RaceScreen] Zone visibility rule FAILED:", verification.violations);
+                }
+
                 onFinished(snap.elapsedMs, swapLog, snap.stuck);
               }
               return;
