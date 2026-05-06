@@ -2,7 +2,7 @@ import { World, Vec2, Edge, Polygon, Circle, Box, WheelJoint, RevoluteJoint } fr
 import { PHYSICS_VERSION } from "./version.js";
 import { sfc32, hashSeed } from "./prng.js";
 import { InjectedClock } from "./clock.js";
-import { parseSurfaces, applyDrag, createSurfaceContactFilter } from "./surface.js";
+import { parseSurfaces, applyDrag, createSurfaceContactFilter, validateZones } from "./surface.js";
 import { buildWheelBody } from "./swap.js";
 
 export interface TrackDef {
@@ -85,6 +85,9 @@ export function createHeadlessRace(
   const terrainMinX = terrain[0][0];
   const terrainMaxX = terrain[terrain.length - 1][0];
   const surfaces = parseSurfaces(track.surfaces, terrainMinX, terrainMaxX);
+
+  // Validate zones coverage (throws if zones are malformed)
+  validateZones(track.zones, terrainMinX, terrainMaxX);
   if (track.surfaces && Array.isArray(track.surfaces) && track.surfaces.length > 0) {
     world.on("pre-solve", createSurfaceContactFilter(ground, surfaces));
   }

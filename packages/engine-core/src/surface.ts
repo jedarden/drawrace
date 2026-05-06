@@ -13,12 +13,13 @@ export interface SurfacePreset {
   drag: number;
 }
 
+// Extreme surface values to force wheel differentiation
 export const SURFACE_PRESETS: Record<SurfaceType, SurfacePreset> = {
   normal: { friction: 0.9,  restitution: 0.0,  drag: 0 },
-  ice:    { friction: 0.10, restitution: 0.0,  drag: 0 },
-  snow:   { friction: 0.45, restitution: 0.0,  drag: 0 },
-  water:  { friction: 0.05, restitution: 0.0,  drag: 4.0 },
-  mud:    { friction: 0.70, restitution: 0.0,  drag: 1.5 },
+  ice:    { friction: 0.1,  restitution: 0.0,  drag: 0 },   // Extremely slippery - teeth essential
+  snow:   { friction: 0.4,  restitution: 0.0,  drag: 1.5 }, // Moderate drag - large wheels favored
+  water:  { friction: 0.05, restitution: 0.0,  drag: 3.0 }, // Heavy drag - compact wheels favored
+  mud:    { friction: 0.5,  restitution: 0.0,  drag: 12.0 },// Very heavy drag - small wheels essential
   rock:   { friction: 0.95, restitution: 0.25, drag: 0 },
 };
 

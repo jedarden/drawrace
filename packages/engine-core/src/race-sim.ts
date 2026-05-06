@@ -102,6 +102,9 @@ export class RaceSim {
     const terrainMinX = terrain[0][0];
     const terrainMaxX = terrain[terrain.length - 1][0];
     this.surfaces = parseSurfaces(track.surfaces, terrainMinX, terrainMaxX);
+
+    // Validate zones coverage (throws if zones are malformed)
+    validateZones(track.zones, terrainMinX, terrainMaxX);
     if (track.surfaces && Array.isArray(track.surfaces) && track.surfaces.length > 0) {
       this.world.on("pre-solve", createSurfaceContactFilter(ground, this.surfaces));
     }

@@ -275,8 +275,8 @@ describe("createSurfaceContactFilter", () => {
     // Test each surface zone: place a dynamic body at the zone's center
     const testCases = [
       { x: 10, type: "normal", expectedFriction: 0.8 * 0.9 },   // wheel 0.8 × surface 0.9
-      { x: 30, type: "ice", expectedFriction: 0.8 * 0.10 },
-      { x: 50, type: "snow", expectedFriction: 0.8 * 0.45 },
+      { x: 30, type: "ice", expectedFriction: 0.8 * 0.1 },
+      { x: 50, type: "snow", expectedFriction: 0.8 * 0.4 },
       { x: 70, type: "water", expectedFriction: 0.8 * 0.05 },
       { x: 90, type: "rock", expectedFriction: 0.8 * 0.95 },
     ];
@@ -345,6 +345,12 @@ describe("Surface determinism", () => {
         { x_range: [40, 60], type: "snow" },
         { x_range: [60, 80], type: "water" },
         { x_range: [80, 100], type: "rock" },
+      ],
+      zones: [
+        { id: "A", x_start: 0, x_end: 25 },
+        { id: "B", x_start: 25, x_end: 50 },
+        { id: "C", x_start: 50, x_end: 75 },
+        { id: "D", x_start: 75, x_end: 100 },
       ],
       start: { pos: [1.5, 3.5], facing: 1 },
       finish: { pos: [99, 3.5], width: 0.2 },
