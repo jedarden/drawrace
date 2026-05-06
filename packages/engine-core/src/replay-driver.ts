@@ -16,6 +16,7 @@ export interface ReplayFrame {
   elapsedMs: number;
   finished: boolean;
   dnf: boolean;
+  stuck: boolean;
 }
 
 export interface ReplayRecording {
@@ -83,6 +84,7 @@ export function createReplayDriver(recording: ReplayRecording) {
         elapsedMs: frame.elapsedMs,
         finished: frame.finished,
         dnf: frame.dnf,
+        stuck: frame.stuck,
       };
     },
 
@@ -134,6 +136,7 @@ export async function recordRaceSim(
       elapsedMs: snap.elapsedMs,
       finished: snap.finished,
       dnf: snap.dnf,
+      stuck: snap.stuck,
     });
   }
 
