@@ -140,6 +140,7 @@
       "finishTicks": 711,
       "finalX": 39.02571140405268,
       "streamHash": "7bd4bcd3",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -281,6 +282,7 @@
       "finishTicks": 1404,
       "finalX": 39.00156261177009,
       "streamHash": "ad0077d7",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -422,6 +424,7 @@
       "finishTicks": 10801,
       "finalX": 1.730896153278646,
       "streamHash": "db460b0d",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -499,6 +502,7 @@
       "finishTicks": 10801,
       "finalX": 1.8430366534598477,
       "streamHash": "5332b0f0",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -544,6 +548,7 @@
       "finishTicks": 10801,
       "finalX": 1.9095206161826719,
       "streamHash": "c1c78ff2",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -653,6 +658,7 @@
       "finishTicks": 489,
       "finalX": 39.027033962308806,
       "streamHash": "0fd20947",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -762,6 +768,7 @@
       "finishTicks": 685,
       "finalX": 39.00309027531105,
       "streamHash": "9e74761b",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -871,6 +878,7 @@
       "finishTicks": 623,
       "finalX": 39.00424035795828,
       "streamHash": "5165f4e0",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -896,6 +904,7 @@
       "finishTicks": 844,
       "finalX": 39.03510769919801,
       "streamHash": "0cf7fae2",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -921,6 +930,7 @@
       "finishTicks": 948,
       "finalX": 39.00421089820054,
       "streamHash": "b94b722c",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -950,6 +960,7 @@
       "finishTicks": 816,
       "finalX": 39.01498379910257,
       "streamHash": "7f6ecf04",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -979,6 +990,7 @@
       "finishTicks": 764,
       "finalX": 39.04842410904488,
       "streamHash": "8734a753",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -1012,6 +1024,7 @@
       "finishTicks": 807,
       "finalX": 39.03374814089822,
       "streamHash": "c0d1fef0",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -1049,6 +1062,7 @@
       "finishTicks": 783,
       "finalX": 39.02344747643059,
       "streamHash": "a3f6bf07",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -1102,6 +1116,7 @@
       "finishTicks": 713,
       "finalX": 39.016780579898224,
       "streamHash": "f5d6d965",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -1155,6 +1170,7 @@
       "finishTicks": 730,
       "finalX": 39.034496708468566,
       "streamHash": "aa43ab27",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -1200,6 +1216,7 @@
       "finishTicks": 816,
       "finalX": 39.01498379910257,
       "streamHash": "7f6ecf04",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -1309,6 +1326,7 @@
       "finishTicks": 696,
       "finalX": 39.0495155048673,
       "streamHash": "553666b2",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -1386,6 +1404,7 @@
       "finishTicks": 661,
       "finalX": 39.02296295305916,
       "streamHash": "eaf81587",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -1479,6 +1498,7 @@
       "finishTicks": 701,
       "finalX": 39.00887467004236,
       "streamHash": "33f80746",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -1588,6 +1608,7 @@
       "finishTicks": 546,
       "finalX": 39.06961930661636,
       "streamHash": "2962e40e",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -1697,6 +1718,7 @@
       "finishTicks": 10801,
       "finalX": 2.062804821358585,
       "streamHash": "c5b1eeec",
+      "stuck": false,
       "physicsVersion": 4
     },
     {
@@ -1838,6 +1860,63 @@
       "finishTicks": 10801,
       "finalX": 2.06724236851554,
       "streamHash": "541267b6",
+      "stuck": false,
+      "physicsVersion": 4
+    },
+    {
+      "id": "stuck-flipped-triangle",
+      "seed": 42,
+      "trackId": "hills-01",
+      "wheel": {
+        "vertices": [
+          [
+            -0.4,
+            0.4
+          ],
+          [
+            0.4,
+            0.4
+          ],
+          [
+            0,
+            -0.3
+          ]
+        ]
+      },
+      "finishTicks": 597,
+      "finalX": 0.8670743401242811,
+      "streamHash": "985e9b0d",
+      "stuck": true,
+      "physicsVersion": 4
+    },
+    {
+      "id": "stuck-line-wheel",
+      "seed": 42,
+      "trackId": "hills-01",
+      "wheel": {
+        "vertices": [
+          [
+            -0.5,
+            0
+          ],
+          [
+            0.5,
+            0
+          ],
+          [
+            0.4,
+            0.01
+          ],
+          [
+            -0.4,
+            0.01
+          ]
+        ]
+      },
+      "finishTicks": 1504,
+      "finalX": 1.8437930170733878,
+      "streamHash": "af351aaa",
+      "stuck": true,
       "physicsVersion": 4
     },
     {

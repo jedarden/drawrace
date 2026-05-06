@@ -38,6 +38,9 @@ const TEST_TRACK: TrackDef = {
     [35, 5.2],
     [40, 5.2],
   ],
+  zones: [
+    { id: "zone-a", x_start: 0, x_end: 40 },
+  ],
   start: { pos: [1.5, 3.5], facing: 1 },
   finish: { pos: [39, 3.5], width: 0.2 },
 };
@@ -227,6 +230,28 @@ const WHEELS: WheelEntry[] = [
   { id: "blob-smooth", wheel: { vertices: makeBlob(42, 24, 0.5) } },
   { id: "figure8-sm", wheel: { vertices: makeFigure8(24, 0.3) } },
   { id: "figure8-lg", wheel: { vertices: makeFigure8(32, 0.5) } },
+  // Stuck-DNF scenarios (drawrace-vgn.8.15)
+  {
+    id: "stuck-flipped-triangle",
+    wheel: {
+      vertices: [
+        [-0.4, 0.4],
+        [0.4, 0.4],
+        [0, -0.3],
+      ] as [number, number][],
+    },
+  },
+  {
+    id: "stuck-line-wheel",
+    wheel: {
+      vertices: [
+        [-0.5, 0],
+        [0.5, 0],
+        [0.4, 0.01],
+        [-0.4, 0.01],
+      ] as [number, number][],
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -328,6 +353,7 @@ interface SingleWheelGolden {
   finishTicks: number;
   finalX: number;
   streamHash: string;
+  stuck: boolean;
   physicsVersion: number;
 }
 
@@ -366,6 +392,7 @@ const singleWheelGoldens: SingleWheelGolden[] = WHEELS.map((entry) => {
     finishTicks: result.finishTicks,
     finalX: result.finalX,
     streamHash: result.streamHash,
+    stuck: result.stuck,
     physicsVersion: PHYSICS_VERSION,
   };
 });
@@ -419,8 +446,9 @@ console.log(
 console.log("\nSingle-wheel results:");
 for (const g of singleWheelGoldens) {
   const dnf = g.finishTicks >= 60 * 180 ? " DNF" : "";
+  const stuck = g.stuck ? " STUCK" : "";
   console.log(
-    `  ${g.id.padEnd(24)} ticks=${String(g.finishTicks).padStart(5)} hash=${g.streamHash} finalX=${g.finalX.toFixed(2)}${dnf}`,
+    `  ${g.id.padEnd(24)} ticks=${String(g.finishTicks).padStart(5)} hash=${g.streamHash} finalX=${g.finalX.toFixed(2)}${dnf}${stuck}`,
   );
 }
 console.log("\nMulti-wheel (swap) results:");

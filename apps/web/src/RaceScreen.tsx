@@ -23,7 +23,7 @@ interface RaceScreenProps {
   track: TrackDef;
   wheelDraw: DrawResult;
   ghosts: GhostDef[];
-  onFinished: (elapsedMs: number, swapLog: WheelSwap[]) => void;
+  onFinished: (elapsedMs: number, swapLog: WheelSwap[], stuck: boolean) => void;
   onRestart: () => void;
   onQuit: () => void;
 }
@@ -375,7 +375,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
               if (!finishedCalledRef.current) {
                 finishedCalledRef.current = true;
                 const swapLog = sim.getSwapLog();
-                onFinished(snap.elapsedMs, swapLog);
+                onFinished(snap.elapsedMs, swapLog, snap.stuck);
               }
               return;
             }

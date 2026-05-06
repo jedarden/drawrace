@@ -16,6 +16,7 @@ interface ResultScreenProps {
   rawStrokePoints: StrokePoint[];
   trackId: number;
   swapLog: WheelSwap[];
+  stuck: boolean;
   ghosts: GhostResult[];
   onRetry: () => void;
   onShowLeaderboard: () => void;
@@ -29,14 +30,15 @@ function formatTime(ms: number): string {
   return `${min}:${sec.toString().padStart(2, "0")}.${frac.toString().padStart(3, "0")}`;
 }
 
-export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId, swapLog, ghosts, onRetry, onShowLeaderboard }: ResultScreenProps) {
+export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId, swapLog, stuck, ghosts, onRetry, onShowLeaderboard }: ResultScreenProps) {
   const [verdict, setVerdict] = useState<SubmissionVerdict | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const online = isOnline();
 
   useEffect(() => {
-    if (!online || submitting) return;
+    // Skip submission for stuck-DNF runs (only submit completed runs)
+    if (!online || submitting || stuck) return;
     setSubmitting(true);
 
     let cancelled = false;
@@ -64,7 +66,7 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
     })();
 
     return () => { cancelled = true; };
-  }, [online]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [online, stuck]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const comparisons = useMemo(() => {
     return ghosts.map((g) => {
@@ -98,6 +100,30 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
         boxSizing: "border-box",
       }}
     >
+      {/* Stuck-DNF message */}
+      {stuck && (
+        <div
+          style={{
+            fontSize: 28,
+            fontWeight: "bold",
+            color: "#D94F3A",
+            textAlign: "center",
+            padding: "12px 24px",
+            background: "#FBF4E3",
+            border: "3px solid #2B2118",
+            borderRadius: 12,
+            boxShadow: "4px 4px 0 rgba(43,33,24,0.2)",
+          }}
+          role="alert"
+          aria-live="assertive"
+        >
+          Stuck!
+          <div style={{ fontSize: 18, fontWeight: "normal", color: "#6E5F48", marginTop: 4 }}>
+            Try a different wheel shape
+          </div>
+        </div>
+      )}
+
       <div style={{ fontSize: 44, fontWeight: "bold", fontFamily: "monospace" }} role="timer" aria-label={`Finish time: ${formatTime(finishTimeMs)}`}>
         {formatTime(finishTimeMs)}
       </div>

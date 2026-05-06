@@ -4,6 +4,7 @@ import { sfc32, hashSeed } from "./prng.js";
 import { buildWheelBody, executeTwinWheelSwap } from "./swap.js";
 import type { WheelSwap } from "./swap.js";
 import { parseSurfaces, validateZones, applyDrag, createSurfaceContactFilter, type SurfaceSegment } from "./surface.js";
+import { StuckDetector } from "./stuck-detector.js";
 
 export interface TrackDef {
   id: string;
@@ -39,6 +40,7 @@ export interface RaceSnapshot {
   elapsedMs: number;
   finished: boolean;
   dnf: boolean;
+  stuck: boolean;
 }
 
 const DT = 1 / 60;
@@ -66,13 +68,13 @@ export class RaceSim {
   private elapsedMs = 0;
   private finished = false;
   private dnf = false;
+  private stuck = false;
   private finishX: number;
   private motorEnabled = false;
   private wheelSwapLog: WheelSwap[] = [];
   private surfaces: SurfaceSegment[];
   readonly track: TrackDef;
-  private accumulatedRotations = 0;
-  private progressBaselineX = 0;
+  private stuckDetector = new StuckDetector();
 
   constructor(
     track: TrackDef,
@@ -233,7 +235,7 @@ export class RaceSim {
     if (!rearJoint) throw new Error("Failed to create rear wheel joint");
     this.rearWheelJoint = rearJoint;
 
-    this.progressBaselineX = this.chassisBody.getPosition().x;
+    this.stuckDetector.setBaseline(this.chassisBody.getPosition().x);
   }
 
   swapWheel(vertices: Array<{ x: number; y: number }>): void {
@@ -254,8 +256,8 @@ export class RaceSim {
     this.wheelJoint = result.newFrontJoint;
     this.rearWheelBody = result.newRearBody;
     this.rearWheelJoint = result.newRearJoint;
-    this.accumulatedRotations = 0;
-    this.progressBaselineX = this.chassisBody.getPosition().x;
+    this.stuckDetector.reset();
+    this.stuckDetector.setBaseline(this.chassisBody.getPosition().x);
   }
 
   getSwapLog(): WheelSwap[] {
@@ -308,21 +310,15 @@ export class RaceSim {
       return this.snapshot();
     }
 
-    // Stuck-DNF detection: accumulate rotations and check progress
-    const frontAngVel = Math.abs(this.wheelBody.getAngularVelocity());
-    const rearAngVel = Math.abs(this.rearWheelBody.getAngularVelocity());
-    const rotationIncrement = (frontAngVel + rearAngVel) * DT / (2 * Math.PI * 2);
-    this.accumulatedRotations += rotationIncrement;
-
+    // Stuck-DNF detection
+    const frontAngVel = this.wheelBody.getAngularVelocity();
+    const rearAngVel = this.rearWheelBody.getAngularVelocity();
     const chassisX = this.chassisBody.getPosition().x;
-    const deltaX = chassisX - this.progressBaselineX;
-
-    if (deltaX >= 0.5) {
-      this.accumulatedRotations = 0;
-      this.progressBaselineX = chassisX;
-    } else if (this.accumulatedRotations >= 10) {
+    const stuckResult = this.stuckDetector.tick(frontAngVel, rearAngVel, chassisX);
+    if (stuckResult === "stuck") {
       this.finished = true;
       this.dnf = true;
+      this.stuck = true;
     }
 
     return this.snapshot();
@@ -340,6 +336,7 @@ export class RaceSim {
       elapsedMs: this.elapsedMs,
       finished: this.finished,
       dnf: this.dnf,
+      stuck: this.stuck,
     };
   }
 
@@ -351,9 +348,14 @@ export class RaceSim {
     return this.dnf;
   }
 
+  isStuck(): boolean {
+    return this.stuck;
+  }
+
   getElapsedMs(): number {
     return this.elapsedMs;
   }
 }
 
 export { PHYSICS_VERSION, DT };
+export { StuckDetector } from "./stuck-detector.js";

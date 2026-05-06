@@ -4,6 +4,7 @@ import { sfc32, hashSeed } from "./prng.js";
 import { InjectedClock } from "./clock.js";
 import { parseSurfaces, applyDrag, createSurfaceContactFilter, validateZones } from "./surface.js";
 import { buildWheelBody } from "./swap.js";
+import { StuckDetector } from "./stuck-detector.js";
 
 export interface TrackDef {
   id: string;
@@ -42,6 +43,7 @@ export interface HeadlessRaceResult {
   finalX: number;
   streamHash: string;
   physicsVersion: number;
+  stuck: boolean;
 }
 
 const DT = 1 / 60;
@@ -194,6 +196,8 @@ export function createHeadlessRace(
   const finishX = track.finish.pos[0];
   let ticks = 0;
   const hashAccum: number[] = [];
+  const stuckDetector = new StuckDetector();
+  stuckDetector.setBaseline(chassisBody.getPosition().x);
 
   for (ticks = 0; ticks < MAX_TICKS; ticks++) {
     applyDrag(chassisBody, surfaces);
@@ -212,16 +216,27 @@ export function createHeadlessRace(
     if (wp.x >= finishX) {
       break;
     }
+
+    // Stuck-DNF detection
+    const frontAngVel = wheelBody.getAngularVelocity();
+    const rearAngVel = rearWheelBody.getAngularVelocity();
+    const chassisX = chassisBody.getPosition().x;
+    const stuckResult = stuckDetector.tick(frontAngVel, rearAngVel, chassisX);
+    if (stuckResult === "stuck") {
+      break;
+    }
   }
 
   const finalX = wheelBody.getPosition().x;
   const streamHash = computeStreamHash(hashAccum);
+  const stuck = stuckDetector.getRotations() >= 10; // ROTATION_THRESHOLD
 
   return {
     finishTicks: ticks + 1,
     finalX,
     streamHash,
     physicsVersion: PHYSICS_VERSION,
+    stuck,
   };
 }
 

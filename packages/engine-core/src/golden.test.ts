@@ -56,6 +56,7 @@ interface SingleWheelGolden {
   finishTicks: number;
   finalX: number;
   streamHash: string;
+  stuck: boolean;
   physicsVersion: number;
 }
 
@@ -67,6 +68,7 @@ interface MultiWheelGolden {
   finishTicks?: number;
   finalX?: number;
   streamHash?: string;
+  stuck?: boolean;
   structuralReject?: boolean;
   rejectReason?: string;
   physicsVersion: number;
@@ -294,8 +296,44 @@ describe("Physics golden (Layer 2) — single wheel", () => {
       expect(result.finishTicks, `finishTicks mismatch for ${golden.id}`).toBe(
         golden.finishTicks,
       );
+      expect(result.stuck, `stuck mismatch for ${golden.id}`).toBe(golden.stuck);
       expect(result.physicsVersion).toBe(golden.physicsVersion);
     }
+  });
+
+  // ── Stuck-DNF scenarios (drawrace-vgn.8.15) ────────────────────────────────
+
+  it("stuck-flipped-triangle: triangle that flips car backward triggers stuck-DNF", () => {
+    const goldenFile = loadGoldens();
+    const entry = goldenFile.goldens.find((g) => g.id === "stuck-flipped-triangle") as SingleWheelGolden | undefined;
+    expect(entry).toBeDefined();
+    expect(entry!.stuck).toBe(true);
+    expect(entry!.finishTicks).toBeLessThan(60 * 10); // Should stuck within 10 seconds
+
+    const result = createHeadlessRace({
+      seed: entry!.seed,
+      track: TEST_TRACK,
+      wheel: entry!.wheel,
+    });
+    expect(result.stuck).toBe(true);
+    expect(result.finishTicks).toBe(entry!.finishTicks);
+    expect(result.streamHash).toBe(entry!.streamHash);
+  });
+
+  it("stuck-line-wheel: degenerate line wheel triggers stuck-DNF", () => {
+    const goldenFile = loadGoldens();
+    const entry = goldenFile.goldens.find((g) => g.id === "stuck-line-wheel") as SingleWheelGolden | undefined;
+    expect(entry).toBeDefined();
+    expect(entry!.stuck).toBe(true);
+
+    const result = createHeadlessRace({
+      seed: entry!.seed,
+      track: TEST_TRACK,
+      wheel: entry!.wheel,
+    });
+    expect(result.stuck).toBe(true);
+    expect(result.finishTicks).toBe(entry!.finishTicks);
+    expect(result.streamHash).toBe(entry!.streamHash);
   });
 });
 
@@ -329,6 +367,9 @@ describe("Physics golden (Layer 2) — swap scenarios (unified wheels.json)", ()
       expect(result.finishTicks, `finishTicks mismatch for ${golden.id}`).toBe(
         golden.finishTicks,
       );
+      if (golden.stuck !== undefined) {
+        expect(result.stuck, `stuck mismatch for ${golden.id}`).toBe(golden.stuck);
+      }
       expect(result.physicsVersion).toBe(golden.physicsVersion);
     }
   });

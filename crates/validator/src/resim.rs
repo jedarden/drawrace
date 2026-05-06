@@ -5,6 +5,95 @@ use drawrace_api::blob::WheelEntry;
 /// Maximum accepted difference (inclusive) between server and client finish ticks.
 pub const FINISH_TICK_TOLERANCE: u32 = 2;
 
+/// Stuck-DNF detection thresholds (mirrors TypeScript StuckDetector)
+const DT: f64 = 1.0 / 60.0;
+const ROTATION_THRESHOLD: f64 = 10.0; // full rotations
+const PROGRESS_THRESHOLD_METRES: f64 = 0.5; // metres along +x
+
+/// Stuck-DNF detector for Rust re-simulation.
+///
+/// Detects when the vehicle spins through 10 full rotations without advancing
+/// the chassis by more than 0.5 metres along +x.
+pub struct StuckDetector {
+    rotations: f64,
+    baseline_x: f64,
+}
+
+impl StuckDetector {
+    /// Create a new stuck detector with initial state.
+    pub fn new() -> Self {
+        Self {
+            rotations: 0.0,
+            baseline_x: 0.0,
+        }
+    }
+
+    /// Reset the detector (called on race start and on wheel swap).
+    pub fn reset(&mut self) {
+        self.rotations = 0.0;
+        self.baseline_x = 0.0;
+    }
+
+    /// Set the initial baseline X position.
+    pub fn set_baseline(&mut self, x: f64) {
+        self.baseline_x = x;
+    }
+
+    /// Update the detector with current physics state.
+    ///
+    /// Returns "stuck" if DNF should trigger, "running" otherwise.
+    pub fn tick(&mut self, front_ang_vel: f64, rear_ang_vel: f64, chassis_x: f64) -> StuckResult {
+        // Accumulate rotations: (|ω_front| + |ω_rear|) * dt / (2π * 2)
+        let rotation_increment =
+            (front_ang_vel.abs() + rear_ang_vel.abs()) * DT / (2.0 * std::f64::consts::PI * 2.0);
+        self.rotations += rotation_increment;
+
+        let delta_x = chassis_x - self.baseline_x;
+
+        // If we've made sufficient progress, reset the counter and grant a fresh window.
+        if delta_x >= PROGRESS_THRESHOLD_METRES {
+            self.rotations = 0.0;
+            self.baseline_x = chassis_x;
+            return StuckResult::Running;
+        }
+
+        // Check if we've hit the rotation threshold without enough progress.
+        if self.rotations >= ROTATION_THRESHOLD {
+            return StuckResult::Stuck;
+        }
+
+        StuckResult::Running
+    }
+
+    /// Get the current accumulated rotation count (for testing/debugging).
+    pub fn get_rotations(&self) -> f64 {
+        self.rotations
+    }
+
+    /// Get the current baseline X position (for testing/debugging).
+    pub fn get_baseline_x(&self) -> f64 {
+        self.baseline_x
+    }
+
+    /// Check if the detector is in a stuck state.
+    pub fn is_stuck(&self) -> bool {
+        self.rotations >= ROTATION_THRESHOLD
+    }
+}
+
+impl Default for StuckDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Result of a stuck detection check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StuckResult {
+    Running,
+    Stuck,
+}
+
 /// Manages the pending wheel-swap queue during re-simulation.
 ///
 /// Swaps are consumed in ascending `swap_tick` order. At each sim tick,
@@ -106,6 +195,146 @@ pub fn finish_within_tolerance(server_ticks: u32, client_ticks: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── StuckDetector tests ────────────────────────────────────────────────────
+
+    #[test]
+    fn detector_initial_state() {
+        let detector = StuckDetector::new();
+        assert_eq!(detector.get_rotations(), 0.0);
+        assert_eq!(detector.get_baseline_x(), 0.0);
+        assert!(!detector.is_stuck());
+    }
+
+    #[test]
+    fn detector_reset_clears_state() {
+        let mut detector = StuckDetector::new();
+        detector.set_baseline(10.0);
+        detector.tick(10.0, 10.0, 10.0); // accumulate some rotations
+        assert!(detector.get_rotations() > 0.0);
+
+        detector.reset();
+        assert_eq!(detector.get_rotations(), 0.0);
+        assert_eq!(detector.get_baseline_x(), 0.0);
+        assert!(!detector.is_stuck());
+    }
+
+    #[test]
+    fn detector_set_baseline_updates_position() {
+        let mut detector = StuckDetector::new();
+        detector.set_baseline(5.0);
+        assert_eq!(detector.get_baseline_x(), 5.0);
+    }
+
+    #[test]
+    fn detector_no_rotation_at_zero_velocity() {
+        let mut detector = StuckDetector::new();
+        detector.set_baseline(0.0);
+
+        for _ in 0..1000 {
+            assert_eq!(detector.tick(0.0, 0.0, 0.0), StuckResult::Running);
+        }
+
+        assert_eq!(detector.get_rotations(), 0.0);
+        assert!(!detector.is_stuck());
+    }
+
+    #[test]
+    fn detector_running_below_threshold() {
+        let mut detector = StuckDetector::new();
+        detector.set_baseline(0.0);
+
+        // 5 rotations worth of ticks (should not trigger stuck)
+        let ang_vel = 2.0 * std::f64::consts::PI; // 1 rotation per second per wheel
+        for _ in 0..300 {
+            assert_eq!(detector.tick(ang_vel, ang_vel, 0.0), StuckResult::Running);
+        }
+
+        // Should have ~5 rotations
+        assert!(detector.get_rotations() > 4.9);
+        assert!(detector.get_rotations() < 5.1);
+        assert!(!detector.is_stuck());
+    }
+
+    #[test]
+    fn detector_stuck_with_no_progress() {
+        let mut detector = StuckDetector::new();
+        detector.set_baseline(0.0);
+
+        let ang_vel = 2.0 * std::f64::consts::PI;
+        let mut stuck_triggered = false;
+
+        // 10 rotations should trigger stuck
+        for _ in 0..600 {
+            if detector.tick(ang_vel, ang_vel, 0.0) == StuckResult::Stuck {
+                stuck_triggered = true;
+                break;
+            }
+        }
+
+        assert!(stuck_triggered);
+        assert!(detector.is_stuck());
+        assert!(detector.get_rotations() >= 10.0);
+    }
+
+    #[test]
+    fn detector_resets_on_progress() {
+        let mut detector = StuckDetector::new();
+        detector.set_baseline(0.0);
+
+        let ang_vel = 2.0 * std::f64::consts::PI;
+
+        // 10 rotations with sufficient progress (0.6m > 0.5m threshold)
+        let mut stuck_triggered = false;
+        for _ in 0..600 {
+            if detector.tick(ang_vel, ang_vel, 0.6) == StuckResult::Stuck {
+                stuck_triggered = true;
+                break;
+            }
+        }
+
+        // Should NOT trigger stuck because progress resets the counter
+        assert!(!stuck_triggered);
+        assert!(!detector.is_stuck());
+        assert!(detector.get_rotations() < 10.0);
+        // Baseline should have been updated
+        assert_eq!(detector.get_baseline_x(), 0.6);
+    }
+
+    #[test]
+    fn detector_swap_resets_and_grants_fresh_window() {
+        let mut detector = StuckDetector::new();
+        detector.set_baseline(0.0);
+
+        let ang_vel = 2.0 * std::f64::consts::PI;
+
+        // Accumulate 5 rotations
+        for _ in 0..300 {
+            detector.tick(ang_vel, ang_vel, 0.0);
+        }
+        assert!(detector.get_rotations() > 4.9);
+
+        // Simulate wheel swap
+        detector.reset();
+        detector.set_baseline(5.0);
+
+        assert_eq!(detector.get_rotations(), 0.0);
+        assert_eq!(detector.get_baseline_x(), 5.0);
+
+        // Another 10 rotations from swap should trigger stuck
+        let mut stuck_triggered = false;
+        for _ in 0..600 {
+            if detector.tick(ang_vel, ang_vel, 5.0) == StuckResult::Stuck {
+                stuck_triggered = true;
+                break;
+            }
+        }
+
+        assert!(stuck_triggered);
+        assert!(detector.is_stuck());
+    }
+
+    // ── Existing tests continue below ─────────────────────────────────────────
 
     fn make_wheel(swap_tick: u32, vertex_count: u8) -> WheelEntry {
         WheelEntry {

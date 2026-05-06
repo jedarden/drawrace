@@ -5,6 +5,7 @@ import { InjectedClock } from "./clock.js";
 import { type TrackDef, type HeadlessRaceResult } from "./headless-race.js";
 import { buildWheelBody, executeTwinWheelSwap, type WheelSwap } from "./swap.js";
 import { parseSurfaces, applyDrag, createSurfaceContactFilter } from "./surface.js";
+import { StuckDetector } from "./stuck-detector.js";
 
 export type { WheelSwap };
 
@@ -155,6 +156,11 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
   const finishX = track.finish.pos[0];
   let ticks = 0;
   const hashAccum: number[] = [];
+  const stuckDetector = new StuckDetector();
+
+  // Get initial chassis position for stuck detection baseline
+  const initialChassisPos = chassisBody.getPosition();
+  stuckDetector.setBaseline(initialChassisPos.x);
 
   for (ticks = 0; ticks < MAX_TICKS; ticks++) {
     applyDrag(chassisBody, surfaces);
@@ -181,6 +187,9 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
       wheelJoint = res.newFrontJoint;
       rearWheelBody = res.newRearBody;
       rearWheelJoint = res.newRearJoint;
+      // Reset stuck detection on wheel swap
+      stuckDetector.reset();
+      stuckDetector.setBaseline(chassisBody.getPosition().x);
       swapIdx++;
     }
 
@@ -192,16 +201,27 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
     prng.next();
 
     if (wp.x >= finishX) break;
+
+    // Stuck-DNF detection
+    const frontAngVel = wheelBody.getAngularVelocity();
+    const rearAngVel = rearWheelBody.getAngularVelocity();
+    const chassisX = chassisBody.getPosition().x;
+    const stuckResult = stuckDetector.tick(frontAngVel, rearAngVel, chassisX);
+    if (stuckResult === "stuck") {
+      break;
+    }
   }
 
   const finalX = wheelBody.getPosition().x;
   const streamHash = computeStreamHash(hashAccum);
+  const stuck = stuckDetector.getRotations() >= 10; // ROTATION_THRESHOLD
 
   return {
     finishTicks: ticks + 1,
     finalX,
     streamHash,
     physicsVersion: PHYSICS_VERSION,
+    stuck,
   };
 }
 

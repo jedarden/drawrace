@@ -53,6 +53,7 @@ export function App() {
   const [rawStrokePoints, setRawStrokePoints] = useState<StrokePoint[]>([]);
   const [finishTimeMs, setFinishTimeMs] = useState(0);
   const [swapLog, setSwapLog] = useState<WheelSwap[]>([]);
+  const [stuck, setStuck] = useState(false);
   const [track, setTrack] = useState<TrackData | null>(null);
   const [ghosts, setGhosts] = useState<GhostData[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -109,9 +110,10 @@ export function App() {
     setScreen("race");
   }, []);
 
-  const handleRaceFinished = useCallback((elapsedMs: number, wheelSwaps: WheelSwap[]) => {
+  const handleRaceFinished = useCallback((elapsedMs: number, wheelSwaps: WheelSwap[], stuck: boolean) => {
     setFinishTimeMs(elapsedMs);
     setSwapLog(wheelSwaps);
+    setStuck(stuck);
     setScreen("result");
   }, []);
 
@@ -184,6 +186,7 @@ export function App() {
           rawStrokePoints={rawStrokePoints}
           trackId={track.numeric_id}
           swapLog={swapLog}
+          stuck={stuck}
           ghosts={ghosts.map((g) => ({ name: g.name, finishTimeMs: g.finishTimeMs }))}
           onRetry={handleRetry}
           onShowLeaderboard={() => setShowLeaderboard(true)}
