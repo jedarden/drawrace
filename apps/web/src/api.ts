@@ -166,9 +166,9 @@ async function fetchAndCacheGhost(g: MatchmakeGhost): Promise<{
 
 async function fetchBundledGhosts(): Promise<GhostData[]> {
   const [g1, g2, g3] = await Promise.all([
-    fetch("/ghosts/ghost-dev-001.json").then((r) => r.json()),
-    fetch("/ghosts/ghost-dev-002.json").then((r) => r.json()),
-    fetch("/ghosts/ghost-dev-003.json").then((r) => r.json()),
+    fetch("/ghosts/ghost-tutorial-a.json").then((r) => r.json()),
+    fetch("/ghosts/ghost-tutorial-b.json").then((r) => r.json()),
+    fetch("/ghosts/ghost-tutorial-c.json").then((r) => r.json()),
   ]);
   return [g1, g2, g3];
 }
