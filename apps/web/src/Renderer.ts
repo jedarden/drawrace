@@ -596,7 +596,8 @@ export function createRenderer(
   }
 
   function drawWheel(body: SimBody, path: Path2D, cosmeticPath: Path2D | null, fillStyle: string, alpha: number) {
-    const { sx, sy } = worldToScreen(body.x, body.y);
+    // Offset wheel upward by radius so it sits ON terrain, not centered on it
+    const { sx, sy } = worldToScreen(body.x, body.y - REAR_WHEEL_RADIUS);
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(sx, sy);
@@ -630,7 +631,8 @@ export function createRenderer(
   }
 
   function drawChassis(body: SimBody, alpha: number) {
-    const { sx, sy } = worldToScreen(body.x, body.y);
+    // Offset chassis upward by wheel radius so car sits ON terrain
+    const { sx, sy } = worldToScreen(body.x, body.y - REAR_WHEEL_RADIUS);
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(sx, sy);
@@ -846,7 +848,8 @@ export function createRenderer(
         // Ghost name tag (floating label with ink stroke behind for readability)
         if (ghost.name) {
           const gsx = ghost.snapshot.wheel.x * PPM - camera.x;
-          const gsy = ghost.snapshot.wheel.y * PPM - camera.y;
+          // Offset upward by wheel radius to match wheel/chassis positioning
+          const gsy = (ghost.snapshot.wheel.y - REAR_WHEEL_RADIUS) * PPM - camera.y;
           if (gsx > -50 && gsx < width + 50 && gsy > -50 && gsy < height + 50) {
             ctx.save();
             ctx.globalAlpha = 0.7;
