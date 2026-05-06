@@ -791,7 +791,7 @@ export function createRenderer(
   return {
     render(
       snapshot: RaceSnapshot,
-      ghosts: Array<{ snapshot: RaceSnapshot; wheelPath: Path2D; name?: string }>,
+      ghosts: Array<{ snapshot: RaceSnapshot; wheelPath: Path2D; name?: string; swapProgress?: number; oldWheelPath?: Path2D }>,
       particles: ParticleSystem,
       countdown?: number
     ) {
@@ -825,20 +825,22 @@ export function createRenderer(
 
       // Ghosts (layer 4)
       for (const ghost of ghosts) {
-        const alpha = (ghost as any).swapAlpha ?? 0.6;
-        const oldPath = (ghost as any).oldWheelPath;
-        if (oldPath && alpha < 0.6) {
+        const swapProgress = ghost.swapProgress ?? 1;
+        const oldPath = ghost.oldWheelPath;
+        if (oldPath && swapProgress < 1) {
           // Ghost swap crossfade: draw old wheel fading out, new wheel fading in
-          const progress = 1 - (alpha - 0.3) / 0.3; // 0 = start of swap, 1 = end
-          const oldAlpha = 0.6 * (1 - easeOutCubic(progress));
-          const newAlpha = 0.6 * easeOutCubic(progress);
+          // swapProgress: 0 = start of swap, 1 = end of swap (200ms)
+          const t = easeOutCubic(swapProgress);
+          const oldAlpha = 0.6 * (1 - t);
+          const newAlpha = 0.6 * t;
           drawWheel(ghost.snapshot.wheel, oldPath, null, "#8896A3", oldAlpha);
           drawWheel(ghost.snapshot.wheel, ghost.wheelPath, null, "#8896A3", newAlpha);
         } else {
           drawWheel(ghost.snapshot.wheel, ghost.wheelPath, null, "#8896A3", 0.6);
         }
         drawChassis(ghost.snapshot.chassis, 0.6);
-        const rearPath = oldPath && alpha < 0.6 ? ghost.wheelPath : ghost.wheelPath;
+        // Rear wheel uses the same path as front wheel (no separate swap effect)
+        const rearPath = swapProgress < 1 ? oldPath ?? ghost.wheelPath : ghost.wheelPath;
         drawRearWheel(ghost.snapshot.rearWheel, rearPath, null, "#8896A3", 0.6);
 
         // Ghost name tag (floating label with ink stroke behind for readability)

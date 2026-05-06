@@ -168,6 +168,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
         const physDraw = { ...wheelDraw, vertices: playerVerts };
         const renderer = createRenderer(canvas, track, physDraw);
         const ghostWheelPaths = capturedGhosts.map((g) => createGhostWheelPath(g.wheelVertices));
+        ghostWheelPathsRef.current = ghostWheelPaths;
         const perf = getPerformanceManager();
         const sound = getSoundManager();
         const haptics = getHaptics();
@@ -176,7 +177,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
         prevWheelPosRef.current = { x: initSnap.wheel.x, y: initSnap.wheel.y };
         const initGhosts = ghostSims.map((gs, i) => ({
           snapshot: gs.snapshot(),
-          wheelPath: ghostWheelPaths[i],
+          wheelPath: ghostWheelPathsRef.current[i],
         }));
         renderer.render(initSnap, initGhosts, particles, 3);
 
@@ -211,7 +212,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
             const snap = sim.snapshot();
             const ghostSnaps = ghostSims.map((gs, i) => ({
               snapshot: gs.snapshot(),
-              wheelPath: ghostWheelPaths[i],
+              wheelPath: ghostWheelPathsRef.current[i],
             }));
             particles.update(1 / 60);
             renderer.render(snap, ghostSnaps, particles, countdownRef.current);
@@ -319,14 +320,13 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
             const activeGhostSnaps = ghostSims.slice(0, maxGhosts).map((gs, i) => {
               const snap = gs.snapshot();
               const anim = ghostSwapAnimsRef.current[i];
-              let swapAlpha = 0.6;
+              let swapProgress = 1;
               let oldWheelPath: Path2D | null = null;
               if (anim && anim.oldPath && anim.startTime > 0) {
                 const elapsed = now - anim.startTime;
                 if (elapsed < SWAP_DURATION) {
-                  // Crossfade in progress: alpha goes from 0.3 to 0.6
-                  const t = elapsed / SWAP_DURATION;
-                  swapAlpha = 0.3 + 0.3 * t;
+                  // Crossfade in progress: progress goes from 0 to 1
+                  swapProgress = elapsed / SWAP_DURATION;
                   oldWheelPath = anim.oldPath;
                 } else {
                   // Animation complete, clear it
@@ -335,8 +335,8 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
               }
               return {
                 snapshot: snap,
-                wheelPath: ghostWheelPaths[i],
-                swapAlpha,
+                wheelPath: ghostWheelPathsRef.current[i],
+                swapProgress,
                 oldWheelPath,
               };
             });

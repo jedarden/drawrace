@@ -13,7 +13,7 @@
 <body>
 <canvas id="test-canvas" width="390" height="844"></canvas>
 <script type="module">
-import { createRenderer } from "./src/Renderer.ts";
+import { createRenderer, createGhostWheelPath } from "./src/Renderer.ts";
 import { createReplayDriver } from "@drawrace/engine-core";
 import { ParticleSystem } from "./src/Particles.ts";
 
@@ -57,6 +57,71 @@ async function init() {
         return true;
       },
     };
+
+    // Load ghost swap fixture and extend test interface
+    try {
+      const ghostSwapResp = await fetch("/fixtures/ghost-swap-snapshot.json");
+      if (ghostSwapResp.ok) {
+        const ghostFixture = await ghostSwapResp.json();
+
+        // Create ghost wheel paths
+        const ghostInitialPath = createGhostWheelPath(ghostFixture.ghostWheelDraw.vertices);
+        const ghostSwapPath = createGhostWheelPath(ghostFixture.ghostSwapWheelDraw.vertices);
+
+        // Store frames for ghost swap testing
+        window.__drawraceGhostSwap = {
+          fixture: ghostFixture,
+          ghostInitialPath,
+          ghostSwapPath,
+          checkpoints: ghostFixture.frames.map((f, i) => i),
+          ready: true,
+          renderGhostSwapFrame(frameIdx) {
+            const frame = ghostFixture.frames[frameIdx];
+            if (!frame) return false;
+
+            // Create mock snapshot
+            const snap = {
+              wheel: frame.player.wheel,
+              chassis: frame.player.chassis,
+              rearWheel: frame.player.rearWheel,
+              elapsedMs: frame.elapsedMs,
+              tick: frame.tick,
+              finished: false,
+            };
+
+            // Calculate ghost swap state
+            const swapTick = ghostFixture.ghostSwapTick;
+            const SWAP_DURATION = 200;
+            let swapProgress = 1;
+            let oldPath = null;
+            let newPath = ghostInitialPath;
+
+            if (frame.tick >= swapTick) {
+              const elapsedSinceSwap = frame.elapsedMs - (ghostFixture.frames.find(f => f.tick === swapTick)?.elapsedMs ?? 0);
+              swapProgress = Math.min(1, Math.max(0, elapsedSinceSwap / SWAP_DURATION));
+              oldPath = ghostInitialPath;
+              newPath = ghostSwapPath;
+            }
+
+            const ghost = {
+              snapshot: {
+                wheel: frame.ghost.wheel,
+                chassis: frame.ghost.chassis,
+                rearWheel: frame.ghost.rearWheel,
+              },
+              wheelPath: newPath,
+              swapProgress,
+              oldWheelPath: oldPath,
+            };
+
+            renderer.render(snap, [ghost], particles);
+            return true;
+          },
+        };
+      }
+    } catch (e) {
+      console.warn("Ghost swap fixture not loaded:", e);
+    }
 
     window.__drawraceReady = true;
   } catch (e) {

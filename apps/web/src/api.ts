@@ -1,9 +1,9 @@
 import { getApiUrl, isOnline } from "./api-config.js";
 import { getPlayerUuid } from "./player-identity.js";
 import { computeHmac } from "./hmac.js";
-import { encodeGhostBlob, decodeGhostBlobVertices } from "./ghost-blob.js";
+import { encodeGhostBlob, decodeGhostBlobVertices, decodeGhostBlobWheels } from "./ghost-blob.js";
 import { putCachedGhost, getCachedGhost } from "./ghost-cache.js";
-import type { Point } from "@drawrace/engine-core";
+import type { Point, WheelSwap } from "@drawrace/engine-core";
 
 export interface MatchmakeGhost {
   ghost_id: string;
@@ -95,13 +95,14 @@ export async function fetchGhosts(trackId: number): Promise<GhostData[]> {
     const resolved: GhostData[] = [];
     for (const g of allGhosts.slice(0, 3)) {
       try {
-        const vertices = await fetchAndCacheGhost(g);
+        const { wheelVertices, wheels } = await fetchAndCacheGhost(g);
         resolved.push({
           id: g.ghost_id,
           name: g.name,
-          wheelVertices: vertices,
+          wheelVertices,
           finishTimeMs: g.time_ms,
           seed: MATCHMAKE_SEED,
+          wheels,
         });
       } catch {
         // Skip ghosts that fail to download
@@ -117,36 +118,50 @@ export async function fetchGhosts(trackId: number): Promise<GhostData[]> {
   }
 }
 
-async function fetchAndCacheGhost(g: MatchmakeGhost): Promise<Array<{ x: number; y: number }>> {
+async function fetchAndCacheGhost(g: MatchmakeGhost): Promise<{
+  wheelVertices: Array<{ x: number; y: number }>;
+  wheels: WheelSwap[];
+}> {
   // Try IndexedDB cache first
   const cached = await getCachedGhost(g.ghost_id);
+  let blob: ArrayBuffer;
   if (cached) {
-    return decodeGhostBlobVertices(cached.blob);
+    blob = cached.blob;
+  } else {
+    // Download from presigned URL with retry
+    const resp = await retryWithBackoff(
+      async () => {
+        const r = await fetch(g.url);
+        if (!r.ok && isTransientHttp(r)) throw new Error(`ghost download failed: ${r.status}`);
+        return r;
+      },
+      2,
+      400,
+    );
+    if (!resp.ok) throw new Error(`ghost download failed: ${resp.status}`);
+    blob = await resp.arrayBuffer();
+
+    // Cache it
+    await putCachedGhost({
+      ghost_id: g.ghost_id,
+      blob,
+      time_ms: g.time_ms,
+      name: g.name,
+      fetched_at: Date.now(),
+    });
   }
 
-  // Download from presigned URL with retry
-  const resp = await retryWithBackoff(
-    async () => {
-      const r = await fetch(g.url);
-      if (!r.ok && isTransientHttp(r)) throw new Error(`ghost download failed: ${r.status}`);
-      return r;
-    },
-    2,
-    400,
-  );
-  if (!resp.ok) throw new Error(`ghost download failed: ${resp.status}`);
-  const blob = await resp.arrayBuffer();
+  // Decode both initial vertices and full wheel swap data
+  const wheelVertices = decodeGhostBlobVertices(blob);
+  const decodedWheels = decodeGhostBlobWheels(blob);
 
-  // Cache it
-  await putCachedGhost({
-    ghost_id: g.ghost_id,
-    blob,
-    time_ms: g.time_ms,
-    name: g.name,
-    fetched_at: Date.now(),
-  });
+  // Convert vertices format to polygon format for WheelSwap
+  const wheels: WheelSwap[] = decodedWheels.map((w) => ({
+    swap_tick: w.swapTick,
+    polygon: w.vertices.map((v) => [v.x, v.y] as [number, number]),
+  }));
 
-  return decodeGhostBlobVertices(blob);
+  return { wheelVertices, wheels };
 }
 
 async function fetchBundledGhosts(): Promise<GhostData[]> {
