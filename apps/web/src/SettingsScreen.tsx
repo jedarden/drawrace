@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { getHaptics } from "./Haptics.js";
 import { getSoundManager } from "./Sound.js";
+import {
+  getRecoveryPhrase,
+  ensureRecoveryPhrase,
+  formatRecoveryPhrase,
+  isValidRecoveryPhrase,
+} from "./recovery-phrase.js";
 
 interface SettingsScreenProps {
   onClose: () => void;
@@ -8,6 +14,7 @@ interface SettingsScreenProps {
 }
 
 type DisplayState = "idle" | "clearing" | "cleared";
+type RecoveryState = "hidden" | "showing" | "restoring";
 
 export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) {
   const haptics = getHaptics();
@@ -19,6 +26,9 @@ export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) 
   );
   const [displayName, setDisplayName] = useState("");
   const [displayState, setDisplayState] = useState<DisplayState>("idle");
+  const [recoveryState, setRecoveryState] = useState<RecoveryState>("hidden");
+  const [recoveryPhrase, setRecoveryPhrase] = useState<string[] | null>(null);
+  const [restoreInput, setRestoreInput] = useState("");
 
   useEffect(() => {
     const storedName = localStorage.getItem("drawrace.displayName");
@@ -70,6 +80,32 @@ export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) 
       }, 1500);
     }, 500);
   }, [haptics]);
+
+  const handleShowRecoveryPhrase = useCallback(() => {
+    const phrase = getRecoveryPhrase() ?? ensureRecoveryPhrase();
+    setRecoveryPhrase(phrase);
+    setRecoveryState("showing");
+    haptics.uiTap();
+  }, [haptics]);
+
+  const handleRestoreIdentity = useCallback(() => {
+    setRecoveryState("restoring");
+    setRestoreInput("");
+    haptics.uiTap();
+  }, [haptics]);
+
+  const handleRestoreSubmit = useCallback(() => {
+    const words = restoreInput.trim().split(/\s+/);
+    if (isValidRecoveryPhrase(words)) {
+      // TODO: Implement server-side restore via POST /v1/names
+      // For now, just show a message that this will be available post-v1
+      alert("Recovery phrase validation will be available post-v1. For now, please save your recovery phrase manually.");
+      setRecoveryState("hidden");
+    } else {
+      alert("Invalid recovery phrase. Please check and try again.");
+    }
+    haptics.uiTap();
+  }, [restoreInput, haptics]);
 
   return (
     <div
@@ -175,6 +211,64 @@ export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) 
             </p>
           </div>
 
+          {/* Recovery phrase section */}
+          <div style={{ paddingTop: 8, paddingBottom: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "12px 0",
+                borderBottom: "1px solid rgba(43,33,24,0.1)",
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 16, fontWeight: 600, color: "#2B2118" }}>
+                  Recovery Phrase
+                </div>
+                <div style={{ fontSize: 13, color: "#6E5F48" }}>
+                  Save 4 words to restore your name on a new device
+                </div>
+              </div>
+              <button
+                onClick={handleShowRecoveryPhrase}
+                aria-label="Show recovery phrase"
+                style={{
+                  padding: "8px 16px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: "inherit",
+                  backgroundColor: "#3D6B4A",
+                  color: "#F4EAD5",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                Show
+              </button>
+            </div>
+            <button
+              onClick={handleRestoreIdentity}
+              aria-label="Restore identity from recovery phrase"
+              style={{
+                marginTop: 8,
+                padding: "8px 16px",
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: "inherit",
+                backgroundColor: "transparent",
+                color: "#3D6B4A",
+                border: "1px solid #3D6B4A",
+                borderRadius: 8,
+                cursor: "pointer",
+                width: "100%",
+              }}
+            >
+              Restore from Recovery Phrase
+            </button>
+          </div>
+
           {onShowLanding && (
             <div style={{ paddingTop: 16, borderTop: "1px solid rgba(43,33,24,0.1)" }}>
               <button
@@ -229,6 +323,202 @@ export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) 
             </p>
           </div>
         </div>
+
+        {/* Show recovery phrase modal */}
+        {recoveryState === "showing" && recoveryPhrase && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="recovery-title"
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundColor: "rgba(43, 33, 24, 0.8)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 16,
+              padding: 16,
+              zIndex: 1,
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: "#F4EAD5",
+                borderRadius: 16,
+                padding: 24,
+                maxWidth: 400,
+                width: "100%",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+              }}
+            >
+              <h3 id="recovery-title" style={{ margin: "0 0 16px 0", fontSize: 20, color: "#2B2118" }}>
+                Your Recovery Phrase
+              </h3>
+              <p style={{ margin: "0 0 16px 0", fontSize: 14, color: "#6E5F48", lineHeight: 1.5 }}>
+                Save these 4 words to restore your name on a new device. Store them safely!
+              </p>
+              <div
+                style={{
+                  backgroundColor: "#FBF4E3",
+                  border: "2px solid #2B2118",
+                  borderRadius: 8,
+                  padding: 16,
+                  marginBottom: 16,
+                  textAlign: "center",
+                  fontSize: 18,
+                  fontWeight: 600,
+                  color: "#2B2118",
+                  fontFamily: "monospace",
+                  wordSpacing: "8px",
+                }}
+              >
+                {formatRecoveryPhrase(recoveryPhrase)}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexDirection: "column" }}>
+                <button
+                  onClick={() => {
+                    sound.playUiTap();
+                    navigator.clipboard.writeText(formatRecoveryPhrase(recoveryPhrase));
+                  }}
+                  aria-label="Copy recovery phrase to clipboard"
+                  style={{
+                    padding: "12px",
+                    fontSize: 16,
+                    fontWeight: 600,
+                    fontFamily: "inherit",
+                    backgroundColor: "#D94F3A",
+                    color: "#2B2118",
+                    border: "2px solid #2B2118",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                  }}
+                >
+                  Copy to Clipboard
+                </button>
+                <button
+                  onClick={() => {
+                    sound.playUiTap();
+                    setRecoveryState("hidden");
+                  }}
+                  aria-label="Close recovery phrase"
+                  style={{
+                    padding: "12px",
+                    fontSize: 16,
+                    fontWeight: 600,
+                    fontFamily: "inherit",
+                    backgroundColor: "transparent",
+                    color: "#2B2118",
+                    border: "2px solid #2B2118",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Restore recovery phrase modal */}
+        {recoveryState === "restoring" && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="restore-title"
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundColor: "rgba(43, 33, 24, 0.8)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 16,
+              padding: 16,
+              zIndex: 1,
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: "#F4EAD5",
+                borderRadius: 16,
+                padding: 24,
+                maxWidth: 400,
+                width: "100%",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+              }}
+            >
+              <h3 id="restore-title" style={{ margin: "0 0 16px 0", fontSize: 20, color: "#2B2118" }}>
+                Restore Your Identity
+              </h3>
+              <p style={{ margin: "0 0 16px 0", fontSize: 14, color: "#6E5F48", lineHeight: 1.5 }}>
+                Enter your 4-word recovery phrase to restore your name on this device.
+              </p>
+              <input
+                type="text"
+                value={restoreInput}
+                onChange={(e) => setRestoreInput(e.target.value)}
+                placeholder="word1 word2 word3 word4"
+                autoFocus
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  fontSize: 16,
+                  border: "2px solid #2B2118",
+                  borderRadius: 8,
+                  backgroundColor: "#FBF4E3",
+                  color: "#2B2118",
+                  boxSizing: "border-box",
+                  marginBottom: 16,
+                  fontFamily: "monospace",
+                }}
+              />
+              <div style={{ display: "flex", gap: 8, flexDirection: "column" }}>
+                <button
+                  onClick={handleRestoreSubmit}
+                  aria-label="Restore identity"
+                  style={{
+                    padding: "12px",
+                    fontSize: 16,
+                    fontWeight: 600,
+                    fontFamily: "inherit",
+                    backgroundColor: "#D94F3A",
+                    color: "#2B2118",
+                    border: "2px solid #2B2118",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                  }}
+                >
+                  Restore
+                </button>
+                <button
+                  onClick={() => {
+                    sound.playUiTap();
+                    setRecoveryState("hidden");
+                  }}
+                  aria-label="Cancel restore"
+                  style={{
+                    padding: "12px",
+                    fontSize: 16,
+                    fontWeight: 600,
+                    fontFamily: "inherit",
+                    backgroundColor: "transparent",
+                    color: "#2B2118",
+                    border: "2px solid #2B2118",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+              <p style={{ margin: "12px 0 0 0", fontSize: 11, color: "#6E5F48" }}>
+                Note: Server-side restoration will be available post-v1. For now, this validates your phrase format.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

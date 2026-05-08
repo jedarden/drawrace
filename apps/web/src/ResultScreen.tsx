@@ -4,6 +4,7 @@ import type { StrokePoint } from "./DrawScreen.js";
 import { submitGhost, waitForVerdict, isOnline, type SubmissionVerdict } from "./api.js";
 import { getSoundManager } from "./Sound.js";
 import { getHaptics } from "./Haptics.js";
+import { ensureRecoveryPhrase, wasRecoveryPhraseShown, markRecoveryPhraseShown, formatRecoveryPhrase } from "./recovery-phrase.js";
 
 interface GhostResult {
   name: string;
@@ -33,8 +34,20 @@ function formatTime(ms: number): string {
 export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId, swapLog, stuck, ghosts, onRetry, onShowLeaderboard }: ResultScreenProps) {
   const [verdict, setVerdict] = useState<SubmissionVerdict | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showRecoveryPhrase, setShowRecoveryPhrase] = useState(false);
+  const [recoveryPhrase, setRecoveryPhrase] = useState<string[] | null>(null);
 
   const online = isOnline();
+
+  // Generate recovery phrase on first accepted verdict
+  useEffect(() => {
+    if (verdict?.status === "accepted" && !wasRecoveryPhraseShown()) {
+      const phrase = ensureRecoveryPhrase();
+      setRecoveryPhrase(phrase);
+      setShowRecoveryPhrase(true);
+      markRecoveryPhraseShown();
+    }
+  }, [verdict]);
 
   useEffect(() => {
     // Skip submission for stuck-DNF runs (only submit completed runs)
@@ -248,6 +261,131 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
         >
           Leaderboard
         </button>
+      )}
+
+      {/* Recovery phrase chip - shown after first race */}
+      {online && !showRecoveryPhrase && (
+        <button
+          onClick={() => {
+            getSoundManager().playUiTap();
+            getHaptics().uiTap();
+            const phrase = ensureRecoveryPhrase();
+            setRecoveryPhrase(phrase);
+            setShowRecoveryPhrase(true);
+          }}
+          aria-label="Get your recovery phrase"
+          style={{
+            padding: "8px 16px",
+            fontSize: 14,
+            fontWeight: 600,
+            fontFamily: "inherit",
+            backgroundColor: "#3D6B4A",
+            color: "#F4EAD5",
+            border: "none",
+            borderRadius: 16,
+            cursor: "pointer",
+          }}
+        >
+          Claim a name
+        </button>
+      )}
+
+      {/* Recovery phrase modal */}
+      {showRecoveryPhrase && recoveryPhrase && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="recovery-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(43, 33, 24, 0.8)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#F4EAD5",
+              borderRadius: 16,
+              padding: 24,
+              maxWidth: 400,
+              width: "100%",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+            }}
+          >
+            <h3 id="recovery-title" style={{ margin: "0 0 16px 0", fontSize: 20, color: "#2B2118" }}>
+              Your Recovery Phrase
+            </h3>
+            <p style={{ margin: "0 0 16px 0", fontSize: 14, color: "#6E5F48", lineHeight: 1.5 }}>
+              Save these 4 words to restore your name on a new device. You can find them again in Settings.
+            </p>
+            <div
+              style={{
+                backgroundColor: "#FBF4E3",
+                border: "2px solid #2B2118",
+                borderRadius: 8,
+                padding: 16,
+                marginBottom: 16,
+                textAlign: "center",
+                fontSize: 18,
+                fontWeight: 600,
+                color: "#2B2118",
+                fontFamily: "monospace",
+                wordSpacing: "8px",
+              }}
+            >
+              {formatRecoveryPhrase(recoveryPhrase)}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexDirection: "column" }}>
+              <button
+                onClick={() => {
+                  getSoundManager().playUiTap();
+                  getHaptics().uiTap();
+                  navigator.clipboard.writeText(formatRecoveryPhrase(recoveryPhrase));
+                }}
+                aria-label="Copy recovery phrase to clipboard"
+                style={{
+                  padding: "12px",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  fontFamily: "inherit",
+                  backgroundColor: "#D94F3A",
+                  color: "#2B2118",
+                  border: "2px solid #2B2118",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                Copy to Clipboard
+              </button>
+              <button
+                onClick={() => {
+                  getSoundManager().playUiTap();
+                  getHaptics().uiTap();
+                  setShowRecoveryPhrase(false);
+                }}
+                aria-label="Close recovery phrase"
+                style={{
+                  padding: "12px",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  fontFamily: "inherit",
+                  backgroundColor: "transparent",
+                  color: "#2B2118",
+                  border: "2px solid #2B2118",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                Got it, I've saved it
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
