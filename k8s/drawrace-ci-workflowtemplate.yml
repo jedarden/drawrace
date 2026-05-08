@@ -107,12 +107,13 @@ spec:
                 - {name: cmd, value: "k6 run load/submit.js"}
 
           - name: device-matrix
-            template: step
+            template: device-matrix
             dependencies: [e2e]
             when: "'{{workflow.parameters.mode}}' == 'release'"
             arguments:
               parameters:
-                - {name: cmd, value: "pnpm test:devices"}
+                - name: preview-url
+                  value: "{{workflow.parameters.preview-url}}"
 
     # ── Generic step template ───────────────────────────────────────────────
     - name: step
@@ -206,3 +207,61 @@ spec:
             archive:
               tar: {}
             # s3 destination configured by the Argo controller's artifact repo
+
+    # ── Device-matrix template ─────────────────────────────────────────────────
+    # BrowserStack App Automate integration for release-candidate gating.
+    # Runs on real devices: iPhone 12/15 Pro Safari, Pixel 6 cross-check, Redmi 9
+    # low-end, Galaxy S23 Samsung Internet. See plan.md §Testing 10.2.
+    - name: device-matrix
+      inputs:
+        parameters:
+          - name: preview-url
+      activeDeadlineSeconds: 900
+      container:
+        image: ghcr.io/drawrace/ci-snap:2026-04-24
+        command: [bash, -lc]
+        args:
+          - |
+            set -euo pipefail
+            # Install BrowserStack Playwright integration
+            pnpm install
+            # Run device matrix against the preview URL
+            # Failure on 2+ devices blocks release
+            DRAWRACE_TEST_URL="{{inputs.parameters.preview-url}}" \
+              pnpm test:devices
+        env:
+          # BrowserStack credentials injected from sealed-secret
+          - name: BROWSERSTACK_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: drawrace-browserstack
+                key: username
+          - name: BROWSERSTACK_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: drawrace-browserstack
+                key: access-key
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      volumes:
+        - name: workspace
+          emptyDir: {}
+      # Upload test results and screenshots on failure
+      outputs:
+        artifacts:
+          - name: device-matrix-results
+            path: /workspace/playwright-report
+            archive:
+              tar: {}
+          - name: device-matrix-screenshots
+            path: /workspace/test-results
+            archive:
+              tar: {}

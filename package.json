@@ -14,6 +14,7 @@
     "test:snapshot": "playwright test e2e/snapshot.spec.ts --project chromium",
     "test:snapshot:update": "SNAPSHOT_UPDATE=1 playwright test e2e/snapshot.spec.ts --project chromium",
     "test:perf": "playwright test e2e/perf.spec.ts --project perf",
+    "test:devices": "playwright test --config=playwright.browserstack.config.ts",
     "test:snap": "docker run --rm -v ${PWD}:/work -w /work -e CI=true ghcr.io/drawrace/ci-snap:2026-04-24 sh -c 'pnpm install && pnpm test:snapshot'",
     "test:snap:update": "docker run --rm -v ${PWD}:/work -w /work -e CI=true -e SNAPSHOT_UPDATE=1 ghcr.io/drawrace/ci-snap:2026-04-24 sh -c 'pnpm install && pnpm test:snapshot'",
     "snap:docker": "docker-compose -f docker-compose.snapshot.yml run --rm snapshot-test",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
+    "@browserstack/playwright": "^0.6.0",
     "@eslint/js": "^9.24.0",
     "@playwright/test": "^1.59.1",
     "@size-limit/preset-app": "^12.1.0",
