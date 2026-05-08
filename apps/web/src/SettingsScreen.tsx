@@ -7,16 +7,21 @@ import {
   formatRecoveryPhrase,
   isValidRecoveryPhrase,
 } from "./recovery-phrase.js";
+import type { DrawConstraints } from "@drawrace/engine-core";
 
 interface SettingsScreenProps {
   onClose: () => void;
   onShowLanding?: () => void;
+  constraints?: DrawConstraints;
+  onConstraintsChange?: (constraints: DrawConstraints) => void;
 }
 
 type DisplayState = "idle" | "clearing" | "cleared";
 type RecoveryState = "hidden" | "showing" | "restoring";
 
-export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) {
+const CONSTRAINTS_KEY = "drawrace.constraints";
+
+export function SettingsScreen({ onClose, onShowLanding, constraints, onConstraintsChange }: SettingsScreenProps) {
   const haptics = getHaptics();
   const sound = getSoundManager();
   const [soundEnabled, setSoundEnabled] = useState(sound.isEnabled);
@@ -29,11 +34,24 @@ export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) 
   const [recoveryState, setRecoveryState] = useState<RecoveryState>("hidden");
   const [recoveryPhrase, setRecoveryPhrase] = useState<string[] | null>(null);
   const [restoreInput, setRestoreInput] = useState("");
+  const [localConstraints, setLocalConstraints] = useState<DrawConstraints>(constraints ?? {});
 
   useEffect(() => {
     const storedName = localStorage.getItem("drawrace.displayName");
     if (storedName) setDisplayName(storedName);
-  }, []);
+
+    // Load saved constraints
+    const savedConstraints = localStorage.getItem(CONSTRAINTS_KEY);
+    if (savedConstraints) {
+      try {
+        const parsed = JSON.parse(savedConstraints);
+        setLocalConstraints(parsed);
+        onConstraintsChange?.(parsed);
+      } catch {
+        // Ignore invalid stored constraints
+      }
+    }
+  }, [onConstraintsChange]);
 
   const handleSoundToggle = useCallback(() => {
     const newValue = !soundEnabled;
@@ -107,6 +125,17 @@ export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) 
     haptics.uiTap();
   }, [restoreInput, haptics]);
 
+  const handleConstraintToggle = useCallback((key: keyof DrawConstraints) => {
+    return () => {
+      const newValue = !localConstraints[key];
+      const newConstraints = { ...localConstraints, [key]: newValue };
+      setLocalConstraints(newConstraints);
+      localStorage.setItem(CONSTRAINTS_KEY, JSON.stringify(newConstraints));
+      onConstraintsChange?.(newConstraints);
+      haptics.uiTap();
+    };
+  }, [localConstraints, onConstraintsChange, haptics]);
+
   return (
     <div
       role="dialog"
@@ -173,6 +202,25 @@ export function SettingsScreen({ onClose, onShowLanding }: SettingsScreenProps) 
             enabled={reducedMotion}
             onToggle={handleReducedMotionToggle}
           />
+
+          {/* Wheel Constraint Modes - Post-v1 Progression Hooks */}
+          <div style={{ paddingTop: 8, paddingBottom: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#6E5F48", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Challenge Modes
+            </div>
+            <SettingRow
+              label="Single-Stroke Mode"
+              description="Draw your wheel in one continuous stroke"
+              enabled={localConstraints.singleStroke ?? false}
+              onToggle={handleConstraintToggle("singleStroke")}
+            />
+            <SettingRow
+              label="Convex-Only Mode"
+              description="Only convex (round) shapes allowed"
+              enabled={localConstraints.convexOnly ?? false}
+              onToggle={handleConstraintToggle("convexOnly")}
+            />
+          </div>
 
           <div style={{ paddingTop: 8, paddingBottom: 8 }}>
             <label

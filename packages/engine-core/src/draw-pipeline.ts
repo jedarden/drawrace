@@ -14,6 +14,38 @@ export interface DrawResult {
   area: number;
 }
 
+export interface DrawConstraints {
+  singleStroke?: boolean;
+  convexOnly?: boolean;
+}
+
+export interface ConstraintViolation {
+  type: "single-stroke" | "convex-only";
+  message: string;
+}
+
+export function validateConstraints(
+  result: DrawResult,
+  constraints: DrawConstraints,
+  strokeCount: number = 1
+): ConstraintViolation | null {
+  if (constraints.singleStroke && strokeCount > 1) {
+    return {
+      type: "single-stroke",
+      message: `Single-stroke mode requires drawing in one continuous stroke (detected ${strokeCount} strokes)`,
+    };
+  }
+
+  if (constraints.convexOnly && result.convexPieces.length > 1) {
+    return {
+      type: "convex-only",
+      message: `Convex-only mode requires a convex shape (detected ${result.convexPieces.length} convex pieces)`,
+    };
+  }
+
+  return null;
+}
+
 const MIN_TRAVEL = 150;
 const MIN_SAMPLES = 20;
 const MAX_VERTICES = 32;

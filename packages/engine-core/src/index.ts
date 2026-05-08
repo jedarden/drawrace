@@ -25,8 +25,9 @@ export {
   areaCentroid,
   convexDecompose,
   processDraw,
+  validateConstraints,
 } from "./draw-pipeline.js";
-export type { Point, DrawResult } from "./draw-pipeline.js";
+export type { Point, DrawResult, DrawConstraints, ConstraintViolation } from "./draw-pipeline.js";
 export {
   createReplayDriver,
   recordRaceSim,

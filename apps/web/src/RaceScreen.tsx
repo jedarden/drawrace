@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { RaceSim } from "@drawrace/engine-core";
-import type { DrawResult, TrackDef, WheelSwap } from "@drawrace/engine-core";
+import type { DrawResult, TrackDef, WheelSwap, DrawConstraints } from "@drawrace/engine-core";
 import { createRenderer, createGhostWheelPath, preloadAssets } from "./Renderer.js";
 import { ParticleSystem } from "./Particles.js";
 import { getPerformanceManager } from "./PerformanceManager.js";
@@ -26,6 +26,7 @@ interface RaceScreenProps {
   onFinished: (elapsedMs: number, swapLog: WheelSwap[], stuck: boolean) => void;
   onRestart: () => void;
   onQuit: () => void;
+  constraints?: DrawConstraints;
 }
 
 type RacePhase = "countdown" | "racing" | "done";
@@ -42,7 +43,7 @@ function formatTime(ms: number): string {
   return `${min}:${String(sec).padStart(2, "0")}.${String(centis).padStart(2, "0")}`;
 }
 
-export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, onQuit }: RaceScreenProps) {
+export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, onQuit, constraints }: RaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const phaseRef = useRef<RacePhase>("countdown");
   const countdownRef = useRef(3);
@@ -513,6 +514,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
         active={racingPhase === "racing"}
         swapCount={swapCount}
         onSwapCommit={handleSwapCommit}
+        constraints={constraints}
       />
 
       {/* ── Pause menu ── */}

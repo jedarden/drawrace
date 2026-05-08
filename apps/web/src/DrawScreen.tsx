@@ -1,5 +1,5 @@
-import { useRef, useCallback, useEffect, useState } from "react";
-import { processDraw, type DrawResult, type Point } from "@drawrace/engine-core";
+import { useRef, useCallback, useEffect, useState, useMemo } from "react";
+import { processDraw, validateConstraints, type DrawResult, type Point, type DrawConstraints, type ConstraintViolation } from "@drawrace/engine-core";
 import { getHaptics } from "./Haptics.js";
 import { getSoundManager } from "./Sound.js";
 
@@ -10,11 +10,12 @@ export interface StrokePoint extends Point {
 interface DrawScreenProps {
   onComplete: (result: DrawResult, strokePoints: StrokePoint[]) => void;
   onOpenSettings: () => void;
+  constraints?: DrawConstraints;
 }
 
 const CANVAS_SIZE_CSS = 300;
 
-export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
+export function DrawScreen({ onComplete, onOpenSettings, constraints }: DrawScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const offCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rawPointsRef = useRef<StrokePoint[]>([]);
@@ -22,8 +23,16 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
   const startTimeRef = useRef(0);
   const activePointerRef = useRef<number | null>(null);
   const rafRef = useRef<number>(0);
+  const strokeCountRef = useRef(0);
   const [canRace, setCanRace] = useState(false);
   const [previewResult, setPreviewResult] = useState<DrawResult | null>(null);
+  const [constraintViolation, setConstraintViolation] = useState<ConstraintViolation | null>(null);
+  const activeConstraints = useMemo(() => {
+    const modes: string[] = [];
+    if (constraints?.singleStroke) modes.push("Single-Stroke");
+    if (constraints?.convexOnly) modes.push("Convex-Only");
+    return modes;
+  }, [constraints]);
   const sound = getSoundManager();
   const haptics = getHaptics();
 
@@ -102,10 +111,19 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
       canvas.setPointerCapture(e.pointerId);
       activePointerRef.current = e.pointerId;
       startTimeRef.current = Date.now();
+
+      // Track stroke count: if we already have points, this is a new stroke
+      if (rawPointsRef.current.length > 0) {
+        strokeCountRef.current += 1;
+      } else {
+        strokeCountRef.current = 1;
+      }
+
       rawPointsRef.current = [{ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY, t: 0 }];
       travelRef.current = 0;
       setCanRace(false);
       setPreviewResult(null);
+      setConstraintViolation(null);
       scheduleRender();
     },
     [scheduleRender]
@@ -152,6 +170,16 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
     const plainPts: Point[] = rawPts.map(({ x, y }) => ({ x, y }));
     const result = processDraw(plainPts, travelRef.current);
     if (result) {
+      // Validate constraints if any are specified
+      if (constraints) {
+        const violation = validateConstraints(result, constraints, strokeCountRef.current);
+        if (violation) {
+          setConstraintViolation(violation);
+          sound.playDnf();
+          return;
+        }
+      }
+
       if (!result.isOpenLoop) {
         sound.playStrokeClosure();
       } else {
@@ -160,14 +188,16 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
       haptics.uiTap();
       onComplete(result, rawPts);
     }
-  }, [onComplete, sound, haptics]);
+  }, [onComplete, sound, haptics, constraints]);
 
   const handleClear = useCallback(() => {
     rawPointsRef.current = [];
     travelRef.current = 0;
     activePointerRef.current = null;
+    strokeCountRef.current = 0;
     setCanRace(false);
     setPreviewResult(null);
+    setConstraintViolation(null);
     sound.playClear();
     haptics.uiTap();
     const canvas = canvasRef.current;
@@ -197,7 +227,35 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", maxWidth: 350 }}>
-        <h1 style={{ margin: 0, fontSize: 24 }}>Draw your wheel</h1>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <h1 style={{ margin: 0, fontSize: 24 }}>Draw your wheel</h1>
+          {activeConstraints.length > 0 && (
+            <div
+              style={{
+                fontSize: 12,
+                color: "#D94F3A",
+                fontWeight: 600,
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+              aria-label="Active challenge modes"
+            >
+              {activeConstraints.map((mode) => (
+                <span
+                  key={mode}
+                  style={{
+                    backgroundColor: "rgba(217, 79, 58, 0.15)",
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                  }}
+                >
+                  {mode}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
         <button
           onClick={() => {
             sound.playUiTap();
@@ -276,6 +334,23 @@ export function DrawScreen({ onComplete, onOpenSettings }: DrawScreenProps) {
       <div style={{ fontSize: 14, color: "#6E5F48" }} role="status" aria-live="polite">
         {canRace ? "Wheel ready!" : "Draw a complete wheel shape (minimum size and length required)"}
       </div>
+      {constraintViolation && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          style={{
+            fontSize: 14,
+            color: "#A13A2E",
+            backgroundColor: "rgba(161, 58, 46, 0.1)",
+            padding: "8px 12px",
+            borderRadius: 8,
+            textAlign: "center",
+            maxWidth: 350,
+          }}
+        >
+          {constraintViolation.message}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect, useState } from "react";
-import { processDraw } from "@drawrace/engine-core";
-import type { DrawResult } from "@drawrace/engine-core";
+import { processDraw, validateConstraints } from "@drawrace/engine-core";
+import type { DrawResult, DrawConstraints } from "@drawrace/engine-core";
 import {
   MAX_SWAPS,
   COOLDOWN_MS,
@@ -15,6 +15,8 @@ interface DrawOverlayProps {
   swapCount: number;
   /** Called with the processed DrawResult when a valid stroke is committed */
   onSwapCommit: (result: DrawResult) => void;
+  /** Optional drawing constraints for progression modes */
+  constraints?: DrawConstraints;
 }
 
 function easeOutBack(t: number): number {
@@ -28,7 +30,7 @@ interface PreviewState {
   startMs: number;
 }
 
-export function DrawOverlay({ active, swapCount, onSwapCommit }: DrawOverlayProps) {
+export function DrawOverlay({ active, swapCount, onSwapCommit, constraints }: DrawOverlayProps) {
   const strokeCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -292,6 +294,17 @@ export function DrawOverlay({ active, swapCount, onSwapCommit }: DrawOverlayProp
     const result = processDraw(pts, travel);
     if (!result) return;
 
+    // Validate constraints if any are specified
+    // Mid-race swaps are always single-stroke by design, so strokeCount is always 1
+    if (constraints) {
+      const violation = validateConstraints(result, constraints, 1);
+      if (violation) {
+        // Silently reject invalid strokes in mid-race overlay
+        // (no alert needed - player just sees nothing happen and can try again)
+        return;
+      }
+    }
+
     // Transition to cooldown before calling onSwapCommit so UI updates immediately
     setPhase("cooldown");
     cooldownStartMsRef.current = performance.now();
@@ -314,7 +327,7 @@ export function DrawOverlay({ active, swapCount, onSwapCommit }: DrawOverlayProp
         setPhase(swapCountRef.current >= MAX_SWAPS ? "capped" : "active");
       }
     }, COOLDOWN_MS);
-  }, [clearStrokeCanvas, onSwapCommit]);
+  }, [clearStrokeCanvas, onSwapCommit, constraints]);
 
   const onPointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {

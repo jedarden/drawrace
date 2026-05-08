@@ -8,12 +8,13 @@ import { LandingScreen } from "./LandingScreen.js";
 import { LeaderboardScreen } from "./LeaderboardScreen.js";
 import { fetchGhosts, submitCrashReport, type GhostData } from "./api.js";
 import { getHaptics } from "./Haptics.js";
-import type { DrawResult, WheelSwap } from "@drawrace/engine-core";
+import type { DrawResult, WheelSwap, DrawConstraints } from "@drawrace/engine-core";
 import { parseSurfaces, validateZones } from "@drawrace/engine-core";
 
 type Screen = "draw" | "race" | "result";
 
 const LANDING_DISMISSED_KEY = "drawrace_landing_dismissed";
+const CONSTRAINTS_KEY = "drawrace.constraints";
 
 interface TrackData {
   id: string;
@@ -59,6 +60,17 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showLanding, setShowLanding] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [constraints, setConstraints] = useState<DrawConstraints>(() => {
+    const saved = localStorage.getItem(CONSTRAINTS_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  });
 
   // Initialize haptics and check landing screen
   useEffect(() => {
@@ -137,6 +149,10 @@ export function App() {
     setShowLanding(true);
   }, []);
 
+  const handleConstraintsChange = useCallback((newConstraints: DrawConstraints) => {
+    setConstraints(newConstraints);
+  }, []);
+
   if (!track) {
     return (
       <div
@@ -167,6 +183,7 @@ export function App() {
         <DrawScreen
           onComplete={handleDrawComplete}
           onOpenSettings={() => setSettingsOpen(true)}
+          constraints={constraints}
         />
       )}
       {screen === "race" && drawResult && (
@@ -177,6 +194,7 @@ export function App() {
           onFinished={handleRaceFinished}
           onRestart={handleRetry}
           onQuit={handleRetry}
+          constraints={constraints}
         />
       )}
       {screen === "result" && drawResult && (
@@ -193,7 +211,12 @@ export function App() {
         />
       )}
       {settingsOpen && (
-        <SettingsScreen onClose={() => setSettingsOpen(false)} onShowLanding={handleShowLanding} />
+        <SettingsScreen
+          onClose={() => setSettingsOpen(false)}
+          onShowLanding={handleShowLanding}
+          constraints={constraints}
+          onConstraintsChange={handleConstraintsChange}
+        />
       )}
       {showLeaderboard && track && (
         <LeaderboardScreen
