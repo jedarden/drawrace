@@ -11,7 +11,9 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && python3 scripts/build-wasm.py",
+    "build:js": "tsc -p tsconfig.build.json",
+    "build:wasm": "python3 scripts/build-wasm.py",
     "prepublishOnly": "pnpm run build",
     "test:golden": "vitest run --root ../.. packages/engine-core/src/golden.test.ts",
     "regenerate-golden": "npx tsx golden/regenerate.ts"
