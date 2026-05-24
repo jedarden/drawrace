@@ -19,8 +19,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::app::LiveState;
-use crate::messages::{ClientMessage, ServerMessage, RacerState, PlayerInRoom, RoomStatus};
-use crate::room::{Room, RoomRegistry};
+use crate::messages::{ClientMessage, ServerMessage, PlayerInRoom};
 
 /// Active connection tracking
 #[derive(Debug, Clone)]
@@ -253,23 +252,48 @@ async fn handle_client_message(
             let room = state.rooms.get(rid).await
                 .ok_or_else(|| anyhow::anyhow!("room not found"))?;
             if room.is_ready() && room.player_count() >= crate::lobby::MIN_LIVE_PLAYERS {
-                // Start countdown
-                let start_time_ms = crate::lobby::now_ms() + 3000; // 3 seconds
+                // Create the race in the executor
+                let players: Vec<_> = room.players.values().cloned().collect();
+                if let Err(e) = state.race_executor.create_race(rid, room.track_id, players).await {
+                    tracing::error!("Failed to create race: {}", e);
+                }
+
+                // Start countdown (3 seconds)
+                let start_time_ms = crate::lobby::now_ms() + 3000;
                 state.rooms.update(rid, |r| {
                     r.start_countdown(start_time_ms);
                 }).await?;
+
+                if let Err(e) = state.race_executor.start_countdown(rid, 3000).await {
+                    tracing::error!("Failed to start countdown: {}", e);
+                }
 
                 // Broadcast countdown
                 state.connections.broadcast(rid, &ServerMessage::RaceStart {
                     countdown: 3,
                     start_time_ms,
                 }).await?;
+
+                // Start the race after countdown
+                let rid_clone = rid;
+                let state_clone = state.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(3000)).await;
+                    if let Err(e) = state_clone.race_executor.start_race(rid_clone).await {
+                        tracing::error!("Failed to start race: {}", e);
+                    }
+                });
             }
 
             Ok(None)
         }
         ClientMessage::WheelSwap { swap_tick, wheel } => {
-            // TODO: Implement wheel swap logic
+            let uuid = player_uuid.context("Not connected")?;
+            let rid = room_id.context("Not in room")?;
+
+            // Forward to race executor for handling
+            state.race_executor.handle_wheel_swap(rid, uuid, swap_tick, wheel).await?;
+
             Ok(None)
         }
         ClientMessage::Ping { timestamp } => {
@@ -301,40 +325,6 @@ async fn handle_disconnect(state: &Arc<LiveState>, player_uuid: Uuid, room_id: U
             let _ = crate::room::unregister_room_from_redis(&mut redis_mgr, room_id).await;
         }
     }
-}
-
-/// Handle ClientMessage::Hello
-async fn handle_hello(
-    state: &Arc<LiveState>,
-    player_uuid: Uuid,
-    name: String,
-    track_id: u16,
-) -> Result<ServerMessage> {
-    // Determine player's bucket based on PB (query from main API)
-    // For now, default to "novice"
-    let bucket = "novice"; // TODO: Query from leaderboard
-
-    // Try to find an existing waiting room, or create a new one
-    let room_id = find_or_create_room(state, track_id, bucket, player_uuid, name.clone()).await?;
-
-    // Get room state
-    let room = state.rooms.get(room_id).await
-        .context("room not found")?;
-
-    // Build player list for Welcome message
-    let players = room.players.values()
-        .map(|p| crate::messages::PlayerInfo {
-            player_uuid: p.player_uuid,
-            name: p.name.clone(),
-            ready: p.ready,
-        })
-        .collect();
-
-    Ok(ServerMessage::Welcome {
-        player_uuid,
-        room_id,
-        players,
-    })
 }
 
 /// Find an existing waiting room or create a new one
@@ -381,24 +371,6 @@ async fn find_or_create_room(
     Ok(room_id)
 }
 
-/// Broadcast state to all players in a room
-pub async fn broadcast_state(
-    _state: &Arc<LiveState>,
-    room_id: Uuid,
-    tick: u32,
-    racers: Vec<RacerState>,
-) -> Result<()> {
-    let msg = ServerMessage::State { tick, racers: racers.clone() };
-    let _msg_json = serde_json::to_string(&msg)?;
-
-    // TODO: Send to all connected players in the room
-    // For now, we'd need to track active connections per room
-
-    tracing::debug!(room_id = %room_id, tick, "Broadcasting state to {} racers", racers.len());
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -412,6 +384,7 @@ mod tests {
         };
 
         let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains(r#""type":"welcome""#));
+        // The tag serialization uses the variant name "Welcome"
+        assert!(json.contains("\"type\":\"Welcome\""));
     }
 }

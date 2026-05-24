@@ -6,7 +6,6 @@
 //! - "After timeout (say 8s), fill empty slots with ghosts"
 
 use anyhow::Result;
-use redis::AsyncCommands;
 use uuid::Uuid;
 use std::time::{SystemTime, UNIX_EPOCH};
 

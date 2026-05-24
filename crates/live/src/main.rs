@@ -48,6 +48,12 @@ async fn main() -> Result<()> {
         background::run_lobby_task(&state_clone).await;
     });
 
+    // Start race execution loop
+    let state_clone = state.clone();
+    tokio::spawn(async move {
+        background::run_race_loop(&state_clone).await;
+    });
+
     // Start server
     let addr: SocketAddr = listen_addr.parse()?;
     let listener = TcpListener::bind(addr).await?;

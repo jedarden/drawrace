@@ -2,16 +2,16 @@
 //!
 //! Handles lobby management and room lifecycle.
 
-use anyhow::{Context, Result};
-use redis::AsyncCommands;
+use anyhow::Result;
 use std::time::Duration;
-use tokio::time::interval;
+use tokio::time::{interval, MissedTickBehavior};
 use uuid::Uuid;
 
 use crate::app::LiveState;
 use crate::lobby::{self, LOBBY_TIMEOUT_SECS, MIN_LIVE_PLAYERS, MAX_PLAYERS_PER_ROOM};
-use crate::messages::{PlayerInRoom, RoomStatus, LobbyPlayer};
+use crate::messages::{PlayerInRoom, ServerMessage};
 use crate::room;
+use crate::ghost::GhostBackfill;
 
 /// Run the lobby background task
 ///
@@ -22,12 +22,72 @@ use crate::room;
 /// 4. Clean up expired lobby entries
 pub async fn run_lobby_task(state: &LiveState) {
     let mut ticker = interval(Duration::from_secs(1));
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     loop {
         ticker.tick().await;
 
         if let Err(e) = process_lobbies(state).await {
             tracing::error!("Error processing lobbies: {}", e);
+        }
+    }
+}
+
+/// Run the race execution loop
+///
+/// Per plan §Multiplayer & Backend 13:
+/// - "State sync rate: 20–30 Hz with client-side interpolation"
+/// - "Each tick broadcasts {racer_id, x, y, angle, t} for 2–8 racers"
+///
+/// This runs at 30 Hz (33ms per tick) and broadcasts state to all players.
+pub async fn run_race_loop(state: &LiveState) {
+    let mut ticker = interval(Duration::from_millis(33)); // ~30 Hz
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+    loop {
+        ticker.tick().await;
+
+        let updates = state.race_executor.step_all().await;
+
+        for (room_id, racer_states) in updates {
+            // Broadcast state to all players in the room
+            let tick = racer_states.first()
+                .map(|s| s.t_ms / 16) // Approximate tick from ms
+                .unwrap_or(0);
+
+            let msg = ServerMessage::State {
+                tick,
+                racers: racer_states,
+            };
+
+            if let Err(e) = state.connections.broadcast(room_id, &msg).await {
+                tracing::error!("Failed to broadcast state for room {}: {}", room_id, e);
+            }
+
+            // Check if race is finished
+            if let Some(finish_times) = state.race_executor.get_finish_times(room_id).await {
+                tracing::info!(room_id = %room_id, "Race finished, notifying players");
+
+                // Broadcast finish times to all players
+                for (player_uuid, time_ms) in &finish_times {
+                    let rank = finish_times.iter()
+                        .filter(|(_, t)| *t < time_ms)
+                        .count() as u8 + 1;
+
+                    let msg = ServerMessage::RaceFinished {
+                        player_uuid: *player_uuid,
+                        time_ms: *time_ms,
+                        rank,
+                    };
+
+                    if let Err(e) = state.connections.broadcast(room_id, &msg).await {
+                        tracing::error!("Failed to broadcast finish: {}", e);
+                    }
+                }
+
+                // Clean up the race
+                state.race_executor.remove_race(room_id).await;
+            }
         }
     }
 }
@@ -117,14 +177,25 @@ async fn process_lobby_key(
     if live_players < MAX_PLAYERS_PER_ROOM {
         let ghost_count = MAX_PLAYERS_PER_ROOM - live_players;
 
-        // TODO: Fetch ghosts from ghost blob service
-        // For now, we just note that ghosts will be added
-        tracing::info!(
-            room_id = %room_id,
-            live_players,
-            ghost_count,
-            "Room created, will add ghosts"
-        );
+        // Fetch ghosts to fill the room
+        let ghost_backfill = GhostBackfill::new();
+        match ghost_backfill.fetch_ghosts(track_id, bucket, ghost_count).await {
+            Ok(ghosts) => {
+                let ghost_players = ghost_backfill.ghosts_to_players(ghosts);
+                for ghost_player in ghost_players {
+                    room.add_player(ghost_player);
+                }
+                tracing::info!(
+                    room_id = %room_id,
+                    live_players,
+                    ghost_count,
+                    "Added ghosts to room"
+                );
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch ghosts: {}", e);
+            }
+        }
     }
 
     // Broadcast race start to players
@@ -145,8 +216,6 @@ async fn process_lobby_key(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_parse_lobby_key() {
         let key = "lobby:42:elite";
