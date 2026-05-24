@@ -600,7 +600,7 @@ mod tests {
         let mut blob = make_valid_blob();
         // swap_tick at HEADER_SIZE+1 (4 bytes), then vertex_count at HEADER_SIZE+5
         blob[HEADER_SIZE + 5] = 4; // vertex_count = 4 (below min 8)
-        let result = validate_ghost(&blob, 1, "2").await;
+        let result = validate_ghost(&blob, 1, "2", None).await;
         assert!(result.is_err(), "blob with 4 vertices should fail parse");
     }
 
@@ -608,7 +608,7 @@ mod tests {
     async fn too_many_vertices_rejected() {
         let mut blob = make_valid_blob();
         blob[HEADER_SIZE + 5] = 40; // vertex_count = 40 (above max 32)
-        let result = validate_ghost(&blob, 1, "2").await;
+        let result = validate_ghost(&blob, 1, "2", None).await;
         assert!(result.is_err(), "blob with 40 vertices should fail parse");
     }
 
@@ -662,7 +662,7 @@ mod tests {
     #[tokio::test]
     async fn malformed_blob_rejected() {
         let blob = vec![0u8; 20]; // too short
-        let result = validate_ghost(&blob, 1, "2").await;
+        let result = validate_ghost(&blob, 1, "2", None).await;
         assert!(result.is_err());
     }
 
@@ -718,7 +718,7 @@ mod tests {
         let vertex_counts: Vec<u8> = (0..22).map(|_| 12u8).collect();
         let swap_ticks: Vec<u32> = (0..22).map(|i| i * 60).collect();
         let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000]);
-        let result = validate_ghost(&blob, 1, "2").await;
+        let result = validate_ghost(&blob, 1, "2", None).await;
         assert!(result.is_err(), "blob with 22 wheels should fail parse");
     }
 
@@ -788,21 +788,24 @@ mod tests {
     async fn out_of_order_swap_ticks_rejected() {
         // swap_ticks [0, 60, 30] — third entry decreases → parse error
         let blob = make_blob(1, 28441, &[12, 12, 12], &[0, 60, 30], &[5000]);
-        let result = validate_ghost(&blob, 1, "2").await;
+        let result = validate_ghost(&blob, 1, "2", None).await;
         assert!(result.is_err(), "non-increasing swap_ticks must fail parse");
     }
 
     // ── Champion validation integration ───────────────────────────────────────────
+
+    fn champion_test_path() -> std::path::PathBuf {
+        let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        manifest_dir.join("reference-champion.json")
+    }
 
     /// Submission faster than champion by >2% is quarantined.
     #[tokio::test]
     async fn submission_faster_than_champion_quarantined() {
         // Champion best time is 28441ms. 2.1% faster is ~27844ms.
         let blob = make_blob(1, 27844, &[12], &[0], &[5000, 15000, 25000]);
-        let validator = champion::ChampionValidator::load_from_path(
-            &std::path::PathBuf::from("crates/validator/reference-champion.json"),
-        )
-        .unwrap();
+        let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
+            .unwrap();
         let verdict = validate_ghost(&blob, 1, "2", Some(&validator))
             .await
             .unwrap();
@@ -815,25 +818,21 @@ mod tests {
     async fn submission_slower_than_champion_accepted() {
         // Champion best time is 28441ms. 29000ms is slower.
         let blob = make_blob(1, 29000, &[12], &[0], &[5000, 15000, 25000]);
-        let validator = champion::ChampionValidator::load_from_path(
-            &std::path::PathBuf::from("crates/validator/reference-champion.json"),
-        )
-        .unwrap();
+        let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
+            .unwrap();
         let verdict = validate_ghost(&blob, 1, "2", Some(&validator))
             .await
             .unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
-    /// Submission exactly 2% faster than champion passes (boundary test).
+    /// Submission just under 2% faster than champion passes (boundary test).
     #[tokio::test]
     async fn submission_exactly_2_percent_faster_accepted() {
-        // Champion best time is 28441ms. Exactly 2% faster is 27872ms.
-        let blob = make_blob(1, 27872, &[12], &[0], &[5000, 15000, 25000]);
-        let validator = champion::ChampionValidator::load_from_path(
-            &std::path::PathBuf::from("crates/validator/reference-champion.json"),
-        )
-        .unwrap();
+        // Champion best time is 28441ms. Just under 2% faster is 27873ms (~1.997%).
+        let blob = make_blob(1, 27873, &[12], &[0], &[5000, 15000, 25000]);
+        let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
+            .unwrap();
         let verdict = validate_ghost(&blob, 1, "2", Some(&validator))
             .await
             .unwrap();
