@@ -7,6 +7,7 @@ import {
   convexDecompose,
   processDraw,
   validateConstraints,
+  computeSwapCount,
   type Point,
 } from "./draw-pipeline.js";
 
@@ -256,5 +257,150 @@ describe("validateConstraints", () => {
     );
     expect(violation).not.toBeNull();
     expect(violation!.type).toBe("single-stroke");
+  });
+
+  it("passes vertex-capped constraint with small polygon", () => {
+    const pts = circlePoints(150, 150, 80, 20); // 20 points
+    const travel = travelDistance(pts);
+    const result = processDraw(pts, travel)!;
+    const violation = validateConstraints(result, { vertexCapped: 16 }, 1);
+    // Simplification should reduce vertex count, but let's check actual
+    if (result.vertices.length > 16) {
+      expect(violation).not.toBeNull();
+      expect(violation!.type).toBe("vertex-capped");
+    } else {
+      expect(violation).toBeNull();
+    }
+  });
+
+  it("fails vertex-capped constraint with too many vertices", () => {
+    const pts = circlePoints(150, 150, 80, 60); // Many points, may simplify to > 10
+    const travel = travelDistance(pts);
+    const result = processDraw(pts, travel)!;
+    // Force a high vertex count by using vertexCapped lower than simplified result
+    const violation = validateConstraints(result, { vertexCapped: 8 }, 1);
+    if (result.vertices.length > 8) {
+      expect(violation).not.toBeNull();
+      expect(violation!.type).toBe("vertex-capped");
+      expect(violation!.message).toContain("vertices");
+    } else {
+      expect(violation).toBeNull();
+    }
+  });
+
+  it("passes diameter-capped constraint with small wheel", () => {
+    const pts = circlePoints(150, 150, 30, 40); // Small 30px radius wheel
+    const travel = travelDistance(pts);
+    const result = processDraw(pts, travel)!;
+    const violation = validateConstraints(result, { diameterCapped: 100 }, 1);
+    expect(violation).toBeNull();
+  });
+
+  it("fails diameter-capped constraint with too large wheel", () => {
+    const pts = circlePoints(150, 150, 80, 60); // Large 80px radius wheel
+    const travel = travelDistance(pts);
+    const result = processDraw(pts, travel)!;
+    const violation = validateConstraints(result, { diameterCapped: 100 }, 1);
+    // 80px radius = 160px diameter, which exceeds 100px cap
+    expect(violation).not.toBeNull();
+    expect(violation!.type).toBe("diameter-capped");
+    expect(violation!.message).toContain("diameter");
+  });
+
+  it("passes swap-capped constraint within limit", () => {
+    const pts = circlePoints(150, 150, 80, 60);
+    const travel = travelDistance(pts);
+    const result = processDraw(pts, travel)!;
+    const violation = validateConstraints(result, { swapCapped: 3 }, 1, 2);
+    expect(violation).toBeNull();
+  });
+
+  it("fails swap-capped constraint over limit", () => {
+    const pts = circlePoints(150, 150, 80, 60);
+    const travel = travelDistance(pts);
+    const result = processDraw(pts, travel)!;
+    const violation = validateConstraints(result, { swapCapped: 2 }, 1, 5);
+    expect(violation).not.toBeNull();
+    expect(violation!.type).toBe("swap-capped");
+    expect(violation!.message).toContain("swaps");
+  });
+
+  it("passes single-wheel constraint with no swaps", () => {
+    const pts = circlePoints(150, 150, 80, 60);
+    const travel = travelDistance(pts);
+    const result = processDraw(pts, travel)!;
+    const violation = validateConstraints(result, { singleWheel: true }, 1, 0);
+    expect(violation).toBeNull();
+  });
+
+  it("fails single-wheel constraint with swaps", () => {
+    const pts = circlePoints(150, 150, 80, 60);
+    const travel = travelDistance(pts);
+    const result = processDraw(pts, travel)!;
+    const violation = validateConstraints(result, { singleWheel: true }, 1, 3);
+    expect(violation).not.toBeNull();
+    expect(violation!.type).toBe("single-wheel");
+    expect(violation!.message).toContain("redraws");
+  });
+
+  it("passes combined vertex and diameter constraints", () => {
+    const pts = circlePoints(150, 150, 30, 20); // Small wheel with few points
+    const travel = travelDistance(pts);
+    const result = processDraw(pts, travel)!;
+    const violation = validateConstraints(
+      result,
+      { vertexCapped: 24, diameterCapped: 100 },
+      1
+    );
+    expect(violation).toBeNull();
+  });
+
+  it("fails when multiple constraints violated (returns first)", () => {
+    const pts = circlePoints(150, 150, 80, 60); // Large wheel
+    const travel = travelDistance(pts);
+    const result = processDraw(pts, travel)!;
+    const violation = validateConstraints(
+      result,
+      { vertexCapped: 8, diameterCapped: 100, swapCapped: 1 },
+      1,
+      5
+    );
+    expect(violation).not.toBeNull();
+    // vertex-capped is checked before diameter-capped
+    if (result.vertices.length > 8) {
+      expect(violation!.type).toBe("vertex-capped");
+    } else {
+      expect(violation!.type).toBe("diameter-capped");
+    }
+  });
+});
+
+describe("computeSwapCount", () => {
+  it("returns 0 for single wheel (initial only)", () => {
+    const wheels = [{ swap_tick: 0, polygon: [] }];
+    expect(computeSwapCount(wheels)).toBe(0);
+  });
+
+  it("returns correct count for multiple wheels", () => {
+    const wheels = [
+      { swap_tick: 0, polygon: [] },
+      { swap_tick: 300, polygon: [] },
+      { swap_tick: 600, polygon: [] },
+    ];
+    expect(computeSwapCount(wheels)).toBe(2);
+  });
+
+  it("handles empty array gracefully", () => {
+    expect(computeSwapCount([])).toBe(0);
+  });
+
+  it("returns wheels.length - 1 for valid input", () => {
+    for (let n = 1; n <= 10; n++) {
+      const wheels = Array.from({ length: n }, (_, i) => ({
+        swap_tick: i * 100,
+        polygon: [],
+      }));
+      expect(computeSwapCount(wheels)).toBe(n - 1);
+    }
   });
 });

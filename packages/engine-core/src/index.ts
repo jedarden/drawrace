@@ -26,6 +26,7 @@ export {
   convexDecompose,
   processDraw,
   validateConstraints,
+  computeSwapCount,
 } from "./draw-pipeline.js";
 export type { Point, DrawResult, DrawConstraints, ConstraintViolation } from "./draw-pipeline.js";
 export {

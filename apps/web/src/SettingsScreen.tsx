@@ -136,6 +136,14 @@ export function SettingsScreen({ onClose, onShowLanding, constraints, onConstrai
     };
   }, [localConstraints, onConstraintsChange, haptics]);
 
+  const handleConstraintValueChange = useCallback((key: keyof DrawConstraints, value: number | undefined) => {
+    const newConstraints = { ...localConstraints, [key]: value };
+    setLocalConstraints(newConstraints);
+    localStorage.setItem(CONSTRAINTS_KEY, JSON.stringify(newConstraints));
+    onConstraintsChange?.(newConstraints);
+    haptics.uiTap();
+  }, [localConstraints, onConstraintsChange, haptics]);
+
   return (
     <div
       role="dialog"
@@ -219,6 +227,47 @@ export function SettingsScreen({ onClose, onShowLanding, constraints, onConstrai
               description="Only convex (round) shapes allowed"
               enabled={localConstraints.convexOnly ?? false}
               onToggle={handleConstraintToggle("convexOnly")}
+            />
+            <SettingRow
+              label="Single-Wheel Mode"
+              description="No mid-race redraws allowed"
+              enabled={localConstraints.singleWheel ?? false}
+              onToggle={handleConstraintToggle("singleWheel")}
+            />
+          </div>
+
+          {/* Numeric Constraint Modes */}
+          <div style={{ paddingTop: 8, paddingBottom: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#6E5F48", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Constraint Limits
+            </div>
+            <NumericConstraintRow
+              label="Max Vertices"
+              description="Limit wheel polygon vertex count"
+              value={localConstraints.vertexCapped}
+              min={8}
+              max={32}
+              placeholder="Off"
+              onChange={(value) => handleConstraintValueChange("vertexCapped", value)}
+            />
+            <NumericConstraintRow
+              label="Max Diameter"
+              description="Limit wheel size in pixels"
+              value={localConstraints.diameterCapped}
+              min={50}
+              max={300}
+              step={10}
+              placeholder="Off"
+              onChange={(value) => handleConstraintValueChange("diameterCapped", value)}
+            />
+            <NumericConstraintRow
+              label="Max Swaps"
+              description="Limit wheel redraws per race"
+              value={localConstraints.swapCapped}
+              min={1}
+              max={20}
+              placeholder="Off"
+              onChange={(value) => handleConstraintValueChange("swapCapped", value)}
             />
           </div>
 
@@ -625,6 +674,93 @@ function SettingRow({ label, description, enabled, onToggle }: SettingRowProps) 
           }}
         />
       </button>
+    </div>
+  );
+}
+
+interface NumericConstraintRowProps {
+  label: string;
+  description: string;
+  value: number | undefined;
+  min: number;
+  max: number;
+  step?: number;
+  placeholder: string;
+  onChange: (value: number | undefined) => void;
+}
+
+function NumericConstraintRow({
+  label,
+  description,
+  value,
+  min,
+  max,
+  step = 1,
+  placeholder,
+  onChange,
+}: NumericConstraintRowProps) {
+  const [inputValue, setInputValue] = useState(value?.toString() ?? "");
+
+  useEffect(() => {
+    setInputValue(value?.toString() ?? "");
+  }, [value]);
+
+  const handleBlur = useCallback(() => {
+    if (inputValue.trim() === "") {
+      onChange(undefined);
+      setInputValue("");
+    } else {
+      const num = parseInt(inputValue, 10);
+      if (!isNaN(num) && num >= min && num <= max) {
+        onChange(num);
+      } else {
+        // Reset to current valid value or clear
+        setInputValue(value?.toString() ?? "");
+      }
+    }
+  }, [inputValue, min, max, value, onChange]);
+
+  const handleFocus = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select();
+  }, []);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "12px 0",
+        borderBottom: "1px solid rgba(43,33,24,0.1)",
+      }}
+    >
+      <div style={{ flex: 1, paddingRight: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "#2B2118" }}>{label}</div>
+        <div style={{ fontSize: 13, color: "#6E5F48" }}>{description}</div>
+      </div>
+      <input
+        type="number"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onBlur={handleBlur}
+        onFocus={handleFocus}
+        placeholder={placeholder}
+        min={min}
+        max={max}
+        step={step}
+        aria-label={`${label} limit`}
+        style={{
+          width: 70,
+          padding: "6px 10px",
+          fontSize: 14,
+          border: "2px solid #2B2118",
+          borderRadius: 8,
+          backgroundColor: "#FBF4E3",
+          color: "#2B2118",
+          boxSizing: "border-box",
+          textAlign: "center",
+        }}
+      />
     </div>
   );
 }

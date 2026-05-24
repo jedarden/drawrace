@@ -12,22 +12,34 @@ export interface DrawResult {
   convexPieces: Point[][];
   isOpenLoop: boolean;
   area: number;
+  bboxDiagonal: number; // For diameter-capped constraint validation
 }
 
 export interface DrawConstraints {
   singleStroke?: boolean;
   convexOnly?: boolean;
+  vertexCapped?: number; // Max vertices allowed (e.g., 10, 12, 16)
+  diameterCapped?: number; // Max bounding-box diameter in pixels
+  swapCapped?: number; // Max wheel swaps allowed (e.g., 2, 3, 5)
+  singleWheel?: boolean; // Only initial wheel, no mid-race redraws
 }
 
 export interface ConstraintViolation {
-  type: "single-stroke" | "convex-only";
+  type:
+    | "single-stroke"
+    | "convex-only"
+    | "vertex-capped"
+    | "diameter-capped"
+    | "swap-capped"
+    | "single-wheel";
   message: string;
 }
 
 export function validateConstraints(
   result: DrawResult,
   constraints: DrawConstraints,
-  strokeCount: number = 1
+  strokeCount: number = 1,
+  swapCount: number = 0
 ): ConstraintViolation | null {
   if (constraints.singleStroke && strokeCount > 1) {
     return {
@@ -43,7 +55,49 @@ export function validateConstraints(
     };
   }
 
+  if (
+    constraints.vertexCapped !== undefined &&
+    result.vertices.length > constraints.vertexCapped
+  ) {
+    return {
+      type: "vertex-capped",
+      message: `Vertex-capped mode requires ≤${constraints.vertexCapped} vertices (detected ${result.vertices.length})`,
+    };
+  }
+
+  if (
+    constraints.diameterCapped !== undefined &&
+    result.bboxDiagonal > constraints.diameterCapped
+  ) {
+    return {
+      type: "diameter-capped",
+      message: `Diameter-capped mode requires ≤${constraints.diameterCapped}px diameter (detected ${result.bboxDiagonal.toFixed(0)}px)`,
+    };
+  }
+
+  if (constraints.swapCapped !== undefined && swapCount > constraints.swapCapped) {
+    return {
+      type: "swap-capped",
+      message: `Swap-capped mode allows ≤${constraints.swapCapped} wheel swaps (${swapCount} used)`,
+    };
+  }
+
+  if (constraints.singleWheel && swapCount > 0) {
+    return {
+      type: "single-wheel",
+      message: `Single-wheel mode allows no mid-race redraws (${swapCount} swaps detected)`,
+    };
+  }
+
   return null;
+}
+
+/**
+ * Compute the number of wheel swaps from a wheels array.
+ * wheels[0] is the initial wheel (swap_tick=0), so swap count is wheels.length - 1.
+ */
+export function computeSwapCount(wheels: { swap_tick: number }[]): number {
+  return Math.max(0, wheels.length - 1);
 }
 
 const MIN_TRAVEL = 150;
@@ -186,6 +240,7 @@ export function processDraw(
   }
 
   const convexPieces = convexDecompose(bodyLocal);
+  const bbox = computeBBox(bodyLocal);
 
   return {
     vertices: bodyLocal,
@@ -193,5 +248,6 @@ export function processDraw(
     convexPieces,
     isOpenLoop,
     area,
+    bboxDiagonal: bbox.diagonal,
   };
 }
