@@ -101,7 +101,7 @@ async fn process_lobbies(state: &LiveState) -> Result<()> {
         .await?;
 
     for key in keys {
-        if let Err(e) = process_lobby_key(state, &key, &mut *redis_mgr).await {
+        if let Err(e) = process_lobby_key(state, &key, &mut redis_mgr).await {
             tracing::error!("Error processing lobby {}: {}", key, e);
         }
     }

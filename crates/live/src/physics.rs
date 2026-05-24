@@ -177,7 +177,7 @@ impl RaceSimulator {
             const FINISH_X: f32 = 1000.0;
             if racer.chassis_x >= FINISH_X {
                 racer.finished = true;
-                racer.finish_time_ms = (tick * 1000 / 60) as u32; // approx ms at 60Hz
+                racer.finish_time_ms = tick * 1000 / 60; // approx ms at 60Hz
                 metrics::counter!("drawrace_race_finished").increment(1);
             }
 
@@ -189,7 +189,7 @@ impl RaceSimulator {
                 x: racer.chassis_x as f64,
                 y: racer.chassis_y as f64,
                 angle: racer.angle,
-                t_ms: (tick * 1000 / 60) as u32,
+                t_ms: tick * 1000 / 60,
             });
         }
 

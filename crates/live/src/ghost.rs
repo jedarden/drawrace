@@ -163,7 +163,7 @@ impl GhostRacer {
             x: self.chassis_x as f64,
             y: self.chassis_y as f64,
             angle: self.angle,
-            t_ms: (tick * 1000 / 60) as u32,
+            t_ms: tick * 1000 / 60,
         })
     }
 

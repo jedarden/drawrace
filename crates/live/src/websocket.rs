@@ -366,7 +366,7 @@ async fn find_or_create_room(
     }).await?;
 
     // Register in Redis
-    crate::room::register_room_in_redis(&mut *redis_mgr, &room).await?;
+    crate::room::register_room_in_redis(&mut redis_mgr, &room).await?;
 
     Ok(room_id)
 }
