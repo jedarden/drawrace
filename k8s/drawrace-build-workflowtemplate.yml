@@ -133,14 +133,30 @@ spec:
             dependencies: [checkout]
             when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
 
+          - name: build-client-wasm
+            template: pnpm-ci-step
+            dependencies: [checkout]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
+            arguments:
+              parameters:
+                - name: command
+                  value: pnpm install --frozen-lockfile && pnpm --filter @drawrace/engine-core run build:wasm
+
+          - name: read-expected-wasm-sha
+            template: read-expected-wasm-sha
+            dependencies: [build-client-wasm]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
+
           - name: wait-validator-live
             template: wait-validator-live
-            dependencies: [bump-manifest, read-expected-physics-version]
+            dependencies: [bump-manifest, read-expected-physics-version, read-expected-wasm-sha]
             when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
                 - name: expected-physics-version
                   value: "{{tasks.read-expected-physics-version.outputs.parameters.physics_version}}"
+                - name: expected-wasm-sha
+                  value: "{{tasks.read-expected-wasm-sha.outputs.parameters.wasm_sha}}"
 
           - name: pages-publish
             template: wrangler-pages
@@ -257,15 +273,44 @@ spec:
           - name: physics_version
             valueFrom: { path: /tmp/physics_version }
 
+    # ── read-expected-wasm-sha ───────────────────────────────────────────────
+    # Extracts the content hash from the built engine-core.wasm.json metadata.
+    # This ensures the deployed validator is running the exact same WASM bytes
+    # that the client bundle was built against (physics-version parity gate).
+    - name: read-expected-wasm-sha
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            set -eu
+            SHA=$(jq -r '.contentHash // empty' /workspace/packages/engine-core/dist/engine-core.wasm.json)
+            if [ -z "$SHA" ] || [ "$SHA" = "null" ]; then
+              echo "failed to extract contentHash from packages/engine-core/dist/engine-core.wasm.json" >&2
+              echo "Did build:wasm run successfully?" >&2
+              exit 1
+            fi
+            echo -n "$SHA" > /tmp/wasm_sha
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      outputs:
+        parameters:
+          - name: wasm_sha
+            valueFrom: { path: /tmp/wasm_sha }
+
     # ── wait-validator-live ──────────────────────────────────────────────────
-    # Polls the prod api's /v1/health until the validator reports the same
-    # physics_version the client bundle was built against.  On timeout the
-    # workflow fails and pages-publish never runs — the last-good client
-    # stays live in production.
+    # Polls the prod api's /v1/health until the validator reports both the
+    # expected physics_version AND the expected WASM content hash. This enforces
+    # the client/validator physics-version parity gate — the validator must be
+    # running the exact same WASM bytes that the client bundle was built against.
+    # On timeout the workflow fails and pages-publish never runs — the last-good
+    # client stays live in production.
     - name: wait-validator-live
       inputs:
         parameters:
           - name: expected-physics-version
+          - name: expected-wasm-sha
           - name: health-url
             value: "https://api.drawrace.ardenone.com/v1/health"
           - name: timeout-seconds
@@ -278,18 +323,27 @@ spec:
         args:
           - |
             set -euo pipefail
-            want="{{inputs.parameters.expected-physics-version}}"
+            want_version="{{inputs.parameters.expected-physics-version}}"
+            want_sha="{{inputs.parameters.expected-wasm-sha}}"
             url="{{inputs.parameters.health-url}}"
             deadline=$(( $(date +%s) + {{inputs.parameters.timeout-seconds}} ))
-            until [ "$(curl -sf "$url" | jq -r '.validator.physics_version // empty')" = "$want" ]; do
+            while true; do
+              response=$(curl -sf "$url" || echo '{"validator":{"ok":false}}')
+              got_version=$(echo "$response" | jq -r '.validator.physics_version // empty')
+              got_sha=$(echo "$response" | jq -r '.validator.engine_core_wasm_sha256 // empty')
+              if [ "$got_version" = "$want_version" ] && [ "$got_sha" = "$want_sha" ]; then
+                echo "validator live at physics_version=$want_version, wasm_sha=$want_sha"
+                exit 0
+              fi
               if [ "$(date +%s)" -ge "$deadline" ]; then
-                echo "timeout: validator never reported physics_version=$want"
-                curl -sf "$url" | jq . || true
+                echo "timeout: validator never reported expected version" >&2
+                echo "  wanted: physics_version=$want_version, wasm_sha=$want_sha" >&2
+                echo "  got:    physics_version=$got_version, wasm_sha=$got_sha" >&2
+                echo "$response" | jq . >&2 || true
                 exit 1
               fi
               sleep {{inputs.parameters.poll-interval-seconds}}
             done
-            echo "validator live at physics_version=$want"
 
     # ── wrangler-pages ───────────────────────────────────────────────────────
     - name: wrangler-pages

@@ -29,7 +29,7 @@ def get_content_hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:16]
 
 def encode_i32(n: int) -> bytes:
-    """Encode an integer as WASM signed LEB128."""
+    """Encode an integer as WASM unsigned LEB128."""
     if n == 0:
         return b'\x00'
 
@@ -67,14 +67,15 @@ def create_minimal_wasm(physics_version: int) -> bytes:
     version = b'\x01\x00\x00\x00'  # version 1
 
     # Type section: function types
+    # Format: func_type = 0x60 + num_params + (param types...) + num_results + (result types...)
     type_section = bytes([
         0x01,  # section id (type)
-        0x06,  # section length
+        0x09,  # section length (1 + 4 + 4)
         0x02,  # num types
         # Type 0: [] -> i32 (physics_version)
-        0x60, 0x00, 0x7f,
+        0x60, 0x00, 0x01, 0x7f,
         # Type 1: [] -> i32 (wasm_validate)
-        0x60, 0x00, 0x7f,
+        0x60, 0x00, 0x01, 0x7f,
     ])
 
     # Function section: function declarations
@@ -86,9 +87,18 @@ def create_minimal_wasm(physics_version: int) -> bytes:
         0x01,  # wasm_validate uses type 1
     ])
 
-    # Global section: physics version constant
+    # Memory section: 1 page (64KB) - must come before global/export sections
+    memory_section = bytes([
+        0x05,  # section id (memory)
+        0x03,  # section length
+        0x01,  # num memories
+        0x00,  # limits type (no maximum)
+        0x01,  # initial pages (64KB)
+    ])
+
+    # Global section: physics version constant - must come after memory section
     global_section = bytes([0x06])  # section id (global)
-    global_section += encode_i32(7)  # section length
+    global_section += encode_i32(6)  # section length (1 + 1 + 1 + 1 + 1 + 1)
     global_section += bytes([
         0x01,  # num globals
         0x7f,  # i32
@@ -98,9 +108,9 @@ def create_minimal_wasm(physics_version: int) -> bytes:
     global_section += encode_i32(physics_version)
     global_section += bytes([0x0b])  # end
 
-    # Export section
+    # Export section - must come after global section
     export_section = bytes([0x07])  # section id (export)
-    export_section += encode_i32(30)  # section length
+    export_section += encode_i32(29)  # section length (1 + 1 + 7 + 2 + 1 + 13 + 2 + 1 + 6 + 2)
     export_section += bytes([0x03])  # num exports
 
     # physics_version export
@@ -117,7 +127,7 @@ def create_minimal_wasm(physics_version: int) -> bytes:
 
     # Code section: function bodies
     code_section = bytes([0x0a])  # section id (code)
-    code_section += encode_i32(13)  # section length
+    code_section += encode_i32(16)  # section length (1 + 6 + 9)
     code_section += bytes([0x02])  # num functions
 
     # physics_version body
@@ -138,16 +148,9 @@ def create_minimal_wasm(physics_version: int) -> bytes:
         0x0b,  # end
     ])
 
-    # Memory section: 1 page (64KB)
-    memory_section = bytes([
-        0x05,  # section id (memory)
-        0x03,  # section length
-        0x01,  # num memories
-        0x00,  # limits type (no maximum)
-        0x01,  # initial pages (64KB)
-    ])
-
-    return magic + version + type_section + function_section + global_section + export_section + code_section + memory_section
+    # Sections must appear in ascending order of their section IDs:
+    # 1 (type), 3 (function), 5 (memory), 6 (global), 7 (export), 10 (code)
+    return magic + version + type_section + function_section + memory_section + global_section + export_section + code_section
 
 def create_hashed_artifact(wasm_path: Path, physics_version: int) -> dict:
     """Generate content hash and create content-hashed artifact."""

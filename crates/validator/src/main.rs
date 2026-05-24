@@ -108,9 +108,19 @@ async fn healthz_handler() -> axum::Json<serde_json::Value> {
 }
 
 async fn version_handler() -> axum::Json<serde_json::Value> {
+    // Load the WASM to get the actual physics_version and content_hash
+    let (physics_version, wasm_sha256) = match wasm_loader::EngineCoreWasm::load() {
+        Ok(wasm) => (wasm.physics_version, wasm.content_hash),
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to load engine-core WASM for version check");
+            // Return degraded state rather than failing the request
+            (0, "load-failed".to_string())
+        }
+    };
+
     axum::Json(json!({
-        "physics_version": 2,
-        "engine_core_wasm_sha256": "stub-will-be-replaced",
+        "physics_version": physics_version,
+        "engine_core_wasm_sha256": wasm_sha256,
         "ok": true,
     }))
 }

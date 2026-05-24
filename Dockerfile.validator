@@ -3,14 +3,28 @@ FROM rust:1.92-slim AS builder
 
 WORKDIR /build
 
-# Install build dependencies
+# Install build dependencies (including Node.js for WASM build)
 RUN apt-get update && apt-get install -y \
-    pkg-config libssl3 \
+    pkg-config libssl3 curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js and pnpm for WASM build
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install -g pnpm
 
 # Copy Cargo files
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
+
+# Copy engine-core package for WASM build
+COPY packages/ packages/
+
+# Build engine-core WASM first (validator depends on the artifacts)
+WORKDIR /build/packages/engine-core
+RUN pnpm install --frozen-lockfile && pnpm run build:wasm
+
+WORKDIR /build
 
 # Build validator binary
 RUN cargo build --release --bin drawrace-validator
@@ -27,6 +41,12 @@ RUN apt-get update && apt-get install -y \
 
 # Copy binary from builder
 COPY --from=builder /build/target/release/drawrace-validator /app/drawrace-validator
+
+# Copy engine-core WASM artifacts (content-hashed .wasm and metadata .json)
+COPY --from=builder /build/packages/engine-core/dist /app/packages/engine-core/dist
+
+# Set environment variable so validator can find WASM at runtime
+ENV ENGINE_CORE_WASM_PATH=/app/packages/engine-core/dist/engine-core.wasm.json
 
 # Create non-root user
 RUN useradd -m -u 1000 drawrace

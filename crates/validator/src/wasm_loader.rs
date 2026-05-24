@@ -88,7 +88,7 @@ impl EngineCoreWasm {
             _engine: engine,
             _module: module,
             physics_version: wasm_physics_version,
-            content_hash: metadata.content_hash,
+            content_hash: metadata.content_hash.clone(),
         })
     }
 
