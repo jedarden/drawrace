@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
 
     // Install Prometheus metrics exporter
     let recorder = PrometheusBuilder::new().build_recorder();
-    let metrics_handle = recorder.handle();
+    let _metrics_handle = recorder.handle();
     metrics::set_global_recorder(recorder)?;
 
     // Load configuration from environment

@@ -453,6 +453,7 @@ spec:
             # Update image tags in the declarative-config path
             echo "ronaldraygun/drawrace-api:latest" > {{inputs.parameters.path}}/images.txt
             echo "ronaldraygun/drawrace-validator:latest" >> {{inputs.parameters.path}}/images.txt
+            echo "ronaldraygun/drawrace-live:latest" >> {{inputs.parameters.path}}/images.txt
             git config user.name "DrawRace CI"
             git config user.email "ci@drawrace.ardenone.com"
             git add {{inputs.parameters.path}}/images.txt

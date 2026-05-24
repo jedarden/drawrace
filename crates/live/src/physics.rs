@@ -16,6 +16,7 @@ use crate::messages::{PlayerInRoom, RacerState};
 /// Physics simulation state for a single racer
 #[derive(Debug, Clone)]
 struct RacerSim {
+    #[allow(dead_code)]
     player_uuid: Uuid,
     wheel: Vec<(i16, i16)>,
     wheel_swaps: Vec<(u32, Vec<(i16, i16)>)>, // (swap_tick, wheel)
@@ -64,6 +65,7 @@ impl RacerSim {
 pub struct RaceSimulator {
     room_id: Uuid,
     racers: HashMap<Uuid, RacerSim>,
+    #[allow(dead_code)]
     track_id: u16,
     current_tick: u32,
     start_time: Option<Instant>,
@@ -117,7 +119,7 @@ impl RaceSimulator {
     }
 
     /// Start the countdown
-    pub fn start_countdown(&mut self, duration_ms: u64) {
+    pub fn start_countdown(&mut self, _duration_ms: u64) {
         self.state = RaceState::CountingDown;
         self.start_time = Some(Instant::now());
         metrics::counter!("drawrace_race_countdown").increment(1);
