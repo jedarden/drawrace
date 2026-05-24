@@ -18,6 +18,10 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = "0.4"
+wasmtime = "30"
+wasm-encoder = "0.219"
+wasmparser = "0.219"
+wat = "1"
 
 # Shared blob parsing
 drawrace-api = { path = "../api" }
@@ -25,3 +29,27 @@ drawrace-api = { path = "../api" }
 [[bin]]
 name = "drawrace-validator"
 path = "src/main.rs"
+
+[[bin]]
+name = "test_wasm_load_debug"
+path = "src/bin/test_wasm_load_debug.rs"
+
+[[bin]]
+name = "build_resim"
+path = "src/bin/build_resim.rs"
+
+[[bin]]
+name = "debug_tick_issue"
+path = "src/bin/debug_tick_issue.rs"
+
+[[bin]]
+name = "test_resim_validate"
+path = "src/bin/test_resim_validate.rs"
+
+[[bin]]
+name = "test_simple_wasm"
+path = "src/bin/test_simple_wasm.rs"
+
+[[bin]]
+name = "test_if_return"
+path = "src/bin/test_if_return.rs"

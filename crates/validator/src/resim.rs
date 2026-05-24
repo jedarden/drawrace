@@ -1,494 +1,400 @@
-use std::collections::VecDeque;
+/// Re-simulation engine using WASM engine-core.
+///
+/// This module loads the resim.wasm module and provides a high-level
+/// interface for running re-simulations with wheel swaps, track data,
+/// and reading deterministic results.
 
+use anyhow::{Context, Result};
+use std::path::PathBuf;
+use wasmtime::{Engine, Module, Store, Linker};
 use drawrace_api::blob::WheelEntry;
 
-/// Maximum accepted difference (inclusive) between server and client finish ticks.
-pub const FINISH_TICK_TOLERANCE: u32 = 2;
+use crate::wasm_abi::{
+    self, Obstacle, SimResult, SimState,
+    TOTAL_MEMORY_SIZE,
+};
 
-/// Stuck-DNF detection thresholds (mirrors TypeScript StuckDetector)
-const DT: f64 = 1.0 / 60.0;
-const ROTATION_THRESHOLD: f64 = 10.0; // full rotations
-const PROGRESS_THRESHOLD_METRES: f64 = 0.5; // metres along +x
-
-/// Stuck-DNF detector for Rust re-simulation.
-///
-/// Detects when the vehicle spins through 10 full rotations without advancing
-/// the chassis by more than 0.5 metres along +x.
-pub struct StuckDetector {
-    rotations: f64,
-    baseline_x: f64,
+/// WASM re-simulation engine.
+pub struct ResimEngine {
+    engine: Engine,
+    module: Module,
+    /// The physics version reported by the WASM module
+    pub physics_version: u32,
 }
 
-impl StuckDetector {
-    /// Create a new stuck detector with initial state.
-    pub fn new() -> Self {
-        Self {
-            rotations: 0.0,
-            baseline_x: 0.0,
-        }
-    }
+impl ResimEngine {
+    /// Load the resim.wasm module.
+    pub fn load() -> Result<Self> {
+        let wasm_path = Self::find_resim_path()?;
 
-    /// Reset the detector (called on race start and on wheel swap).
-    pub fn reset(&mut self) {
-        self.rotations = 0.0;
-        self.baseline_x = 0.0;
-    }
+        let wasm_bytes = std::fs::read(&wasm_path)
+            .with_context(|| format!("Failed to read WASM file: {}", wasm_path.display()))?;
 
-    /// Set the initial baseline X position.
-    pub fn set_baseline(&mut self, x: f64) {
-        self.baseline_x = x;
-    }
+        let config = wasmtime::Config::new();
 
-    /// Update the detector with current physics state.
-    ///
-    /// Returns "stuck" if DNF should trigger, "running" otherwise.
-    pub fn tick(&mut self, front_ang_vel: f64, rear_ang_vel: f64, chassis_x: f64) -> StuckResult {
-        // Accumulate rotations: (|ω_front| + |ω_rear|) * dt / (2π * 2)
-        let rotation_increment =
-            (front_ang_vel.abs() + rear_ang_vel.abs()) * DT / (2.0 * std::f64::consts::PI * 2.0);
-        self.rotations += rotation_increment;
+        let engine = Engine::new(&config)
+            .context("Failed to create WASM engine")?;
 
-        let delta_x = chassis_x - self.baseline_x;
+        let module = Module::new(&engine, &wasm_bytes)
+            .map_err(|e| anyhow::anyhow!("Failed to load WASM module from {}: WASM size={} bytes. Error: {}",
+                wasm_path.display(), wasm_bytes.len(), e))?;
 
-        // If we've made sufficient progress, reset the counter and grant a fresh window.
-        if delta_x >= PROGRESS_THRESHOLD_METRES {
-            self.rotations = 0.0;
-            self.baseline_x = chassis_x;
-            return StuckResult::Running;
+        // Verify the module has the required exports
+        let required_exports = vec![
+            "physics_version",
+            "wasm_validate",
+            "resim_init",
+            "resim_step",
+            "resim_swap_wheel",
+            "resim_is_finished",
+            "resim_is_stuck",
+            "resim_get_tick",
+            "memory",
+        ];
+
+        let exports: Vec<&str> = module.exports().map(|e| e.name()).collect();
+        for export in &required_exports {
+            if !exports.contains(export) {
+                anyhow::bail!("Required export '{}' not found in WASM module", export);
+            }
         }
 
-        // Check if we've hit the rotation threshold without enough progress.
-        if self.rotations >= ROTATION_THRESHOLD {
-            return StuckResult::Stuck;
+        // Get physics version
+        let mut store = Store::new(&engine, ());
+        let linker = Linker::new(&engine);
+        let instance = linker.instantiate(&mut store, &module)
+            .context("Failed to instantiate WASM module")?;
+
+        let physics_version_func = instance
+            .get_typed_func::<(), u32>(&mut store, "physics_version")
+            .context("physics_version export not found")?;
+
+        let physics_version = physics_version_func
+            .call(&mut store, ())
+            .context("physics_version call failed")?;
+
+        Ok(Self {
+            engine,
+            module,
+            physics_version,
+        })
+    }
+
+    /// Find the resim.wasm file.
+    fn find_resim_path() -> Result<PathBuf> {
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+            .unwrap_or_else(|_| ".".to_string());
+
+        // Compute workspace root from manifest_dir (crates/validator -> workspace root)
+        let workspace_root = PathBuf::from(&manifest_dir)
+            .parent() // crates
+            .and_then(|p| p.parent()) // workspace root
+            .map(|p| p.display().to_string())
+            .unwrap_or(".".to_string());
+
+        // Check for environment variable override
+        if let Ok(env_path) = std::env::var("RESIM_WASM_PATH") {
+            let wasm_path = PathBuf::from(&env_path);
+            if wasm_path.exists() {
+                return Ok(wasm_path);
+            }
         }
 
-        StuckResult::Running
-    }
+        // List of paths to try, in order
+        let candidates = vec![
+            // Prefer resim.wasm (rebuilt with Python script)
+            format!("{}/packages/engine-core/dist/resim.wasm", workspace_root),
+            // Fallback to resim-test.wasm
+            format!("{}/packages/engine-core/dist/resim-test.wasm", workspace_root),
+            // Standard workspace layout
+            format!("{}/../../packages/engine-core/dist/resim.wasm", manifest_dir),
+            format!("{}/../../packages/engine-core/dist/resim-test.wasm", manifest_dir),
+            // From current working directory
+            "packages/engine-core/dist/resim.wasm".to_string(),
+            "packages/engine-core/dist/resim-test.wasm".to_string(),
+        ];
 
-    /// Get the current accumulated rotation count (for testing/debugging).
-    pub fn get_rotations(&self) -> f64 {
-        self.rotations
-    }
-
-    /// Get the current baseline X position (for testing/debugging).
-    pub fn get_baseline_x(&self) -> f64 {
-        self.baseline_x
-    }
-
-    /// Check if the detector is in a stuck state.
-    pub fn is_stuck(&self) -> bool {
-        self.rotations >= ROTATION_THRESHOLD
-    }
-}
-
-impl Default for StuckDetector {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Result of a stuck detection check.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StuckResult {
-    Running,
-    Stuck,
-}
-
-/// Manages the pending wheel-swap queue during re-simulation.
-///
-/// Swaps are consumed in ascending `swap_tick` order. At each sim tick,
-/// call `pop_if_due(sim_tick)` to apply the wheel scheduled for that tick
-/// (if any). The initial wheel (swap_tick == 0) is popped at tick 0.
-pub struct SwapScheduler {
-    pending: VecDeque<WheelEntry>,
-}
-
-impl SwapScheduler {
-    pub fn new(wheels: Vec<WheelEntry>) -> Self {
-        Self {
-            pending: wheels.into_iter().collect(),
-        }
-    }
-
-    /// If the next pending swap is scheduled for `sim_tick`, pops and returns it.
-    /// Returns `None` if no swap is due at this tick.
-    pub fn pop_if_due(&mut self, sim_tick: u32) -> Option<WheelEntry> {
-        if self
-            .pending
-            .front()
-            .map_or(false, |w| w.swap_tick == sim_tick)
-        {
-            self.pending.pop_front()
-        } else {
-            None
-        }
-    }
-
-    /// The tick of the next pending swap, if any remain.
-    pub fn next_swap_tick(&self) -> Option<u32> {
-        self.pending.front().map(|w| w.swap_tick)
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.pending.is_empty()
-    }
-
-    pub fn remaining(&self) -> usize {
-        self.pending.len()
-    }
-}
-
-/// Result of a re-simulation run.
-pub struct ResimResult {
-    /// The tick at which the finish line was crossed, or `None` on timeout.
-    pub finish_ticks: Option<u32>,
-    /// Log of `(swap_tick, vertex_count)` for each applied swap.
-    pub swaps_applied: Vec<(u32, u8)>,
-}
-
-/// Run a stub re-simulation.
-///
-/// Exercises the `SwapScheduler` infrastructure: the initial wheel fires at
-/// tick 0, and each subsequent swap fires at its recorded `swap_tick`. The
-/// stub reports finish at `claimed_finish_ticks` rather than computing actual
-/// Planck.js physics.
-///
-/// NOTE: This is a scaffold for the full WASM-based re-sim. Once
-/// `engine-core.wasm` is compiled, the loop body will drive the Planck.js
-/// world and detect the finish line via the physics state; `claimed_finish_ticks`
-/// will become a validation target rather than the loop termination condition.
-pub fn run_resim_stub(wheels: &[WheelEntry], claimed_finish_ticks: u32) -> ResimResult {
-    let mut scheduler = SwapScheduler::new(wheels.to_vec());
-    let mut swaps_applied = Vec::new();
-
-    // 2× claimed finish or the 90-second floor, whichever is larger.
-    let timeout_ticks = claimed_finish_ticks.saturating_mul(2).max(90 * 60);
-
-    for sim_tick in 0..=timeout_ticks {
-        // Apply the swap (if any) scheduled for this tick.
-        // The initial wheel fires here at tick 0.
-        if let Some(wheel) = scheduler.pop_if_due(sim_tick) {
-            swaps_applied.push((wheel.swap_tick, wheel.vertex_count));
+        for path in &candidates {
+            let path_buf = PathBuf::from(&path);
+            if path_buf.exists() {
+                return Ok(path_buf);
+            }
         }
 
-        // Stub finish detection: the full WASM re-sim will check the physics
-        // world for finish-line crossing instead.
-        if sim_tick == claimed_finish_ticks {
-            return ResimResult {
-                finish_ticks: Some(sim_tick),
-                swaps_applied,
-            };
+        Err(anyhow::anyhow!(
+            "Could not find resim.wasm in any of the following locations: {:?}. \
+             Set RESIM_WASM_PATH environment variable to override.",
+            candidates
+        ))
+    }
+
+    /// Run a re-simulation with the given parameters.
+    pub fn resim(
+        &self,
+        wheels: &[WheelEntry],
+        terrain: &[(f32, f32)],
+        obstacles: &[Obstacle],
+        finish_x: f32,
+        start_x: f32,
+        start_y: f32,
+        claimed_finish: u32,
+        seed: u32,
+    ) -> Result<SimResult> {
+        let mut store = Store::new(&self.engine, ());
+        let linker = Linker::new(&self.engine);
+        let instance = linker.instantiate(&mut store, &self.module)
+            .context("Failed to instantiate WASM module")?;
+
+        // Get exported memory
+        let memory = instance
+            .get_memory(&mut store, "memory")
+            .context("memory export not found")?;
+
+        // Ensure memory is large enough
+        let memory_size = memory.size(&store) * 65536; // pages to bytes
+        let required_size = TOTAL_MEMORY_SIZE as u64;
+        if memory_size < required_size {
+            anyhow::bail!(
+                "WASM memory too small: {} bytes, required at least {} bytes",
+                memory_size,
+                required_size
+            );
         }
+
+        // Initialize memory with simulation data
+        wasm_abi::init_memory(
+            &memory,
+            &mut store,
+            wheels,
+            terrain,
+            obstacles,
+            finish_x,
+            start_x,
+            start_y,
+            claimed_finish,
+            seed,
+        )?;
+
+        // Get WASM functions
+        let resim_init = instance
+            .get_typed_func::<(), u32>(&mut store, "resim_init")
+            .context("resim_init export not found")?;
+
+        let resim_step = instance
+            .get_typed_func::<(), u32>(&mut store, "resim_step")
+            .context("resim_step export not found")?;
+
+        // Initialize simulation
+        let init_result = resim_init.call(&mut store, ())?;
+        if init_result != 1 {
+            anyhow::bail!("resim_init failed: returned {}", init_result);
+        }
+
+        // Run simulation - TypeScript handles wheel swaps automatically during resim_step()
+        // based on the swap_tick values in the wheel descriptors written to memory
+        let max_ticks = claimed_finish.saturating_mul(2).max(90 * 60);
+        let mut iterations = 0u64;
+        loop {
+            // Step the simulation (swaps are applied automatically during the step)
+            let step_result = resim_step.call(&mut store, ())?;
+            iterations += 1;
+            if step_result == 0 {
+                // Simulation finished
+                eprintln!("DEBUG: Simulation finished after {} iterations", iterations);
+                break;
+            }
+
+            // Safety check: prevent infinite loops
+            let current_tick = wasm_abi::read_u32(&memory, &mut store, wasm_abi::STATE_OFFSET + wasm_abi::state::SIM_TICK)?;
+            let chassis_x = wasm_abi::read_f32(&memory, &mut store, wasm_abi::STATE_OFFSET + wasm_abi::state::CHASSIS_X)?;
+            let finished = wasm_abi::read_u32(&memory, &mut store, wasm_abi::STATE_OFFSET + wasm_abi::state::FINISHED)?;
+            eprintln!("DEBUG: iteration={}, tick={}, chassis_x={}, finished={}", iterations, current_tick, chassis_x, finished);
+            if current_tick > max_ticks {
+                anyhow::bail!("Simulation exceeded maximum tick count: {}", current_tick);
+            }
+        }
+
+        // Debug: check final values
+        let final_tick = wasm_abi::read_u32(&memory, &mut store, wasm_abi::STATE_OFFSET + wasm_abi::state::SIM_TICK)?;
+        let final_chassis_x = wasm_abi::read_f32(&memory, &mut store, wasm_abi::STATE_OFFSET + wasm_abi::state::CHASSIS_X)?;
+        let final_finished = wasm_abi::read_u32(&memory, &mut store, wasm_abi::STATE_OFFSET + wasm_abi::state::FINISHED)?;
+        let result_finish_ticks = wasm_abi::read_u32(&memory, &mut store, wasm_abi::RESULT_OFFSET + wasm_abi::result::FINISH_TICKS)?;
+        eprintln!("DEBUG FINAL: tick={}, chassis_x={}, finished={}, result_finish_ticks={}",
+                  final_tick, final_chassis_x, final_finished, result_finish_ticks);
+
+        // Read result
+        let result = wasm_abi::read_result(&memory, &mut store)?;
+
+        Ok(result)
     }
 
-    ResimResult {
-        finish_ticks: None,
-        swaps_applied,
-    }
-}
+    /// Run a re-simulation and return the full simulation state.
+    pub fn resim_with_state(
+        &self,
+        wheels: &[WheelEntry],
+        terrain: &[(f32, f32)],
+        obstacles: &[Obstacle],
+        finish_x: f32,
+        start_x: f32,
+        start_y: f32,
+        claimed_finish: u32,
+        seed: u32,
+    ) -> Result<(SimResult, SimState)> {
+        let mut store = Store::new(&self.engine, ());
+        let linker = Linker::new(&self.engine);
+        let instance = linker.instantiate(&mut store, &self.module)
+            .context("Failed to instantiate WASM module")?;
 
-/// Returns true if `|server_ticks - client_ticks| <= FINISH_TICK_TOLERANCE`.
-pub fn finish_within_tolerance(server_ticks: u32, client_ticks: u32) -> bool {
-    server_ticks.abs_diff(client_ticks) <= FINISH_TICK_TOLERANCE
+        // Get exported memory
+        let memory = instance
+            .get_memory(&mut store, "memory")
+            .context("memory export not found")?;
+
+        // Ensure memory is large enough
+        let memory_size = memory.size(&store) * 65536;
+        let required_size = TOTAL_MEMORY_SIZE as u64;
+        if memory_size < required_size {
+            anyhow::bail!(
+                "WASM memory too small: {} bytes, required at least {} bytes",
+                memory_size,
+                required_size
+            );
+        }
+
+        // Initialize memory with simulation data
+        wasm_abi::init_memory(
+            &memory,
+            &mut store,
+            wheels,
+            terrain,
+            obstacles,
+            finish_x,
+            start_x,
+            start_y,
+            claimed_finish,
+            seed,
+        )?;
+
+        // Get WASM functions
+        let resim_init = instance
+            .get_typed_func::<(), u32>(&mut store, "resim_init")
+            .context("resim_init export not found")?;
+
+        let resim_step = instance
+            .get_typed_func::<(), u32>(&mut store, "resim_step")
+            .context("resim_step export not found")?;
+
+        // Initialize simulation
+        let init_result = resim_init.call(&mut store, ())?;
+        if init_result != 1 {
+            anyhow::bail!("resim_init failed: returned {}", init_result);
+        }
+
+        // Run simulation - TypeScript handles wheel swaps automatically during resim_step()
+        // based on the swap_tick values in the wheel descriptors written to memory
+        let max_ticks = claimed_finish.saturating_mul(2).max(90 * 60);
+        loop {
+            // Step the simulation (swaps are applied automatically during the step)
+            let step_result = resim_step.call(&mut store, ())?;
+            if step_result == 0 {
+                break;
+            }
+
+            // Safety check: prevent infinite loops
+            let current_tick = wasm_abi::read_u32(&memory, &mut store, wasm_abi::STATE_OFFSET + wasm_abi::state::SIM_TICK)?;
+            if current_tick > max_ticks {
+                anyhow::bail!("Simulation exceeded maximum tick count: {}", current_tick);
+            }
+        }
+
+        // Read result and state
+        let result = wasm_abi::read_result(&memory, &mut store)?;
+        let state = wasm_abi::read_state(&memory, &mut store)?;
+
+        Ok((result, state))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // ── StuckDetector tests ────────────────────────────────────────────────────
-
     #[test]
-    fn detector_initial_state() {
-        let detector = StuckDetector::new();
-        assert_eq!(detector.get_rotations(), 0.0);
-        assert_eq!(detector.get_baseline_x(), 0.0);
-        assert!(!detector.is_stuck());
-    }
-
-    #[test]
-    fn detector_reset_clears_state() {
-        let mut detector = StuckDetector::new();
-        detector.set_baseline(10.0);
-        detector.tick(10.0, 10.0, 10.0); // accumulate some rotations
-        assert!(detector.get_rotations() > 0.0);
-
-        detector.reset();
-        assert_eq!(detector.get_rotations(), 0.0);
-        assert_eq!(detector.get_baseline_x(), 0.0);
-        assert!(!detector.is_stuck());
-    }
-
-    #[test]
-    fn detector_set_baseline_updates_position() {
-        let mut detector = StuckDetector::new();
-        detector.set_baseline(5.0);
-        assert_eq!(detector.get_baseline_x(), 5.0);
-    }
-
-    #[test]
-    fn detector_no_rotation_at_zero_velocity() {
-        let mut detector = StuckDetector::new();
-        detector.set_baseline(0.0);
-
-        for _ in 0..1000 {
-            assert_eq!(detector.tick(0.0, 0.0, 0.0), StuckResult::Running);
-        }
-
-        assert_eq!(detector.get_rotations(), 0.0);
-        assert!(!detector.is_stuck());
-    }
-
-    #[test]
-    fn detector_running_below_threshold() {
-        let mut detector = StuckDetector::new();
-        detector.set_baseline(0.0);
-
-        // 5 rotations worth of ticks (should not trigger stuck)
-        let ang_vel = 2.0 * std::f64::consts::PI; // 1 rotation per second per wheel
-        for _ in 0..300 {
-            assert_eq!(detector.tick(ang_vel, ang_vel, 0.0), StuckResult::Running);
-        }
-
-        // Should have ~5 rotations
-        assert!(detector.get_rotations() > 4.9);
-        assert!(detector.get_rotations() < 5.1);
-        assert!(!detector.is_stuck());
-    }
-
-    #[test]
-    fn detector_stuck_with_no_progress() {
-        let mut detector = StuckDetector::new();
-        detector.set_baseline(0.0);
-
-        let ang_vel = 2.0 * std::f64::consts::PI;
-        let mut stuck_triggered = false;
-
-        // 10 rotations should trigger stuck
-        for _ in 0..600 {
-            if detector.tick(ang_vel, ang_vel, 0.0) == StuckResult::Stuck {
-                stuck_triggered = true;
-                break;
+    fn load_resim_wasm() {
+        match ResimEngine::load() {
+            Ok(engine) => {
+                assert_eq!(engine.physics_version, 4);
+            }
+            Err(e) => {
+                if e.to_string().contains("No such file") || e.to_string().contains("could not find") {
+                    println!("Skipping test: resim.wasm not found (run build first)");
+                    return;
+                }
+                panic!("Failed to load resim WASM: {}", e);
             }
         }
-
-        assert!(stuck_triggered);
-        assert!(detector.is_stuck());
-        assert!(detector.get_rotations() >= 10.0);
     }
 
     #[test]
-    fn detector_resets_on_progress() {
-        let mut detector = StuckDetector::new();
-        detector.set_baseline(0.0);
-
-        let ang_vel = 2.0 * std::f64::consts::PI;
-
-        // 10 rotations with sufficient progress (0.6m > 0.5m threshold)
-        let mut stuck_triggered = false;
-        for _ in 0..600 {
-            if detector.tick(ang_vel, ang_vel, 0.6) == StuckResult::Stuck {
-                stuck_triggered = true;
-                break;
+    fn test_simple_resim() {
+        let engine = match ResimEngine::load() {
+            Ok(e) => e,
+            Err(e) => {
+                if e.to_string().contains("No such file") || e.to_string().contains("could not find") {
+                    println!("Skipping test: resim.wasm not found (run build first)");
+                    return;
+                }
+                panic!("Failed to load resim WASM: {}", e);
             }
-        }
+        };
 
-        // Should NOT trigger stuck because progress resets the counter
-        assert!(!stuck_triggered);
-        assert!(!detector.is_stuck());
-        assert!(detector.get_rotations() < 10.0);
-        // Baseline should have been updated
-        assert_eq!(detector.get_baseline_x(), 0.6);
-    }
-
-    #[test]
-    fn detector_swap_resets_and_grants_fresh_window() {
-        let mut detector = StuckDetector::new();
-        detector.set_baseline(0.0);
-
-        let ang_vel = 2.0 * std::f64::consts::PI;
-
-        // Accumulate 5 rotations
-        for _ in 0..300 {
-            detector.tick(ang_vel, ang_vel, 0.0);
-        }
-        assert!(detector.get_rotations() > 4.9);
-
-        // Simulate wheel swap
-        detector.reset();
-        detector.set_baseline(5.0);
-
-        assert_eq!(detector.get_rotations(), 0.0);
-        assert_eq!(detector.get_baseline_x(), 5.0);
-
-        // Another 10 rotations from swap should trigger stuck
-        let mut stuck_triggered = false;
-        for _ in 0..600 {
-            if detector.tick(ang_vel, ang_vel, 5.0) == StuckResult::Stuck {
-                stuck_triggered = true;
-                break;
-            }
-        }
-
-        assert!(stuck_triggered);
-        assert!(detector.is_stuck());
-    }
-
-    // ── Existing tests continue below ─────────────────────────────────────────
-
-    fn make_wheel(swap_tick: u32, vertex_count: u8) -> WheelEntry {
-        WheelEntry {
-            swap_tick,
-            vertex_count,
-            polygon_vertices: (0..vertex_count).map(|i| (i as i16, i as i16)).collect(),
-        }
-    }
-
-    // ── SwapScheduler tests ───────────────────────────────────────────────────
-
-    #[test]
-    fn scheduler_initial_wheel_at_tick_zero() {
-        let mut sched = SwapScheduler::new(vec![make_wheel(0, 12)]);
-        let w = sched.pop_if_due(0);
-        assert!(w.is_some());
-        assert_eq!(w.unwrap().swap_tick, 0);
-        assert!(sched.is_empty());
-    }
-
-    #[test]
-    fn scheduler_no_swap_before_due_tick() {
-        let mut sched = SwapScheduler::new(vec![make_wheel(0, 12), make_wheel(60, 10)]);
-        let _ = sched.pop_if_due(0); // consume initial
-        assert!(sched.pop_if_due(30).is_none());
-        assert!(sched.pop_if_due(59).is_none());
-        let w = sched.pop_if_due(60);
-        assert!(w.is_some());
-        assert_eq!(w.unwrap().swap_tick, 60);
-    }
-
-    #[test]
-    fn scheduler_applies_five_swaps_in_order() {
-        let ticks = [0u32, 60, 120, 180, 240, 300];
-        let wheels: Vec<WheelEntry> = ticks.iter().map(|&t| make_wheel(t, 12)).collect();
-        let mut sched = SwapScheduler::new(wheels);
-        for &t in &ticks {
-            let w = sched.pop_if_due(t);
-            assert!(w.is_some(), "swap should fire at tick {t}");
-            assert_eq!(w.unwrap().swap_tick, t);
-        }
-        assert!(sched.is_empty());
-    }
-
-    #[test]
-    fn scheduler_twenty_swaps_all_consumed() {
-        let wheels: Vec<WheelEntry> = (0..21u32).map(|i| make_wheel(i * 60, 12)).collect();
-        let mut sched = SwapScheduler::new(wheels);
-        for i in 0..21u32 {
-            let w = sched.pop_if_due(i * 60);
-            assert!(w.is_some(), "swap {i} should fire");
-        }
-        assert!(sched.is_empty());
-    }
-
-    #[test]
-    fn scheduler_next_swap_tick_tracks_queue() {
+        // Simple test case: straight track, one wheel
         let wheels = vec![
-            make_wheel(0, 12),
-            make_wheel(90, 10),
-            make_wheel(180, 8),
+            WheelEntry {
+                swap_tick: 0,
+                vertex_count: 4,
+                polygon_vertices: vec![
+                    (-50, -50),
+                    (50, -50),
+                    (50, 50),
+                    (-50, 50),
+                ],
+            },
         ];
-        let mut sched = SwapScheduler::new(wheels);
-        assert_eq!(sched.next_swap_tick(), Some(0));
-        let _ = sched.pop_if_due(0);
-        assert_eq!(sched.next_swap_tick(), Some(90));
-        let _ = sched.pop_if_due(90);
-        assert_eq!(sched.next_swap_tick(), Some(180));
-        let _ = sched.pop_if_due(180);
-        assert_eq!(sched.next_swap_tick(), None);
-        assert!(sched.is_empty());
-    }
 
-    #[test]
-    fn scheduler_remaining_decrements() {
-        let mut sched = SwapScheduler::new(vec![
-            make_wheel(0, 12),
-            make_wheel(60, 10),
-            make_wheel(120, 8),
-        ]);
-        assert_eq!(sched.remaining(), 3);
-        let _ = sched.pop_if_due(0);
-        assert_eq!(sched.remaining(), 2);
-        let _ = sched.pop_if_due(60);
-        assert_eq!(sched.remaining(), 1);
-        let _ = sched.pop_if_due(120);
-        assert_eq!(sched.remaining(), 0);
-    }
+        let terrain = vec![
+            (0.0, 500.0),
+            (10000.0, 500.0),
+        ];
 
-    // ── finish_within_tolerance tests ─────────────────────────────────────────
+        let obstacles: Vec<Obstacle> = vec![];
 
-    #[test]
-    fn tolerance_exact_match() {
-        assert!(finish_within_tolerance(1706, 1706));
-    }
+        let result = engine.resim(
+            &wheels,
+            &terrain,
+            &obstacles,
+            5000.0, // finish_x
+            100.0,  // start_x
+            400.0,  // start_y
+            3600,   // claimed_finish (60 seconds @ 60fps)
+            42,     // seed
+        );
 
-    #[test]
-    fn tolerance_one_tick_delta() {
-        assert!(finish_within_tolerance(1707, 1706));
-        assert!(finish_within_tolerance(1705, 1706));
-    }
+        assert!(result.is_ok(), "resim failed: {:?}", result.err());
+        let sim_result = result.unwrap();
 
-    #[test]
-    fn tolerance_two_tick_delta() {
-        assert!(finish_within_tolerance(1708, 1706));
-        assert!(finish_within_tolerance(1704, 1706));
-    }
+        // For Phase 2 simplified physics, we expect the simulation to finish
+        // at or before the claimed_finish tick
+        assert!(
+            sim_result.finish_ticks.is_some(),
+            "Expected finish_ticks to be set, got None"
+        );
 
-    #[test]
-    fn tolerance_three_tick_delta_fails() {
-        assert!(!finish_within_tolerance(1709, 1706));
-        assert!(!finish_within_tolerance(1703, 1706));
-    }
-
-    // ── run_resim_stub tests ──────────────────────────────────────────────────
-
-    #[test]
-    fn stub_resim_single_wheel_finishes_at_claimed_tick() {
-        let wheels = vec![make_wheel(0, 12)];
-        let claimed = 1706u32;
-        let result = run_resim_stub(&wheels, claimed);
-        assert_eq!(result.finish_ticks, Some(claimed));
-        assert_eq!(result.swaps_applied.len(), 1);
-        assert_eq!(result.swaps_applied[0].0, 0);
-    }
-
-    #[test]
-    fn stub_resim_five_swaps_all_applied() {
-        let wheels: Vec<WheelEntry> = (0..6u32).map(|i| make_wheel(i * 60, 12)).collect();
-        let claimed = 2400u32;
-        let result = run_resim_stub(&wheels, claimed);
-        assert_eq!(result.finish_ticks, Some(claimed));
-        assert_eq!(result.swaps_applied.len(), 6);
-        for (i, &(tick, _)) in result.swaps_applied.iter().enumerate() {
-            assert_eq!(tick, i as u32 * 60, "swap {i} should fire at tick {}", i * 60);
-        }
-    }
-
-    #[test]
-    fn stub_resim_twenty_swaps_all_applied() {
-        let wheels: Vec<WheelEntry> = (0..21u32).map(|i| make_wheel(i * 60, 12)).collect();
-        let claimed = 3600u32;
-        let result = run_resim_stub(&wheels, claimed);
-        assert_eq!(result.finish_ticks, Some(claimed));
-        assert_eq!(result.swaps_applied.len(), 21);
-    }
-
-    #[test]
-    fn stub_resim_swaps_applied_before_finish() {
-        // Swap at tick 500, finish at tick 1000 — swap must be in log.
-        let wheels = vec![make_wheel(0, 12), make_wheel(500, 10)];
-        let result = run_resim_stub(&wheels, 1000);
-        assert_eq!(result.finish_ticks, Some(1000));
-        assert_eq!(result.swaps_applied.len(), 2);
-        assert_eq!(result.swaps_applied[1].0, 500);
+        let finish_ticks = sim_result.finish_ticks.unwrap();
+        assert!(
+            finish_ticks <= 3600,
+            "Expected finish_ticks <= 3600, got {}",
+            finish_ticks
+        );
     }
 }
