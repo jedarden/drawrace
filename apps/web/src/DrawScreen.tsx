@@ -11,11 +11,13 @@ interface DrawScreenProps {
   onComplete: (result: DrawResult, strokePoints: StrokePoint[]) => void;
   onOpenSettings: () => void;
   constraints?: DrawConstraints;
+  trackName?: string;
+  onRotateTrack?: () => void;
 }
 
 const CANVAS_SIZE_CSS = 300;
 
-export function DrawScreen({ onComplete, onOpenSettings, constraints }: DrawScreenProps) {
+export function DrawScreen({ onComplete, onOpenSettings, constraints, trackName, onRotateTrack }: DrawScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const offCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rawPointsRef = useRef<StrokePoint[]>([]);
@@ -229,6 +231,42 @@ export function DrawScreen({ onComplete, onOpenSettings, constraints }: DrawScre
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", maxWidth: 350 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <h1 style={{ margin: 0, fontSize: 24 }}>Draw your wheel</h1>
+          {trackName && (
+            <div
+              style={{
+                fontSize: 14,
+                color: "#6E5F48",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+              aria-label="Current track"
+            >
+              <span style={{ fontWeight: 600 }}>Track:</span> {trackName}
+              {onRotateTrack && (
+                <button
+                  onClick={() => {
+                    sound.playUiTap();
+                    haptics.uiTap();
+                    onRotateTrack();
+                  }}
+                  aria-label="Switch to next track"
+                  style={{
+                    background: "none",
+                    border: "1px solid #6E5F48",
+                    borderRadius: 4,
+                    padding: "2px 6px",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    color: "#6E5F48",
+                    marginLeft: 4,
+                  }}
+                >
+                  Switch →
+                </button>
+              )}
+            </div>
+          )}
           {activeConstraints.length > 0 && (
             <div
               style={{

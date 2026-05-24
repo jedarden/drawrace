@@ -15,6 +15,13 @@ type Screen = "draw" | "race" | "result";
 
 const LANDING_DISMISSED_KEY = "drawrace_landing_dismissed";
 const CONSTRAINTS_KEY = "drawrace.constraints";
+const TRACKS_KEY = "drawrace.currentTrack";
+
+const TRACKS = [
+  { id: "hills-01", numeric_id: 1, name: "Scribble Slope" },
+  { id: "canyon-02", numeric_id: 2, name: "Canyon Run" },
+  { id: "dunes-03", numeric_id: 3, name: "Dune Drifter" },
+];
 
 interface TrackData {
   id: string;
@@ -71,6 +78,16 @@ export function App() {
     }
     return {};
   });
+  const [currentTrackIndex, setCurrentTrackIndex] = useState(() => {
+    const saved = localStorage.getItem(TRACKS_KEY);
+    if (saved) {
+      const index = parseInt(saved, 10);
+      if (index >= 0 && index < TRACKS.length) {
+        return index;
+      }
+    }
+    return 0;
+  });
 
   // Initialize haptics and check landing screen
   useEffect(() => {
@@ -107,14 +124,15 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    fetch("/tracks/hills-01.json")
+    const currentTrack = TRACKS[currentTrackIndex];
+    fetch(`/tracks/${currentTrack.id}.json`)
       .then((r) => r.json())
       .then((trackData: TrackData) => {
         validateTrackData(trackData);
         setTrack(trackData);
         fetchGhosts(trackData.numeric_id).then(setGhosts);
       });
-  }, []);
+  }, [currentTrackIndex]);
 
   const handleDrawComplete = useCallback((result: DrawResult, strokePoints: StrokePoint[]) => {
     setDrawResult(result);
@@ -153,6 +171,16 @@ export function App() {
     setConstraints(newConstraints);
   }, []);
 
+  const handleRotateTrack = useCallback(() => {
+    setCurrentTrackIndex((prev) => {
+      const next = (prev + 1) % TRACKS.length;
+      localStorage.setItem(TRACKS_KEY, next.toString());
+      return next;
+    });
+  }, []);
+
+  const currentTrackInfo = TRACKS[currentTrackIndex];
+
   if (!track) {
     return (
       <div
@@ -184,6 +212,8 @@ export function App() {
           onComplete={handleDrawComplete}
           onOpenSettings={() => setSettingsOpen(true)}
           constraints={constraints}
+          trackName={currentTrackInfo.name}
+          onRotateTrack={handleRotateTrack}
         />
       )}
       {screen === "race" && drawResult && (
