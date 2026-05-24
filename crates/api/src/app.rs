@@ -101,7 +101,12 @@ pub fn app(state: Arc<AppState>) -> Router {
         )
         .route(
             "/v1/names",
-            axum::routing::post(crate::handlers::names::post_name),
+            axum::routing::post(crate::handlers::names::post_name)
+                .get(crate::handlers::names::get_name),
+        )
+        .route(
+            "/v1/identity/restore",
+            axum::routing::post(crate::handlers::identity::restore_identity),
         )
         .route(
             "/v1/ghosts/{ghost_id}",

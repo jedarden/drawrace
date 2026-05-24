@@ -7,6 +7,7 @@ import {
   formatRecoveryPhrase,
   isValidRecoveryPhrase,
 } from "./recovery-phrase.js";
+import { claimName, fetchPlayerName } from "./api.js";
 import type { DrawConstraints } from "@drawrace/engine-core";
 
 interface SettingsScreenProps {
@@ -20,6 +21,18 @@ type DisplayState = "idle" | "clearing" | "cleared";
 type RecoveryState = "hidden" | "showing" | "restoring";
 
 const CONSTRAINTS_KEY = "drawrace.constraints";
+
+/**
+ * Compute SHA-256 hash of a recovery phrase.
+ */
+async function hashRecoveryPhrase(words: string[]): Promise<string> {
+  const phrase = words.join(" ");
+  const encoder = new TextEncoder();
+  const data = encoder.encode(phrase);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 export function SettingsScreen({ onClose, onShowLanding, constraints, onConstraintsChange }: SettingsScreenProps) {
   const haptics = getHaptics();
@@ -112,18 +125,52 @@ export function SettingsScreen({ onClose, onShowLanding, constraints, onConstrai
     haptics.uiTap();
   }, [haptics]);
 
-  const handleRestoreSubmit = useCallback(() => {
+  const handleRestoreSubmit = useCallback(async () => {
     const words = restoreInput.trim().split(/\s+/);
-    if (isValidRecoveryPhrase(words)) {
-      // TODO: Implement server-side restore via POST /v1/names
-      // For now, just show a message that this will be available post-v1
-      alert("Recovery phrase validation will be available post-v1. For now, please save your recovery phrase manually.");
-      setRecoveryState("hidden");
-    } else {
+    if (!isValidRecoveryPhrase(words)) {
       alert("Invalid recovery phrase. Please check and try again.");
+      haptics.uiTap();
+      return;
+    }
+
+    try {
+      const response = await fetch("/v1/identity/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recovery_phrase: words }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(`Failed to restore: ${error.message}`);
+        haptics.uiTap();
+        return;
+      }
+
+      const data = await response.json();
+      const restoredUuid = data.player_uuid;
+
+      // Save the restored UUID and fetch the associated name
+      localStorage.setItem("drawrace-player-uuid", restoredUuid);
+
+      // Fetch the player's name
+      const nameResponse = await fetch(`/v1/names?uuid=${restoredUuid}`);
+      if (nameResponse.ok) {
+        const nameData = await nameResponse.json();
+        if (nameData.name) {
+          localStorage.setItem("drawrace.displayName", nameData.name);
+          setDisplayName(nameData.name);
+        }
+      }
+
+      alert("Identity restored successfully! Your name has been loaded.");
+      setRecoveryState("hidden");
+      sound.playUiTap();
+    } catch (e) {
+      alert(`Network error: ${e}`);
     }
     haptics.uiTap();
-  }, [restoreInput, haptics]);
+  }, [restoreInput, haptics, sound]);
 
   const handleConstraintToggle = useCallback((key: keyof DrawConstraints) => {
     return () => {
@@ -611,7 +658,7 @@ export function SettingsScreen({ onClose, onShowLanding, constraints, onConstrai
                 </button>
               </div>
               <p style={{ margin: "12px 0 0 0", fontSize: 11, color: "#6E5F48" }}>
-                Note: Server-side restoration will be available post-v1. For now, this validates your phrase format.
+                Enter your recovery phrase exactly as shown when you claimed your name.
               </p>
             </div>
           </div>

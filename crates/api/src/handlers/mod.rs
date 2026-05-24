@@ -3,6 +3,7 @@ pub mod daily_challenge;
 pub mod feedback;
 pub mod ghosts;
 pub mod health;
+pub mod identity;
 pub mod invites;
 pub mod leaderboard;
 pub mod matchmake;

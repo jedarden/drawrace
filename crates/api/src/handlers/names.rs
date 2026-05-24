@@ -1,4 +1,4 @@
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
 use redis::AsyncCommands;
@@ -13,11 +13,22 @@ use crate::AppState;
 pub struct ClaimNameRequest {
     pub player_uuid: Uuid,
     pub name: String,
+    pub recovery_phrase_hash: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
 pub struct ClaimNameResponse {
     pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetNameQuery {
+    pub uuid: Uuid,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct GetNameResponse {
+    pub name: Option<String>,
 }
 
 pub async fn post_name(
@@ -91,17 +102,19 @@ pub async fn post_name(
 
     // Try to insert or update
     let result = sqlx::query(
-        "INSERT INTO names (player_uuid, name, name_lowercase)
-         VALUES ($1, $2, $3)
+        "INSERT INTO names (player_uuid, name, name_lowercase, recovery_phrase_hash)
+         VALUES ($1, $2, $3, $4)
          ON CONFLICT (player_uuid) DO UPDATE
            SET name = EXCLUDED.name,
                name_lowercase = EXCLUDED.name_lowercase,
+               recovery_phrase_hash = COALESCE(EXCLUDED.recovery_phrase_hash, names.recovery_phrase_hash),
                updated_at = now()
          WHERE names.updated_at IS NULL OR now() - names.updated_at > interval '24 hours'",
     )
     .bind(body.player_uuid)
     .bind(name)
     .bind(&name_lower)
+    .bind(&body.recovery_phrase_hash)
     .execute(&state.pool)
     .await
     .map_err(|e| {
@@ -140,4 +153,20 @@ fn contains_profanity(name: &str) -> bool {
         "kill", "die",
     ];
     BLOCKLIST.iter().any(|w| lower.contains(w))
+}
+
+pub async fn get_name(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<GetNameQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    let name: Option<String> = sqlx::query_scalar("SELECT name FROM names WHERE player_uuid = $1")
+        .bind(query.uuid)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: format!("db error: {e}"),
+        })?;
+
+    Ok((StatusCode::OK, Json(GetNameResponse { name })))
 }

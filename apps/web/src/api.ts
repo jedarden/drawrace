@@ -573,4 +573,43 @@ export async function fetchDailyGhosts(date: string): Promise<GhostData[]> {
   }
 }
 
+export async function claimName(
+  name: string,
+  recoveryPhraseHash: string | null,
+): Promise<boolean> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return false;
+
+  const playerUuid = getPlayerUuid();
+
+  try {
+    const resp = await fetch(`${apiUrl}/v1/names`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        player_uuid: playerUuid,
+        name,
+        recovery_phrase_hash: recoveryPhraseHash,
+      }),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchPlayerName(uuid: string): Promise<string | null> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return null;
+
+  try {
+    const resp = await fetch(`${apiUrl}/v1/names?uuid=${uuid}`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data.name ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export { isOnline };
