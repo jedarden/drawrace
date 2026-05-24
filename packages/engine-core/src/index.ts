@@ -15,7 +15,7 @@ export type { MultiWheelInput } from "./headless.js";
 export { buildWheelBody, executeWheelSwap } from "./swap.js";
 export type { WheelSwap, SwapResult } from "./swap.js";
 export { RaceSim, DT } from "./race-sim.js";
-export type { RaceSnapshot, SimBody } from "./race-sim.js";
+export type { RaceSnapshot, SimBody, ChallengeModifiers } from "./race-sim.js";
 export { StuckDetector } from "./stuck-detector.js";
 export type { StuckResult } from "./stuck-detector.js";
 export {

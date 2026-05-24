@@ -6,6 +6,12 @@ import type { WheelSwap } from "./swap.js";
 import { parseSurfaces, validateZones, applyDrag, createSurfaceContactFilter, type SurfaceSegment } from "./surface.js";
 import { StuckDetector } from "./stuck-detector.js";
 
+export interface ChallengeModifiers {
+  gravity_multiplier?: number;
+  friction_multiplier?: number;
+  chassis_mass_multiplier?: number;
+}
+
 export interface TrackDef {
   id: string;
   world: { gravity: [number, number]; pixelsPerMeter: number };
@@ -24,6 +30,7 @@ export interface TrackDef {
   surfaces?: unknown;
   start: { pos: [number, number]; facing: number };
   finish: { pos: [number, number]; width: number };
+  modifiers?: ChallengeModifiers;
 }
 
 export interface SimBody {
@@ -76,6 +83,11 @@ export class RaceSim {
   readonly track: TrackDef;
   private stuckDetector = new StuckDetector();
 
+  // Applied modifiers (default to 1.0 if not provided)
+  private readonly gravityMult: number;
+  private readonly frictionMult: number;
+  private readonly chassisMassMult: number;
+
   constructor(
     track: TrackDef,
     wheelVertices: Array<{ x: number; y: number }>,
@@ -86,16 +98,22 @@ export class RaceSim {
     this.prng = sfc32(s);
     this.finishX = track.finish.pos[0];
 
+    // Apply challenge modifiers with defaults
+    this.gravityMult = track.modifiers?.gravity_multiplier ?? 1.0;
+    this.frictionMult = track.modifiers?.friction_multiplier ?? 1.0;
+    this.chassisMassMult = track.modifiers?.chassis_mass_multiplier ?? 1.0;
+
     const [gx, gy] = track.world.gravity;
-    this.world = new World({ x: gx, y: gy });
+    this.world = new World({ x: gx * this.gravityMult, y: gy * this.gravityMult });
 
     // Build terrain
     const ground = this.world.createBody();
     const terrain = track.terrain;
+    const terrainFriction = 0.9 * this.frictionMult;
     for (let i = 0; i < terrain.length - 1; i++) {
       ground.createFixture(
         Edge(Vec2(terrain[i][0], terrain[i][1]), Vec2(terrain[i + 1][0], terrain[i + 1][1])),
-        { friction: 0.9, restitution: 0.0 }
+        { friction: terrainFriction, restitution: 0.0 }
       );
     }
 
@@ -120,12 +138,14 @@ export class RaceSim {
           type: "static",
         });
         if (obs.type === "box" && obs.size) {
+          const obsFriction = (obs.friction ?? 0.8) * this.frictionMult;
           obsBody.createFixture(Box(obs.size[0] / 2, obs.size[1] / 2), {
-            friction: obs.friction ?? 0.8, restitution: 0.0,
+            friction: obsFriction, restitution: 0.0,
           });
         } else if (obs.type === "circle" && obs.radius) {
+          const obsFriction = (obs.friction ?? 0.6) * this.frictionMult;
           obsBody.createFixture(Circle(obs.radius), {
-            friction: obs.friction ?? 0.6, restitution: 0.0,
+            friction: obsFriction, restitution: 0.0,
           });
         }
       }
@@ -160,13 +180,14 @@ export class RaceSim {
 
     // Front wheel (player-drawn)
     const wheelVerts = wv.map((v) => Vec2(v.x, v.y));
+    const wheelFriction = WHEEL_FRICTION * this.frictionMult;
     this.wheelBody = this.world.createBody({
       position: Vec2(startX, wheelSpawnY),
       type: "dynamic",
     });
     if (wheelVerts.length <= 8) {
       this.wheelBody.createFixture(Polygon(wheelVerts), {
-        density: WHEEL_DENSITY, friction: WHEEL_FRICTION, restitution: WHEEL_RESTITUTION,
+        density: WHEEL_DENSITY, friction: wheelFriction, restitution: WHEEL_RESTITUTION,
       });
     } else {
       const cx = wheelVerts.reduce((s, v) => s + v.x, 0) / wheelVerts.length;
@@ -175,19 +196,21 @@ export class RaceSim {
       for (let i = 0; i < wheelVerts.length; i++) {
         const next = (i + 1) % wheelVerts.length;
         this.wheelBody.createFixture(Polygon([center, wheelVerts[i], wheelVerts[next]]), {
-          density: WHEEL_DENSITY, friction: WHEEL_FRICTION, restitution: WHEEL_RESTITUTION,
+          density: WHEEL_DENSITY, friction: wheelFriction, restitution: WHEEL_RESTITUTION,
         });
       }
     }
 
     // Chassis above wheel (lower Y = above in Y-down convention)
     const chassisSpawnY = wheelSpawnY - 1.5;
+    const chassisDensity = CHASSIS_DENSITY * this.chassisMassMult;
+    const chassisFriction = 0.5 * this.frictionMult;
     this.chassisBody = this.world.createBody({
       position: Vec2(startX, chassisSpawnY),
       type: "dynamic",
     });
     this.chassisBody.createFixture(Box(1.2, 0.4), {
-      density: CHASSIS_DENSITY, friction: 0.5, restitution: 0.1,
+      density: chassisDensity, friction: chassisFriction, restitution: 0.1,
     });
 
     // Rear wheel (drawn polygon — AWD, same shape as front)

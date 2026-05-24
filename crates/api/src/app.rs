@@ -135,6 +135,18 @@ pub fn app(state: Arc<AppState>) -> Router {
             "/v1/invites/status",
             axum::routing::get(crate::handlers::invites::get_invite_status),
         )
+        .route(
+            "/v1/daily-challenge",
+            axum::routing::get(crate::handlers::daily_challenge::get_daily_challenge),
+        )
+        .route(
+            "/v1/leaderboard/daily/{date}/top",
+            axum::routing::get(crate::handlers::daily_challenge::get_daily_top),
+        )
+        .route(
+            "/v1/leaderboard/daily/{date}/context",
+            axum::routing::get(crate::handlers::daily_challenge::get_daily_context),
+        )
         .layer(axum::middleware::from_fn(metrics_middleware))
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())

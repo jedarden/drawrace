@@ -6,12 +6,13 @@ import { ResultScreen } from "./ResultScreen.js";
 import { SettingsScreen } from "./SettingsScreen.js";
 import { LandingScreen } from "./LandingScreen.js";
 import { LeaderboardScreen } from "./LeaderboardScreen.js";
+import { DailyChallengeScreen } from "./DailyChallengeScreen.js";
 import { fetchGhosts, submitCrashReport, type GhostData } from "./api.js";
 import { getHaptics } from "./Haptics.js";
-import type { DrawResult, WheelSwap, DrawConstraints } from "@drawrace/engine-core";
+import type { DrawResult, WheelSwap, DrawConstraints, ChallengeModifiers } from "@drawrace/engine-core";
 import { parseSurfaces, validateZones } from "@drawrace/engine-core";
 
-type Screen = "draw" | "race" | "result";
+type Screen = "draw" | "race" | "result" | "daily" | "daily_draw" | "daily_race" | "daily_result";
 
 const LANDING_DISMISSED_KEY = "drawrace_landing_dismissed";
 const CONSTRAINTS_KEY = "drawrace.constraints";
@@ -89,6 +90,12 @@ export function App() {
     return 0;
   });
 
+  // Daily challenge state
+  const [dailyChallengeTrackId, setDailyChallengeTrackId] = useState<number | null>(null);
+  const [dailyModifiers, setDailyModifiers] = useState<ChallengeModifiers | null>(null);
+  const [dailyChallengeDate, setDailyChallengeDate] = useState<string | null>(null);
+  const [dailyGhosts, setDailyGhosts] = useState<GhostData[]>([]);
+
   // Initialize haptics and check landing screen
   useEffect(() => {
     getHaptics();
@@ -137,26 +144,41 @@ export function App() {
   const handleDrawComplete = useCallback((result: DrawResult, strokePoints: StrokePoint[]) => {
     setDrawResult(result);
     setRawStrokePoints(strokePoints);
-    setScreen("race");
-  }, []);
+    // Transition to appropriate race screen
+    if (screen === "daily_draw") {
+      setScreen("daily_race");
+    } else {
+      setScreen("race");
+    }
+  }, [screen]);
 
   const handleRaceFinished = useCallback((elapsedMs: number, wheelSwaps: WheelSwap[], stuck: boolean) => {
     setFinishTimeMs(elapsedMs);
     setSwapLog(wheelSwaps);
     setStuck(stuck);
-    setScreen("result");
-  }, []);
+    // Transition to appropriate result screen
+    if (screen === "daily_race") {
+      setScreen("daily_result");
+    } else {
+      setScreen("result");
+    }
+  }, [screen]);
 
   const handleRetry = useCallback(() => {
     setDrawResult(null);
     setRawStrokePoints([]);
     setFinishTimeMs(0);
     setSwapLog([]);
-    setScreen("draw");
-    if (track) {
-      fetchGhosts(track.numeric_id).then(setGhosts);
+    // Return to appropriate draw screen
+    if (screen === "daily_result" || screen === "daily_race") {
+      setScreen("daily_draw");
+    } else {
+      setScreen("draw");
+      if (track) {
+        fetchGhosts(track.numeric_id).then(setGhosts);
+      }
     }
-  }, [track]);
+  }, [screen, track]);
 
   const handleLandingStart = useCallback(() => {
     setShowLanding(false);
@@ -177,6 +199,41 @@ export function App() {
       localStorage.setItem(TRACKS_KEY, next.toString());
       return next;
     });
+  }, []);
+
+  const handleDailyChallengeStart = useCallback(async (trackId: number, modifiers: ChallengeModifiers, ghosts: GhostData[], challengeDate: string) => {
+    setDailyChallengeTrackId(trackId);
+    setDailyModifiers(modifiers);
+    setDailyChallengeDate(challengeDate);
+    setDailyGhosts(ghosts);
+
+    // Find the track data for the daily challenge
+    const trackInfo = TRACKS.find((t) => t.numeric_id === trackId);
+    if (!trackInfo) return;
+
+    try {
+      const trackData: TrackData = await fetch(`/tracks/${trackInfo.id}.json`).then((r) => r.json());
+      // Apply modifiers to the track data
+      trackData.modifiers = modifiers;
+      validateTrackData(trackData);
+      setTrack(trackData);
+      setScreen("daily_draw");
+    } catch (e) {
+      console.error("Failed to load daily challenge track:", e);
+    }
+  }, []);
+
+  const handleShowDailyChallenge = useCallback(() => {
+    setScreen("daily");
+  }, []);
+
+  const handleDailyBack = useCallback(() => {
+    setScreen("draw");
+    // Clear daily challenge state
+    setDailyChallengeTrackId(null);
+    setDailyModifiers(null);
+    setDailyChallengeDate(null);
+    setDailyGhosts([]);
   }, []);
 
   const currentTrackInfo = TRACKS[currentTrackIndex];
@@ -214,6 +271,7 @@ export function App() {
           constraints={constraints}
           trackName={currentTrackInfo.name}
           onRotateTrack={handleRotateTrack}
+          onShowDailyChallenge={handleShowDailyChallenge}
         />
       )}
       {screen === "race" && drawResult && (
@@ -238,6 +296,50 @@ export function App() {
           ghosts={ghosts.map((g) => ({ name: g.name, finishTimeMs: g.finishTimeMs }))}
           onRetry={handleRetry}
           onShowLeaderboard={() => setShowLeaderboard(true)}
+        />
+      )}
+      {screen === "daily" && (
+        <DailyChallengeScreen
+          onStart={handleDailyChallengeStart}
+          onBack={handleDailyBack}
+        />
+      )}
+      {screen === "daily_draw" && track && dailyModifiers && (
+        <DrawScreen
+          onComplete={handleDrawComplete}
+          onOpenSettings={() => setSettingsOpen(true)}
+          constraints={constraints}
+          trackName={TRACKS.find((t) => t.numeric_id === dailyChallengeTrackId)?.name ?? "Daily Challenge"}
+          onRotateTrack={undefined}
+          onBack={handleDailyBack}
+          isDailyChallenge={true}
+          dailyModifiers={dailyModifiers}
+        />
+      )}
+      {screen === "daily_race" && drawResult && track && dailyModifiers && dailyChallengeDate && (
+        <RaceScreen
+          track={track}
+          wheelDraw={drawResult}
+          ghosts={dailyGhosts}
+          onFinished={handleRaceFinished}
+          onRestart={handleRetry}
+          onQuit={handleDailyBack}
+          constraints={constraints}
+        />
+      )}
+      {screen === "daily_result" && drawResult && track && dailyChallengeDate && (
+        <ResultScreen
+          finishTimeMs={finishTimeMs}
+          wheelDraw={drawResult}
+          rawStrokePoints={rawStrokePoints}
+          trackId={track.numeric_id}
+          swapLog={swapLog}
+          stuck={stuck}
+          ghosts={dailyGhosts.map((g) => ({ name: g.name, finishTimeMs: g.finishTimeMs }))}
+          onRetry={handleRetry}
+          onShowLeaderboard={() => setShowLeaderboard(true)}
+          isDailyChallenge={true}
+          dailyChallengeDate={dailyChallengeDate}
         />
       )}
       {settingsOpen && (

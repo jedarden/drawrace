@@ -179,6 +179,7 @@ export interface SubmitInput {
   wheelVertices: Array<{ x: number; y: number }>;
   rawStrokePoints: Array<Point & { t: number }>;
   wheels?: Array<{ swapTick: number; vertices: Array<{ x: number; y: number }> }>;
+  dailyChallengeDate?: string;
 }
 
 export async function submitGhost(input: SubmitInput): Promise<string | null> {
@@ -198,9 +199,15 @@ export async function submitGhost(input: SubmitInput): Promise<string | null> {
 
   const hmac = await computeHmac(blob);
 
+  // Build URL with daily_challenge_date query parameter if provided
+  let url = `${apiUrl}/v1/submissions`;
+  if (input.dailyChallengeDate) {
+    url += `?daily_challenge_date=${encodeURIComponent(input.dailyChallengeDate)}`;
+  }
+
   const resp = await retryWithBackoff(
     async () => {
-      const r = await fetch(`${apiUrl}/v1/submissions`, {
+      const r = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/octet-stream",
@@ -418,6 +425,151 @@ export async function fetchLeaderboardContext(
     return resp.json();
   } catch {
     return null;
+  }
+}
+
+export interface ChallengeModifiers {
+  gravity_multiplier: number;
+  friction_multiplier: number;
+  chassis_mass_multiplier: number;
+}
+
+export interface DailyChallengeResponse {
+  challenge_date: string;
+  track_id: number;
+  modifiers: ChallengeModifiers;
+}
+
+export interface DailyLeaderboardTopResponse {
+  challenge_date: string;
+  track_id: number;
+  modifiers: ChallengeModifiers;
+  entries: LeaderboardEntry[];
+}
+
+export interface DailyLeaderboardContextResponse {
+  challenge_date: string;
+  track_id: number;
+  modifiers: ChallengeModifiers;
+  player_rank: number | null;
+  entries: LeaderboardEntry[];
+}
+
+export async function fetchDailyChallenge(date?: string): Promise<DailyChallengeResponse | null> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return null;
+
+  try {
+    const url = date
+      ? `${apiUrl}/v1/daily-challenge?date=${date}`
+      : `${apiUrl}/v1/daily-challenge`;
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    return resp.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchDailyLeaderboardTop(
+  date: string,
+  limit = 20,
+): Promise<DailyLeaderboardTopResponse | null> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return null;
+
+  try {
+    const resp = await fetch(
+      `${apiUrl}/v1/leaderboard/daily/${date}/top?limit=${limit}`,
+    );
+    if (!resp.ok) return null;
+    return resp.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchDailyLeaderboardContext(
+  date: string,
+  window = 5,
+): Promise<DailyLeaderboardContextResponse | null> {
+  const apiUrl = getApiUrl();
+  const playerUuid = getPlayerUuid();
+  if (!apiUrl) return null;
+
+  try {
+    const resp = await fetch(
+      `${apiUrl}/v1/leaderboard/daily/${date}/context?player_uuid=${playerUuid}&window=${window}`,
+    );
+    if (!resp.ok) return null;
+    return resp.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchDailyGhosts(date: string): Promise<GhostData[]> {
+  // For daily challenges, we fetch ghosts from the daily leaderboard
+  const apiUrl = getApiUrl();
+  const playerUuid = getPlayerUuid();
+
+  if (!apiUrl) {
+    return fetchBundledGhosts();
+  }
+
+  try {
+    const url = `${apiUrl}/v1/leaderboard/daily/${date}/top?limit=3`;
+    const resp = await retryWithBackoff(
+      () => fetch(url),
+      2,
+      500,
+      (err) => {
+        if (err instanceof Response) return isTransientHttp(err);
+        return true;
+      },
+    );
+    if (!resp.ok) {
+      return fetchBundledGhosts();
+    }
+    const data: DailyLeaderboardTopResponse = await resp.json();
+
+    const resolved: GhostData[] = [];
+    for (const g of data.entries.slice(0, 3)) {
+      try {
+        // Fetch ghost blob via the ghosts endpoint
+        const ghostResp = await fetch(`${apiUrl}/v1/ghosts/${g.ghost_id}`);
+        if (!ghostResp.ok) continue;
+        const blob = await ghostResp.arrayBuffer();
+
+        // Decode both initial vertices and full wheel swap data
+        const wheelVertices = decodeGhostBlobVertices(blob);
+        const decodedWheels = decodeGhostBlobWheels(blob);
+
+        // Convert vertices format to polygon format for WheelSwap
+        const wheels: WheelSwap[] = decodedWheels.map((w) => ({
+          swap_tick: w.swapTick,
+          polygon: w.vertices.map((v) => [v.x, v.y] as [number, number]),
+        }));
+
+        resolved.push({
+          id: g.ghost_id,
+          name: g.name,
+          wheelVertices,
+          finishTimeMs: g.time_ms,
+          seed: MATCHMAKE_SEED,
+          wheels,
+        });
+      } catch {
+        // Skip ghosts that fail to download
+      }
+    }
+
+    if (resolved.length > 0) {
+      return resolved;
+    }
+    return fetchBundledGhosts();
+  } catch {
+    return fetchBundledGhosts();
   }
 }
 

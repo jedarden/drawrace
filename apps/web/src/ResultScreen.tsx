@@ -21,6 +21,8 @@ interface ResultScreenProps {
   ghosts: GhostResult[];
   onRetry: () => void;
   onShowLeaderboard: () => void;
+  isDailyChallenge?: boolean;
+  dailyChallengeDate?: string;
 }
 
 function formatTime(ms: number): string {
@@ -31,7 +33,7 @@ function formatTime(ms: number): string {
   return `${min}:${sec.toString().padStart(2, "0")}.${frac.toString().padStart(3, "0")}`;
 }
 
-export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId, swapLog, stuck, ghosts, onRetry, onShowLeaderboard }: ResultScreenProps) {
+export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId, swapLog, stuck, ghosts, onRetry, onShowLeaderboard, isDailyChallenge, dailyChallengeDate }: ResultScreenProps) {
   const [verdict, setVerdict] = useState<SubmissionVerdict | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showRecoveryPhrase, setShowRecoveryPhrase] = useState(false);
@@ -67,6 +69,7 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
         wheelVertices: wheelDraw.vertices,
         rawStrokePoints,
         wheels,
+        dailyChallengeDate: isDailyChallenge ? dailyChallengeDate : undefined,
       });
       if (!submissionId || cancelled) return;
 
@@ -134,6 +137,25 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
           <div style={{ fontSize: 18, fontWeight: "normal", color: "#6E5F48", marginTop: 4 }}>
             Try a different wheel shape
           </div>
+        </div>
+      )}
+
+      {isDailyChallenge && (
+        <div
+          style={{
+            fontSize: 20,
+            fontWeight: "bold",
+            color: "#4A7C59",
+            textAlign: "center",
+            padding: "8px 16px",
+            background: "rgba(74, 124, 89, 0.15)",
+            border: "2px solid #4A7C59",
+            borderRadius: 8,
+          }}
+          role="status"
+          aria-live="polite"
+        >
+          Daily Challenge
         </div>
       )}
 

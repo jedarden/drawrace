@@ -13,11 +13,15 @@ interface DrawScreenProps {
   constraints?: DrawConstraints;
   trackName?: string;
   onRotateTrack?: () => void;
+  onShowDailyChallenge?: () => void;
+  onBack?: () => void;
+  isDailyChallenge?: boolean;
+  dailyModifiers?: { gravity_multiplier: number; friction_multiplier: number; chassis_mass_multiplier: number };
 }
 
 const CANVAS_SIZE_CSS = 300;
 
-export function DrawScreen({ onComplete, onOpenSettings, constraints, trackName, onRotateTrack }: DrawScreenProps) {
+export function DrawScreen({ onComplete, onOpenSettings, constraints, trackName, onRotateTrack, onShowDailyChallenge, onBack, isDailyChallenge, dailyModifiers }: DrawScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const offCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rawPointsRef = useRef<StrokePoint[]>([]);
@@ -230,7 +234,9 @@ export function DrawScreen({ onComplete, onOpenSettings, constraints, trackName,
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", maxWidth: 350 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <h1 style={{ margin: 0, fontSize: 24 }}>Draw your wheel</h1>
+          <h1 style={{ margin: 0, fontSize: 24 }}>
+            {isDailyChallenge ? "Daily Challenge" : "Draw your wheel"}
+          </h1>
           {trackName && (
             <div
               style={{
@@ -293,26 +299,72 @@ export function DrawScreen({ onComplete, onOpenSettings, constraints, trackName,
               ))}
             </div>
           )}
+          {isDailyChallenge && dailyModifiers && (
+            <div
+              style={{
+                fontSize: 12,
+                color: "#4A7C59",
+                fontWeight: 600,
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+              aria-label="Daily challenge modifiers"
+            >
+              <span style={{ backgroundColor: "rgba(74, 124, 89, 0.15)", padding: "2px 6px", borderRadius: 4 }}>
+                G: {dailyModifiers.gravity_multiplier.toFixed(1)}x
+              </span>
+              <span style={{ backgroundColor: "rgba(74, 124, 89, 0.15)", padding: "2px 6px", borderRadius: 4 }}>
+                F: {dailyModifiers.friction_multiplier.toFixed(1)}x
+              </span>
+              <span style={{ backgroundColor: "rgba(74, 124, 89, 0.15)", padding: "2px 6px", borderRadius: 4 }}>
+                M: {dailyModifiers.chassis_mass_multiplier.toFixed(1)}x
+              </span>
+            </div>
+          )}
         </div>
-        <button
-          onClick={() => {
-            sound.playUiTap();
-            haptics.uiTap();
-            onOpenSettings();
-          }}
-          aria-label="Open settings"
-          style={{
-            background: "none",
-            border: "2px solid #2B2118",
-            borderRadius: 8,
-            padding: "8px 12px",
-            fontSize: 20,
-            cursor: "pointer",
-            color: "#2B2118",
-          }}
-        >
-          ⚙️
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {onBack && (
+            <button
+              onClick={() => {
+                sound.playUiTap();
+                haptics.uiTap();
+                onBack();
+              }}
+              aria-label="Go back"
+              style={{
+                background: "none",
+                border: "2px solid #2B2118",
+                borderRadius: 8,
+                padding: "8px 12px",
+                fontSize: 20,
+                cursor: "pointer",
+                color: "#2B2118",
+              }}
+            >
+              ←
+            </button>
+          )}
+          <button
+            onClick={() => {
+              sound.playUiTap();
+              haptics.uiTap();
+              onOpenSettings();
+            }}
+            aria-label="Open settings"
+            style={{
+              background: "none",
+              border: "2px solid #2B2118",
+              borderRadius: 8,
+              padding: "8px 12px",
+              fontSize: 20,
+              cursor: "pointer",
+              color: "#2B2118",
+            }}
+          >
+            ⚙️
+          </button>
+        </div>
       </div>
       <canvas
         ref={canvasRef}
@@ -388,6 +440,29 @@ export function DrawScreen({ onComplete, onOpenSettings, constraints, trackName,
         >
           {constraintViolation.message}
         </div>
+      )}
+      {!isDailyChallenge && onShowDailyChallenge && (
+        <button
+          onClick={() => {
+            sound.playUiTap();
+            haptics.uiTap();
+            onShowDailyChallenge();
+          }}
+          aria-label="Open daily challenge"
+          style={{
+            padding: "10px 20px",
+            fontSize: 14,
+            fontWeight: 600,
+            fontFamily: "inherit",
+            backgroundColor: "#4A7C59",
+            color: "#F4EAD5",
+            border: "2px solid #2B2118",
+            borderRadius: 8,
+            cursor: "pointer",
+          }}
+        >
+          Daily Challenge
+        </button>
       )}
     </div>
   );

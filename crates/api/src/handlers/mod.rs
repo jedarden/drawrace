@@ -1,4 +1,5 @@
 pub mod crash;
+pub mod daily_challenge;
 pub mod feedback;
 pub mod ghosts;
 pub mod health;

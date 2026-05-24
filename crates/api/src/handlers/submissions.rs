@@ -1,8 +1,8 @@
 use axum::body::Bytes;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -43,6 +43,11 @@ pub struct ApiError {
     pub message: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DailyChallengeQuery {
+    pub daily_challenge_date: Option<String>, // ISO 8601 date
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
         (
@@ -55,6 +60,7 @@ impl IntoResponse for ApiError {
 
 pub async fn post_submission(
     State(state): State<Arc<AppState>>,
+    Query(daily_query): Query<DailyChallengeQuery>,
     headers: axum::http::HeaderMap,
     body: Bytes,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -125,15 +131,41 @@ pub async fn post_submission(
     let submission_id = Uuid::new_v4();
     let s3_key = format!("ghosts/{}/{}/{}.bin", track_id, player_uuid, submission_id);
 
+    // Validate daily_challenge_date if provided
+    let daily_challenge_date = if let Some(date_str) = daily_query.daily_challenge_date {
+        // Verify the challenge exists
+        let exists: Option<(i16,)> = sqlx::query_as(
+            "SELECT track_id FROM daily_challenges WHERE challenge_date = $1",
+        )
+        .bind(&date_str)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: format!("db error: {e}"),
+        })?;
+
+        if exists.is_none() {
+            return Err(ApiError {
+                status: StatusCode::BAD_REQUEST,
+                message: "No daily challenge found for this date".into(),
+            });
+        }
+        Some(date_str)
+    } else {
+        None
+    };
+
     sqlx::query(
-        "INSERT INTO submissions (submission_id, player_uuid, track_id, physics_version, status, s3_key)
-         VALUES ($1, $2, $3, $4, 'pending_validation', $5)",
+        "INSERT INTO submissions (submission_id, player_uuid, track_id, physics_version, status, s3_key, daily_challenge_date)
+         VALUES ($1, $2, $3, $4, 'pending_validation', $5, $6)",
     )
     .bind(submission_id)
     .bind(player_uuid)
     .bind(track_id as i16)
     .bind(header.version as i16)
     .bind(&s3_key)
+    .bind(&daily_challenge_date)
     .execute(&state.pool)
     .await
     .map_err(|e| ApiError {
