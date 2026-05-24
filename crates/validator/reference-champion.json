@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "updated_at": "2026-05-23T00:00:00Z",
+  "champions": {
+    "1": {
+      "track_id": 1,
+      "track_name": "Scribble Slope",
+      "best_time_ms": 28441,
+      "wheel": {
+        "swap_tick": 0,
+        "vertex_count": 12,
+        "polygon_vertices": [
+          [-50, -50],
+          [50, -50],
+          [75, -25],
+          [75, 25],
+          [50, 50],
+          [0, 60],
+          [-50, 50],
+          [-75, 25],
+          [-75, -25],
+          [-60, -40],
+          [-40, -50],
+          [-25, -50]
+        ]
+      },
+      "physics_version": 4,
+      "created_at": "2026-05-23T00:00:00Z",
+      "notes": "Initial baseline from manual testing - near-optimal circle with slight teeth for ice traction"
+    }
+  }
+}

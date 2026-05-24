@@ -3,6 +3,7 @@ pub const VALIDATOR_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub mod wasm_loader;
 pub mod wasm_abi;
 pub mod resim;
+pub mod champion;
 
 #[cfg(test)]
 mod tests {

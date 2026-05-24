@@ -1,6 +1,7 @@
 mod resim;
 mod wasm_abi;
 mod wasm_loader;
+mod champion;
 
 use anyhow::Context;
 use aws_config::BehaviorVersion;
@@ -16,6 +17,7 @@ struct ValidatorState {
     s3: aws_sdk_s3::Client,
     s3_bucket: String,
     redis: deadpool_redis::Pool,
+    champion_validator: Option<champion::ChampionValidator>,
 }
 
 #[tokio::main]
@@ -56,6 +58,7 @@ async fn main() -> anyhow::Result<()> {
         s3,
         s3_bucket,
         redis,
+        champion_validator: champion::ChampionValidator::load().ok(),
     });
 
     // Port 8080: /internal/version — used by API pod for readiness-cache poll,
@@ -158,7 +161,13 @@ async fn process_one_submission(state: &ValidatorState) -> anyhow::Result<Option
     let blob = download_ghost_blob(state, &s3_key).await?;
 
     // Validate the blob
-    let verdict = validate_ghost(&blob, track_id as u16, &physics_version).await?;
+    let verdict = validate_ghost(
+        &blob,
+        track_id as u16,
+        &physics_version,
+        state.champion_validator.as_ref(),
+    )
+    .await?;
 
     // Update Postgres with verdict
     update_submission_verdict(&state.pool, submission_id, &verdict, &s3_key).await?;
@@ -192,6 +201,7 @@ async fn validate_ghost(
     blob: &[u8],
     expected_track_id: u16,
     _physics_version: &str,
+    champion_validator: Option<&champion::ChampionValidator>,
 ) -> anyhow::Result<Verdict> {
     // Parse blob header
     let header = BlobHeader::parse(blob).context("Failed to parse blob header")?;
@@ -214,6 +224,26 @@ async fn validate_ghost(
             time_ms: None,
             reject_reason: Some("finish_time_ms is zero".to_string()),
         });
+    }
+
+    // Champion-shape anti-cheat baseline: check if submission is faster than
+    // the reference champion by >2%. This catches impossible times before
+    // we do the expensive re-simulation.
+    if let Some(validator) = champion_validator {
+        if let Err(quarantine_reason) = validator.check_submission(expected_track_id, header.finish_time_ms) {
+            tracing::warn!(
+                track_id = %expected_track_id,
+                submission_time_ms = header.finish_time_ms,
+                reason = %quarantine_reason,
+                "Submission quarantined for exceeding champion threshold"
+            );
+            return Ok(Verdict {
+                status: "quarantined".to_string(),
+                ghost_id: None,
+                time_ms: Some(header.finish_time_ms as i32),
+                reject_reason: Some(format!("champion_quarantine: {}", quarantine_reason)),
+            });
+        }
     }
 
     // Derive the client's claimed finish tick (1/60 s per tick).
@@ -467,6 +497,25 @@ async fn update_submission_verdict(
             .execute(pool)
             .await?;
         }
+        "quarantined" => {
+            // Quarantined submissions are stored for human review.
+            // They are not inserted into the ghosts table, but the submission
+            // record is updated with the quarantined status and reason.
+            sqlx::query(
+                "UPDATE submissions
+                 SET status = 'quarantined', reject_reason = $1, resolved_at = now()
+                 WHERE submission_id = $2",
+            )
+            .bind(&verdict.reject_reason)
+            .bind(submission_id)
+            .execute(pool)
+            .await?;
+            tracing::warn!(
+                submission_id = %submission_id,
+                reason = %verdict.reject_reason.as_deref().unwrap_or("unknown"),
+                "Submission quarantined for human review"
+            );
+        }
         _ => {
             anyhow::bail!("Unknown verdict status: {}", verdict.status);
         }
@@ -531,7 +580,7 @@ mod tests {
     #[tokio::test]
     async fn valid_blob_is_accepted() {
         let blob = make_valid_blob();
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "accepted");
         assert!(verdict.ghost_id.is_some());
         assert_eq!(verdict.time_ms, Some(28441));
@@ -541,7 +590,7 @@ mod tests {
     #[tokio::test]
     async fn track_id_mismatch_rejected() {
         let blob = make_blob(1, 28441, &[12], &[0], &[5000, 15000, 25000]);
-        let verdict = validate_ghost(&blob, 2, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 2, "2", None).await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(verdict.reject_reason.as_deref(), Some("track_id mismatch"));
     }
@@ -566,7 +615,7 @@ mod tests {
     #[tokio::test]
     async fn non_monotonic_checkpoints_rejected() {
         let blob = make_blob(1, 28441, &[12], &[0], &[10000, 5000, 15000]);
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(
             verdict.reject_reason.as_deref(),
@@ -577,7 +626,7 @@ mod tests {
     #[tokio::test]
     async fn equal_checkpoints_rejected() {
         let blob = make_blob(1, 28441, &[12], &[0], &[10000, 10000, 15000]);
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(
             verdict.reject_reason.as_deref(),
@@ -588,7 +637,7 @@ mod tests {
     #[tokio::test]
     async fn zero_finish_time_rejected() {
         let blob = make_blob(1, 0, &[12], &[0], &[5000, 15000, 25000]);
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(
             verdict.reject_reason.as_deref(),
@@ -599,14 +648,14 @@ mod tests {
     #[tokio::test]
     async fn single_checkpoint_accepted() {
         let blob = make_blob(1, 28441, &[12], &[0], &[15000]);
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
     #[tokio::test]
     async fn empty_checkpoints_accepted() {
         let blob = make_blob(1, 28441, &[12], &[0], &[]);
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -627,7 +676,7 @@ mod tests {
             &[0, 10, 50], // gap between first two is 10 < 30
             &[5000, 15000],
         );
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert!(verdict.reject_reason.as_deref().unwrap().contains("swap_tick gap"));
     }
@@ -641,7 +690,7 @@ mod tests {
             &[0, 30],
             &[5000],
         );
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -650,7 +699,7 @@ mod tests {
         let vertex_counts: Vec<u8> = (0..6).map(|_| 12u8).collect();
         let swap_ticks: Vec<u32> = (0..6).map(|i| i * 60).collect();
         let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000, 15000, 25000]);
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -659,7 +708,7 @@ mod tests {
         let vertex_counts: Vec<u8> = (0..21).map(|_| 12u8).collect();
         let swap_ticks: Vec<u32> = (0..21).map(|i| i * 60).collect();
         let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000]);
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -680,7 +729,7 @@ mod tests {
         // finish_time_ms = 1000 → finishTicks = 60 (floor(1000*60/1000))
         // final swap_tick = 90 > 60 → must reject
         let blob = make_blob(1, 1000, &[12, 12], &[0, 90], &[]);
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert!(
             verdict.reject_reason.as_deref().unwrap().contains("swap_tick"),
@@ -694,7 +743,7 @@ mod tests {
         // finish_time_ms = 1500 → finishTicks = 90 (floor(1500*60/1000))
         // final swap_tick = 90 == 90 → boundary: must accept
         let blob = make_blob(1, 1500, &[12, 12], &[0, 90], &[]);
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -704,7 +753,7 @@ mod tests {
     #[tokio::test]
     async fn single_wheel_resim_accepted() {
         let blob = make_valid_blob();
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "accepted");
         assert!(verdict.ghost_id.is_some());
     }
@@ -720,7 +769,7 @@ mod tests {
             &[0, 30, 90, 200, 350, 500],
             &[5000, 15000, 25000],
         );
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -730,7 +779,7 @@ mod tests {
         let vertex_counts: Vec<u8> = (0..21).map(|_| 12u8).collect();
         let swap_ticks: Vec<u32> = (0..21).map(|i| i * 60).collect();
         let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000]);
-        let verdict = validate_ghost(&blob, 1, "2").await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -741,5 +790,53 @@ mod tests {
         let blob = make_blob(1, 28441, &[12, 12, 12], &[0, 60, 30], &[5000]);
         let result = validate_ghost(&blob, 1, "2").await;
         assert!(result.is_err(), "non-increasing swap_ticks must fail parse");
+    }
+
+    // ── Champion validation integration ───────────────────────────────────────────
+
+    /// Submission faster than champion by >2% is quarantined.
+    #[tokio::test]
+    async fn submission_faster_than_champion_quarantined() {
+        // Champion best time is 28441ms. 2.1% faster is ~27844ms.
+        let blob = make_blob(1, 27844, &[12], &[0], &[5000, 15000, 25000]);
+        let validator = champion::ChampionValidator::load_from_path(
+            &std::path::PathBuf::from("crates/validator/reference-champion.json"),
+        )
+        .unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", Some(&validator))
+            .await
+            .unwrap();
+        assert_eq!(verdict.status, "quarantined");
+        assert!(verdict.reject_reason.as_ref().unwrap().contains("champion_quarantine"));
+    }
+
+    /// Submission slower than champion passes champion check.
+    #[tokio::test]
+    async fn submission_slower_than_champion_accepted() {
+        // Champion best time is 28441ms. 29000ms is slower.
+        let blob = make_blob(1, 29000, &[12], &[0], &[5000, 15000, 25000]);
+        let validator = champion::ChampionValidator::load_from_path(
+            &std::path::PathBuf::from("crates/validator/reference-champion.json"),
+        )
+        .unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", Some(&validator))
+            .await
+            .unwrap();
+        assert_eq!(verdict.status, "accepted");
+    }
+
+    /// Submission exactly 2% faster than champion passes (boundary test).
+    #[tokio::test]
+    async fn submission_exactly_2_percent_faster_accepted() {
+        // Champion best time is 28441ms. Exactly 2% faster is 27872ms.
+        let blob = make_blob(1, 27872, &[12], &[0], &[5000, 15000, 25000]);
+        let validator = champion::ChampionValidator::load_from_path(
+            &std::path::PathBuf::from("crates/validator/reference-champion.json"),
+        )
+        .unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", Some(&validator))
+            .await
+            .unwrap();
+        assert_eq!(verdict.status, "accepted");
     }
 }
