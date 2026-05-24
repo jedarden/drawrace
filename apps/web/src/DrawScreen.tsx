@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import { processDraw, validateConstraints, type DrawResult, type Point, type DrawConstraints, type ConstraintViolation } from "@drawrace/engine-core";
 import { getHaptics } from "./Haptics.js";
 import { getSoundManager } from "./Sound.js";
+import { getDeterministicNow } from "./test-hooks.js";
 
 export interface StrokePoint extends Point {
   t: number;
@@ -116,7 +117,7 @@ export function DrawScreen({ onComplete, onOpenSettings, constraints, trackName,
 
       canvas.setPointerCapture(e.pointerId);
       activePointerRef.current = e.pointerId;
-      startTimeRef.current = Date.now();
+      startTimeRef.current = getDeterministicNow();
 
       // Track stroke count: if we already have points, this is a new stroke
       if (rawPointsRef.current.length > 0) {
@@ -156,7 +157,7 @@ export function DrawScreen({ onComplete, onOpenSettings, constraints, trackName,
           if (d < 1.0) continue;
           travelRef.current += d;
         }
-        pts.push({ x, y, t: Date.now() - startTimeRef.current });
+        pts.push({ x, y, t: getDeterministicNow() - startTimeRef.current });
       }
 
       const travel = travelRef.current;

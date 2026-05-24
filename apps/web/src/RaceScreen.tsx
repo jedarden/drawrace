@@ -9,6 +9,7 @@ import { getSoundManager } from "./Sound.js";
 import { DrawOverlay } from "./DrawOverlay.js";
 import { PauseMenu } from "./PauseMenu.js";
 import { MAX_SWAPS } from "./cooldown-machine.js";
+import { getTestSeed } from "./test-hooks.js";
 
 interface GhostDef {
   id: string;
@@ -143,7 +144,8 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
         const MAX_R = 1.0;
         const scale = maxR < MIN_R ? MIN_R / maxR : maxR > MAX_R ? MAX_R / maxR : 1;
         const playerVerts = rawVerts.map((v) => ({ x: v.x * scale, y: v.y * scale }));
-        const sim = new RaceSim(track, playerVerts);
+        const playerSeed = getTestSeed();
+        const sim = new RaceSim(track, playerVerts, playerSeed);
         simRef.current = sim;
         const ghostSims = capturedGhosts.map((g) => new RaceSim(track, g.wheelVertices, g.seed));
 

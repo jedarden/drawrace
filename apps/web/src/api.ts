@@ -3,6 +3,7 @@ import { getPlayerUuid } from "./player-identity.js";
 import { computeHmac } from "./hmac.js";
 import { encodeGhostBlob, decodeGhostBlobVertices, decodeGhostBlobWheels } from "./ghost-blob.js";
 import { putCachedGhost, getCachedGhost } from "./ghost-cache.js";
+import { getTestSeed } from "./test-hooks.js";
 import type { Point, WheelSwap } from "@drawrace/engine-core";
 
 export interface MatchmakeGhost {
@@ -40,7 +41,15 @@ export interface SubmissionVerdict {
   reason?: string;
 }
 
-const MATCHMAKE_SEED = 0xcafe;
+const DEFAULT_MATCHMAKE_SEED = 0xcafe;
+
+/**
+ * Get the current seed for ghost simulation.
+ * Uses URL ?seed=N if present (deterministic testing), otherwise uses default.
+ */
+function getGhostSeed(): number {
+  return getTestSeed() ?? DEFAULT_MATCHMAKE_SEED;
+}
 
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
@@ -101,7 +110,7 @@ export async function fetchGhosts(trackId: number): Promise<GhostData[]> {
           name: g.name,
           wheelVertices,
           finishTimeMs: g.time_ms,
-          seed: MATCHMAKE_SEED,
+          seed: getGhostSeed(),
           wheels,
         });
       } catch {
@@ -556,7 +565,7 @@ export async function fetchDailyGhosts(date: string): Promise<GhostData[]> {
           name: g.name,
           wheelVertices,
           finishTimeMs: g.time_ms,
-          seed: MATCHMAKE_SEED,
+          seed: getGhostSeed(),
           wheels,
         });
       } catch {

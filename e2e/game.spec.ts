@@ -6,6 +6,14 @@ async function dismissLanding(page: import("@playwright/test").Page) {
   });
 }
 
+/**
+ * Get the deterministic test URL with seed.
+ * Using ?seed=1 ensures deterministic RNG and clock for consistent E2E testing.
+ */
+function getDeterministicTestUrl(): string {
+  return "/?seed=1&track=v1";
+}
+
 async function waitForDrawScreen(page: import("@playwright/test").Page) {
   await expect(page.getByRole("main", { name: /draw your wheel/i })).toBeVisible({ timeout: 10000 });
 }
@@ -34,21 +42,21 @@ test.describe("DrawRace Game Flow", () => {
   });
 
   test("has proper page title and meta", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await expect(page).toHaveTitle("DrawRace");
     const themeColor = page.locator('meta[name="theme-color"]');
     await expect(themeColor).toHaveAttribute("content", "#F4EAD5");
   });
 
   test("shows draw screen on load", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await expect(page.getByRole("main", { name: "Draw your wheel screen" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Draw your wheel" })).toBeVisible();
     await expect(page.getByRole("img", { name: /drawing canvas/i })).toBeVisible();
   });
 
   test("drawing canvas responds to pointer input", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
 
     const canvas = page.getByRole("img", { name: /drawing canvas/i });
@@ -71,7 +79,7 @@ test.describe("DrawRace Game Flow", () => {
   });
 
   test("clear button resets the drawing", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
     await drawWheel(page);
 
@@ -83,7 +91,7 @@ test.describe("DrawRace Game Flow", () => {
   });
 
   test("race button is disabled for minimal input", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
 
     const canvas = page.getByRole("img", { name: /drawing canvas/i });
@@ -105,7 +113,7 @@ test.describe("Race Screen", () => {
   });
 
   test("shows countdown before race", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
     await drawWheel(page);
 
@@ -119,7 +127,7 @@ test.describe("Race Screen", () => {
   });
 
   test("shows race canvas with ARIA labels", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
     await drawWheel(page);
 
@@ -137,7 +145,7 @@ test.describe("Result Screen", () => {
 
   test("displays finish time", async ({ page }) => {
     test.setTimeout(120000);
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
     await drawWheel(page);
 
@@ -154,7 +162,7 @@ test.describe("Result Screen", () => {
 
   test("shows wheel shape preview", async ({ page }) => {
     test.setTimeout(120000);
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
     await drawWheel(page);
 
@@ -166,7 +174,7 @@ test.describe("Result Screen", () => {
 
   test("has retry button", async ({ page }) => {
     test.setTimeout(120000);
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
     await drawWheel(page);
 
@@ -181,7 +189,7 @@ test.describe("Result Screen", () => {
 
   test("retry button returns to draw screen", async ({ page }) => {
     test.setTimeout(120000);
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
     await drawWheel(page);
 
@@ -200,7 +208,7 @@ test.describe("Accessibility", () => {
   });
 
   test("has proper ARIA labels and roles", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
 
     await expect(page.getByRole("application")).toHaveAttribute("aria-label", "DrawRace Game");
@@ -210,7 +218,7 @@ test.describe("Accessibility", () => {
   });
 
   test("buttons have accessible names", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
 
     await expect(page.getByRole("button", { name: "Clear drawing" })).toBeVisible();
@@ -218,7 +226,7 @@ test.describe("Accessibility", () => {
   });
 
   test("status announcements are present", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
 
     const status = page.getByRole("status");
@@ -234,12 +242,12 @@ test.describe("Settings", () => {
   });
 
   test("settings can be opened and closed", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     await waitForDrawScreen(page);
   });
 
   test("settings toggles persist to localStorage", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
 
     await page.evaluate(() => {
       localStorage.setItem("drawrace.haptics", "true");
@@ -270,13 +278,13 @@ test.describe("PWA", () => {
   });
 
   test("has theme color set", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     const themeColor = page.locator('meta[name="theme-color"]');
     await expect(themeColor).toHaveAttribute("content", "#F4EAD5");
   });
 
   test("has apple touch icon", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(getDeterministicTestUrl());
     const icon = page.locator('link[rel="apple-touch-icon"]');
     await expect(icon).toHaveAttribute("href", "/icon-192.png");
   });
