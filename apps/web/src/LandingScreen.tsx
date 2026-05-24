@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { submitFeedback, redeemInvite, checkInviteStatus } from "./api.js";
 import { isEphemeral } from "./player-identity.js";
+import { DemoWheel } from "./DemoWheel.js";
 
 interface LandingScreenProps {
   onStart: () => void;
@@ -122,6 +123,8 @@ export function LandingScreen({ onStart, dismissed }: LandingScreenProps) {
         <p style={{ fontSize: 20, margin: "0 0 24px 0", textAlign: "center", lineHeight: 1.4 }}>
           Draw your wheel, race against ghosts!
         </p>
+
+        <DemoWheel width={400} height={140} />
 
         {isEphemeral() && (
           <div style={{

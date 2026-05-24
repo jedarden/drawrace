@@ -27,7 +27,6 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
-    "@browserstack/playwright": "^0.6.0",
     "@eslint/js": "^9.24.0",
     "@playwright/test": "^1.59.1",
     "@size-limit/preset-app": "^12.1.0",
