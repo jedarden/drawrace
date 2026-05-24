@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { writeFileSync } from "fs";
+import { join } from "path";
 
 const CPU_THROTTLE_RATE = 6;
 const P95_BUDGET_MS = 20;
@@ -38,5 +40,21 @@ test.describe("Layer 7: Performance Budget Tests", () => {
       results.medianMs,
       `median frame time ${results.medianMs.toFixed(2)}ms exceeds ${MEDIAN_BUDGET_MS}ms budget at ${CPU_THROTTLE_RATE}x throttle`
     ).toBeLessThan(MEDIAN_BUDGET_MS);
+
+    // Write metrics for Prometheus collection (§Testing 14)
+    if (process.env.CI) {
+      const metricsOutput = {
+        timestamp: new Date().toISOString(),
+        medianMs: results.medianMs,
+        p95Ms: results.p95Ms,
+        avgMs: results.avgMs,
+        totalFrames: results.totalFrames,
+        cpuThrottleRate: CPU_THROTTLE_RATE,
+      };
+
+      const outputPath = join(process.cwd(), "perf-results.json");
+      writeFileSync(outputPath, JSON.stringify(metricsOutput, null, 2));
+      console.error(`Perf metrics written to ${outputPath}`);
+    }
   });
 });

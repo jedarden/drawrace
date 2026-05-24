@@ -605,3 +605,103 @@ describe("Physics golden (Layer 2) — swap scenarios (legacy swaps.json)", () =
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Metrics collection for Prometheus pushgateway (§Testing 14)
+// ---------------------------------------------------------------------------
+
+/**
+ * Write golden test results for metrics collection.
+ *
+ * This function is called after all golden tests complete to write
+ * results to golden-results.json for the metrics push script.
+ */
+function writeGoldenMetrics() {
+  const goldenFile = loadGoldens();
+  const results: Array<{
+    id: string;
+    expectedTicks: number;
+    actualTicks: number;
+    deltaTicks: number;
+    passed: boolean;
+  }> = [];
+
+  let maxDeltaTicks = 0;
+  let passedTests = 0;
+  let totalTests = 0;
+
+  // Test single-wheel goldens
+  for (const golden of goldenFile.goldens.filter(isSingleWheel)) {
+    totalTests++;
+    const result = createHeadlessRace({
+      seed: golden.seed,
+      track: TEST_TRACK,
+      wheel: golden.wheel,
+    });
+
+    const deltaTicks = Math.abs(result.finishTicks - golden.finishTicks);
+    const passed = deltaTicks === 0 && result.streamHash === golden.streamHash;
+
+    if (passed) passedTests++;
+    maxDeltaTicks = Math.max(maxDeltaTicks, deltaTicks);
+
+    results.push({
+      id: golden.id,
+      expectedTicks: golden.finishTicks,
+      actualTicks: result.finishTicks,
+      deltaTicks,
+      passed,
+    });
+  }
+
+  // Test multi-wheel goldens (excluding structural rejects)
+  for (const golden of goldenFile.goldens.filter(
+    (g): g is MultiWheelGolden => isMultiWheel(g) && g.structuralReject !== true
+  )) {
+    totalTests++;
+    const result = runHeadless({
+      seed: golden.seed,
+      track: TEST_TRACK,
+      wheels: golden.wheels,
+    });
+
+    const deltaTicks = Math.abs(result.finishTicks - (golden.finishTicks || 0));
+    const passed = deltaTicks === 0 && result.streamHash === golden.streamHash;
+
+    if (passed) passedTests++;
+    maxDeltaTicks = Math.max(maxDeltaTicks, deltaTicks);
+
+    results.push({
+      id: golden.id,
+      expectedTicks: golden.finishTicks || 0,
+      actualTicks: result.finishTicks || 0,
+      deltaTicks,
+      passed,
+    });
+  }
+
+  const metricsOutput = {
+    timestamp: new Date().toISOString(),
+    totalTests,
+    passedTests,
+    maxDeltaTicks,
+    passRate: totalTests > 0 ? (passedTests / totalTests) * 100 : 0,
+    tests: results,
+  };
+
+  // Only write in CI environment
+  if (process.env.CI) {
+    const { writeFileSync } = require("fs");
+    const { join } = require("path");
+    const outputPath = join(process.cwd(), "golden-results.json");
+    writeFileSync(outputPath, JSON.stringify(metricsOutput, null, 2));
+    console.error(`Golden metrics written to ${outputPath}`);
+  }
+}
+
+// Auto-run metrics collection after all tests if in CI
+if (process.env.CI) {
+  afterAll(() => {
+    writeGoldenMetrics();
+  });
+}

@@ -115,6 +115,19 @@ spec:
                 - name: preview-url
                   value: "{{workflow.parameters.preview-url}}"
 
+          # ── Metrics collection (runs after all CI steps) ───────────────────
+          - name: push-metrics
+            template: push-metrics
+            dependencies: [unit, physics-golden, perf, render-snap, e2e, backend-contract]
+            arguments:
+              parameters:
+                - name: job
+                  value: "drawrace-ci"
+                - name: instance
+                  value: "{{workflow.uid}}"
+                - name: mode
+                  value: "{{workflow.parameters.mode}}"
+
     # ── Generic step template ───────────────────────────────────────────────
     - name: step
       inputs:
@@ -154,6 +167,46 @@ spec:
           limits:
             cpu: 2000m
             memory: 2Gi
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      volumes:
+        - name: workspace
+          emptyDir: {}
+
+    # ── Metrics push template ─────────────────────────────────────────────────
+    # Collects all CI metrics and pushes them to Prometheus pushgateway.
+    # See plan.md §Testing 14 for metric definitions.
+    - name: push-metrics
+      inputs:
+        parameters:
+          - name: job
+          - name: instance
+          - name: mode
+      activeDeadlineSeconds: 120
+      container:
+        image: ghcr.io/drawrace/ci-snap:2026-04-24
+        command: [bash, -lc]
+        args:
+          - |
+            set -euo pipefail
+            # Set environment variables for metrics collection
+            export CI_RUN_ID="{{inputs.parameters.instance}}"
+            export CI_MODE="{{inputs.parameters.mode}}"
+            export CI_BRANCH="{{workflow.parameters.ref}}"
+            export PUSHGATEWAY_URL="http://prometheus-pushgateway.argo-workflows:9091"
+            # Collect and push metrics
+            node scripts/push-metrics.ts --job="{{inputs.parameters.job}}" --instance="{{inputs.parameters.instance}}"
+        env:
+          - name: CI
+            value: "true"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
         volumeMounts:
           - name: workspace
             mountPath: /workspace

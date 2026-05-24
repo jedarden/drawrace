@@ -1,0 +1,36 @@
+# Prometheus scrape job configuration for DrawRace CI metrics
+# Add this to your Prometheus configuration on ardenone-cluster
+#
+# NOTE: This scrape config assumes Prometheus can reach the pushgateway on
+# iad-ci via Tailscale. The pushgateway runs in the argo-workflows namespace
+# and is accessed via the Tailscale hostname of the iad-ci cluster's
+# kubectl-proxy service.
+
+scrape_configs:
+  # Scrape pushgateway for CI metrics (runs on iad-ci cluster via Tailscale)
+  - job_name: 'drawrace-pushgateway'
+    honor_labels: true  # Preserve job/instance labels from pushgateway
+    static_configs:
+      - targets:
+          - kubectl-proxy-iad-ci:8001
+        labels:
+          cluster: 'iad-ci'
+          __param_target: 'http://prometheus-pushgateway.argo-workflows.svc.cluster.local:9091/metrics'
+    scheme: http
+    # Use the kubectl-proxy to reach the pushgateway service
+    relabel_configs:
+      - source_labels: [__param_target]
+        target_label: __address__
+        replacement: 'kubectl-proxy-iad-ci:8001'
+      - source_labels: [__param_target]
+        target_label: __metrics_path__
+        regex: 'http://[^/]+(/.*)'
+        replacement: '$1'
+    # Pushgateway metrics are ephemeral; scrape frequently
+    scrape_interval: 30s
+    # Keep metrics for 24h after last push (pushgateway retention)
+    metric_relabel_configs:
+      # Only keep drawrace_* metrics from pushgateway
+      - source_labels: [__name__]
+        regex: 'drawrace_.*'
+        action: keep

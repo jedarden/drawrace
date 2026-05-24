@@ -23,7 +23,8 @@
     "regen-golden": "npx tsx packages/engine-core/scripts/regen-golden.ts",
     "e2e:phone-smoke": "bash e2e/phone-smoke/run.sh",
     "e2e:phone-smoke:save-baselines": "bash e2e/phone-smoke/run.sh --save-baselines",
-    "size": "size-limit"
+    "size": "size-limit",
+    "metrics:push": "node scripts/push-metrics.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",

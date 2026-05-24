@@ -1,0 +1,84 @@
+---
+# Prometheus Pushgateway Deployment
+# Receives metrics from drawrace-ci workflows on iad-ci cluster.
+# Scraped by Prometheus on ardenone-cluster via Tailscale.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-pushgateway
+  namespace: argo-workflows
+  labels:
+    app: prometheus-pushgateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus-pushgateway
+  template:
+    metadata:
+      labels:
+        app: prometheus-pushgateway
+    spec:
+      containers:
+        - name: pushgateway
+          image: prom/pushgateway:v1.9.0
+          args:
+            - --persistence.file=/data
+            - --persistence.interval=5m
+          ports:
+            - containerPort: 9091
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-pushgateway
+  namespace: argo-workflows
+  labels:
+    app: prometheus-pushgateway
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9091
+      targetPort: http
+      name: http
+  selector:
+    app: prometheus-pushgateway
+---
+# ServiceMonitor for Prometheus scraping
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: prometheus-pushgateway
+  namespace: argo-workflows
+  labels:
+    app: prometheus-pushgateway
+spec:
+  selector:
+    matchLabels:
+      app: prometheus-pushgateway
+  endpoints:
+    - port: http
+      interval: 30s
+      path: /metrics
