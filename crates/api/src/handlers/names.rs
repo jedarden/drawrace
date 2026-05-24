@@ -2,6 +2,7 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
 use redis::AsyncCommands;
+use rustrict::CensorStr;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -147,12 +148,7 @@ pub async fn post_name(
 }
 
 fn contains_profanity(name: &str) -> bool {
-    let lower = name.to_lowercase();
-    const BLOCKLIST: &[&str] = &[
-        "fuck", "shit", "ass", "bitch", "cunt", "dick", "nigger", "nazi", "hitler", "rape", "pedo",
-        "kill", "die",
-    ];
-    BLOCKLIST.iter().any(|w| lower.contains(w))
+    name.is_inappropriate()
 }
 
 pub async fn get_name(
