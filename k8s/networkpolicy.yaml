@@ -32,6 +32,24 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: drawrace-allow-live
+  namespace: drawrace
+spec:
+  podSelector:
+    matchLabels:
+      app: drawrace-live
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: drawrace-allow-internal
   namespace: drawrace
 spec:

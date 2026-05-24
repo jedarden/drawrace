@@ -59,6 +59,13 @@ spec:
               parameters:
                 - name: crate
                   value: validator
+          - name: lint-live
+            template: cargo-lint
+            dependencies: [checkout]
+            arguments:
+              parameters:
+                - name: crate
+                  value: live
           - name: lint-js
             template: pnpm-ci-step
             dependencies: [checkout]
@@ -81,6 +88,13 @@ spec:
               parameters:
                 - name: crate
                   value: validator
+          - name: test-live
+            template: cargo-test
+            dependencies: [checkout]
+            arguments:
+              parameters:
+                - name: crate
+                  value: live
           - name: test-js
             template: pnpm-ci-step
             dependencies: [checkout]
@@ -119,9 +133,20 @@ spec:
                 - name: image
                   value: ronaldraygun/drawrace-validator
 
+          - name: build-live
+            template: docker-build
+            dependencies: [lint-live, test-live, test-js, lint-js]
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
+            arguments:
+              parameters:
+                - name: binary
+                  value: drawrace-live
+                - name: image
+                  value: ronaldraygun/drawrace-live
+
           - name: bump-manifest
             template: update-declarative-config
-            dependencies: [build-api, build-validator]
+            dependencies: [build-api, build-validator, build-live]
             when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:

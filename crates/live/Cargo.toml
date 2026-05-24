@@ -1,0 +1,23 @@
+[package]
+name = "drawrace-live"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.24"
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+metrics = "0.23"
+metrics-exporter-prometheus = "0.15"
+prometheus = "0.13"
+redis = { version = "0.25", features = ["tokio-comp", "connection-manager"] }
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+tower = "0.5"
+http = "1.0"
+anyhow = "1.0"

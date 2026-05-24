@@ -16,6 +16,22 @@ spec:
       interval: 30s
 ---
 apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: drawrace-live
+  namespace: drawrace
+  labels:
+    app: drawrace-live
+spec:
+  selector:
+    matchLabels:
+      app: drawrace-live
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: drawrace-alerts
@@ -84,3 +100,35 @@ spec:
             description: >
               Replay verification mismatch rate is {{ $value | printf "%.3f" }}.
               This may indicate physics version drift between client and server.
+
+        - alert: DrawRaceLiveServiceUnavailable
+          expr: kube_deployment_status_replicas_available{deployment="drawrace-live"} < 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "DrawRace Live service has no available replicas"
+            description: >
+              drawrace-live deployment has 0 available replicas for over 2 minutes.
+              Live multiplayer is unavailable. Check pod events and logs.
+
+        - alert: DrawRaceLiveHighLobbySize
+          expr: drawrace_lobby_size > 100
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DrawRace live lobby size above 100"
+            description: >
+              Lobby has {{ $value }} players waiting for over 5 minutes.
+              Consider scaling up drawrace-live replicas.
+
+        - alert: DrawRaceLiveHighActiveRooms
+          expr: drawrace_rooms_active > 500
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DrawRace live has over 500 active rooms"
+            description: >
+              {{ $value }} rooms are currently active. Monitor performance.

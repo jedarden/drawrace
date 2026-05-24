@@ -14,6 +14,7 @@ spec:
   commonName: "api.drawrace.ardenone.com"
   dnsNames:
   - "api.drawrace.ardenone.com"
+  - "live.drawrace.ardenone.com"
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -33,3 +34,42 @@ spec:
       port: 80
   tls:
     secretName: drawrace-api-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: drawrace-live-ingressroute
+  namespace: drawrace
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: live.drawrace.ardenone.com
+    traefik.ingress.kubernetes.io/router.middlewares: drawrace-websocket-headers
+spec:
+  entryPoints:
+    - websecure
+  routes:
+  - match: Host(`live.drawrace.ardenone.com`)
+    kind: Rule
+    services:
+    - name: drawrace-live
+      port: 8080
+      sticky:
+        cookie:
+          name: drawrace_room
+          secure: true
+          httpOnly: true
+          sameSite: none
+  tls:
+    secretName: drawrace-api-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: drawrace-websocket-headers
+  namespace: drawrace
+spec:
+  headers:
+    customRequestHeaders:
+      X-Forwarded-Proto: "https"
+      X-Forwarded-Host: "live.drawrace.ardenone.com"
+    # Pass through WebSocket upgrade headers
+    # Note: Traefik handles WebSocket upgrade automatically
