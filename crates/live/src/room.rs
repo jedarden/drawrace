@@ -7,6 +7,7 @@
 
 use anyhow::{Context, Result};
 use redis::AsyncCommands;
+use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -18,7 +19,7 @@ use crate::messages::{PlayerInRoom, RoomStatus};
 pub const ROOM_TTL: usize = 600; // 10 minutes
 
 /// In-memory room state (lives on the pod that owns the room)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Room {
     pub room_id: Uuid,
     pub track_id: u16,

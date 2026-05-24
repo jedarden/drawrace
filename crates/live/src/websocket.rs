@@ -74,7 +74,7 @@ impl ConnectionRegistry {
         let mut failed = Vec::new();
         for conn in &connections {
             let mut sender = conn.sender.lock().await;
-            if sender.send(Message::text(msg_json.clone())).await.is_err() {
+            if sender.send(Message::Text(msg_json.clone())).await.is_err() {
                 failed.push(conn.player_uuid);
             }
         }
@@ -114,9 +114,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<LiveState>) {
     while let Some(result) = receiver.next().await {
         match result {
             Ok(msg) => {
-                if msg.is_text() {
-                    if let Ok(text) = msg.to_text() {
-                        match serde_json::from_str::<ClientMessage>(text) {
+                match msg {
+                    axum::extract::ws::Message::Text(text) => {
+                        match serde_json::from_str::<ClientMessage>(&text) {
                             Ok(client_msg) => {
                                 match handle_client_message(
                                     &state,
@@ -153,8 +153,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<LiveState>) {
                             }
                         }
                     }
-                } else if msg.is_close() {
-                    break;
+                    axum::extract::ws::Message::Close(_) => {
+                        break;
+                    }
+                    _ => {
+                        // Ignore other message types
+                    }
                 }
             }
             Err(e) => {
@@ -176,7 +180,7 @@ async fn send_message(
 ) -> Result<()> {
     let msg_json = serde_json::to_string(msg)?;
     let mut s = sender.lock().await;
-    s.send(Message::text(msg_json)).await?;
+    s.send(Message::Text(msg_json)).await?;
     Ok(())
 }
 
@@ -246,7 +250,8 @@ async fn handle_client_message(
             }).await?;
 
             // Check if all players are ready
-            let room = state.rooms.get(rid).await?;
+            let room = state.rooms.get(rid).await
+                .ok_or_else(|| anyhow::anyhow!("room not found"))?;
             if room.is_ready() && room.player_count() >= crate::lobby::MIN_LIVE_PLAYERS {
                 // Start countdown
                 let start_time_ms = crate::lobby::now_ms() + 3000; // 3 seconds
@@ -336,7 +341,7 @@ async fn handle_hello(
 async fn find_or_create_room(
     state: &Arc<LiveState>,
     track_id: u16,
-    bucket: &str,
+    _bucket: &str,
     player_uuid: Uuid,
     name: String,
 ) -> Result<Uuid> {
@@ -378,13 +383,13 @@ async fn find_or_create_room(
 
 /// Broadcast state to all players in a room
 pub async fn broadcast_state(
-    state: &Arc<LiveState>,
+    _state: &Arc<LiveState>,
     room_id: Uuid,
     tick: u32,
     racers: Vec<RacerState>,
 ) -> Result<()> {
-    let msg = ServerMessage::State { tick, racers };
-    let msg_json = serde_json::to_string(&msg)?;
+    let msg = ServerMessage::State { tick, racers: racers.clone() };
+    let _msg_json = serde_json::to_string(&msg)?;
 
     // TODO: Send to all connected players in the room
     // For now, we'd need to track active connections per room

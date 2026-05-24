@@ -1,6 +1,5 @@
 use anyhow::Result;
-use axum::Router;
-use drawrace_live::{LiveState, background};
+use drawrace_live::{LiveState, background, app};
 use metrics_exporter_prometheus::PrometheusBuilder;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -35,13 +34,13 @@ async fn main() -> Result<()> {
 
     // Create Redis client and connection manager
     let redis = redis::Client::open(redis_url)?;
-    let redis_mgr = redis.get_tokio_connection_manager().await?;
+    let redis_mgr = redis.get_connection_manager().await?;
 
     // Create application state
     let state = Arc::new(LiveState::new(redis, redis_mgr, pod_ip));
 
     // Build router
-    let app = drawrace_live::app(state.clone());
+    let app = app::app(state.clone());
 
     // Start lobby background task
     let state_clone = state.clone();

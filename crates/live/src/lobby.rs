@@ -48,7 +48,8 @@ pub async fn add_to_lobby(
         .await?;
 
     // Increment gauge for monitoring
-    metrics::gauge!("drawrace_lobby_size", "track_id" => track_id.to_string(), "bucket" => bucket)
+    let bucket_owned = bucket.to_string();
+    metrics::gauge!("drawrace_lobby_size", "track_id" => track_id.to_string(), "bucket" => bucket_owned)
         .increment(1.0);
 
     Ok(())
