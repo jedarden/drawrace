@@ -23,6 +23,7 @@
     "regen-golden": "npx tsx packages/engine-core/scripts/regen-golden.ts",
     "e2e:phone-smoke": "bash e2e/phone-smoke/run.sh",
     "e2e:phone-smoke:save-baselines": "bash e2e/phone-smoke/run.sh --save-baselines",
+    "e2e:phone-smoke:cooldown": "bash e2e/phone-smoke/run.sh --scenario cooldown",
     "size": "size-limit",
     "metrics:push": "node scripts/push-metrics.ts"
   },

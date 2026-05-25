@@ -481,6 +481,11 @@ async def run_smoke(url, ws_url, artifacts_dir, baseline_dir, save_baselines):
         print("Waiting 8s for race to progress before mid-race redraw...")
         await asyncio.sleep(8)
 
+        # Capture BEFORE-swap screenshot for pixel comparison
+        before_swap = os.path.join(artifacts_dir, "03b-before-swap.png")
+        await screenshot(sess, before_swap)
+        print("  Captured before-swap screenshot")
+
         print("Drawing mid-race triangle...")
         swap_result = await sess.evaluate(DRAW_TRIANGLE_RACE_JS, timeout=30)
         if not swap_result or not swap_result.get("ok"):
@@ -489,6 +494,25 @@ async def run_smoke(url, ws_url, artifacts_dir, baseline_dir, save_baselines):
             return False
         print(f"  Drew: {swap_result.get('drew')}")
         collector.feed_batch(await sess.drain_events(0.5))
+
+        # Wait a moment for the swap preview animation to complete
+        await asyncio.sleep(0.5)
+
+        # Capture AFTER-swap screenshot for pixel comparison
+        after_swap = os.path.join(artifacts_dir, "03c-after-swap.png")
+        await screenshot(sess, after_swap)
+        print("  Captured after-swap screenshot")
+
+        # Verify wheel shape changed by comparing before/after screenshots
+        ok, diff = compare_baseline(after_swap, before_swap, threshold=0.02)
+        if ok is None:
+            print("WARNING: Could not compare before/after swap screenshots")
+        elif not ok:
+            print(f"FAIL: Wheel shape did not visibly change after swap (diff {diff:.1%} < 2%)")
+            print("  Expected significant pixel difference when wheel changes from circle to triangle")
+            return False
+        else:
+            print(f"  Wheel shape change verified: diff {diff:.1%}")
 
         # Verify swap count increased
         swap_count = await sess.evaluate(CHECK_SWAP_COUNT_JS, await_promise=False)
@@ -592,6 +616,8 @@ async def run_smoke(url, ws_url, artifacts_dir, baseline_dir, save_baselines):
         "01-draw-screen.png",
         "02-draw-done.png",
         "03-countdown.png",
+        "03b-before-swap.png",
+        "03c-after-swap.png",
         "03b-mid-race-draw-fail.png",  # Only if error occurs
         "04-mid-race.png",
         "05-result.png",
@@ -601,8 +627,10 @@ async def run_smoke(url, ws_url, artifacts_dir, baseline_dir, save_baselines):
 
     # Check that we have the expected milestones (excluding error screenshots)
     actual_milestones = [f for f in milestone_files if not f.startswith("99-") and not f.endswith("-fail.png")]
-    if "04-mid-race.png" not in actual_milestones or "05-result.png" not in actual_milestones:
-        print(f"WARNING: Not all expected milestones present. Got: {actual_milestones}")
+    required_milestones = ["04-mid-race.png", "05-result.png", "03b-before-swap.png", "03c-after-swap.png"]
+    for required in required_milestones:
+        if required not in actual_milestones:
+            print(f"WARNING: Required milestone {required} not present. Got: {actual_milestones}")
 
     for fname in milestone_files:
         artifact = os.path.join(artifacts_dir, fname)
@@ -632,6 +660,133 @@ async def run_smoke(url, ws_url, artifacts_dir, baseline_dir, save_baselines):
 
 
 # ---------------------------------------------------------------------------
+# Cooldown test scenario
+# ---------------------------------------------------------------------------
+
+async def run_cooldown_test(url, ws_url, artifacts_dir):
+    """Second scenario: spam strokes during cooldown, assert only ONE swap registers."""
+    os.makedirs(artifacts_dir, exist_ok=True)
+
+    tab_ws = await find_tab(ws_url)
+    if not tab_ws:
+        print("FAIL: No browser tab found. Is Chrome running with --remote-debugging-port?")
+        return False
+    print(f"Tab: {tab_ws[:80]}...")
+
+    async with websockets.connect(
+        tab_ws, max_size=2**24, open_timeout=10,
+        ping_interval=None, close_timeout=5,
+    ) as ws:
+        sess = CDPSession(ws)
+        await sess.start()
+        collector = EventCollector()
+
+        # Enable CDP domains
+        await sess.call("Runtime.enable")
+        await sess.call("Log.enable")
+        await sess.call("Console.enable")
+        await sess.call("Page.enable")
+
+        # Bypass landing
+        await sess.call("Page.addScriptToEvaluateOnNewDocument", {
+            "source": LANDING_BYPASS_JS,
+        })
+        print(f"Navigating to {url}")
+        await sess.call("Page.navigate", {"url": url})
+        await asyncio.sleep(3)
+        collector.feed_batch(await sess.drain_events(1.0))
+
+        # Draw initial circle
+        print("Drawing initial circle...")
+        draw_result = await sess.evaluate(DRAW_CIRCLE_JS, timeout=30)
+        if not draw_result or not draw_result.get("ok"):
+            print(f"FAIL: Initial draw failed: {draw_result}")
+            return False
+
+        # Click Race
+        print("Clicking Race...")
+        click_result = await sess.evaluate(CLICK_RACE_JS, await_promise=False)
+        if not click_result or not click_result.get("ok"):
+            print(f"FAIL: Race button: {click_result}")
+            return False
+        await asyncio.sleep(1)
+
+        # Wait for race to start (GO signal)
+        await asyncio.sleep(4)
+
+        # Get initial swap count
+        initial_count = await sess.evaluate(CHECK_SWAP_COUNT_JS, await_promise=False)
+        if not initial_count or not initial_count.get("ok"):
+            print(f"WARNING: Could not get initial swap count: {initial_count}")
+            initial_swaps = 0
+        else:
+            initial_swaps = initial_count['current']
+            print(f"  Initial swap count: {initial_swaps}/{initial_count['max']}")
+
+        # Perform FIRST mid-race swap (should succeed)
+        print("Performing first mid-race swap...")
+        swap_result = await sess.evaluate(DRAW_TRIANGLE_RACE_JS, timeout=30)
+        if not swap_result or not swap_result.get("ok"):
+            print(f"FAIL: First swap failed: {swap_result}")
+            return False
+        await asyncio.sleep(0.3)
+
+        # Verify first swap registered
+        after_first = await sess.evaluate(CHECK_SWAP_COUNT_JS, await_promise=False)
+        if not after_first or not after_first.get("ok"):
+            print(f"WARNING: Could not verify first swap: {after_first}")
+        else:
+            print(f"  After first swap: {after_first['current']}/{after_first['max']}")
+            if after_first['current'] != initial_swaps + 1:
+                print(f"FAIL: Expected swap count to increase by 1, got {after_first['current']}")
+                return False
+
+        # Spam THREE more strokes rapidly (200ms apart - inside the 500ms cooldown)
+        print("Spamming 3 rapid strokes during cooldown (200ms apart)...")
+        for i in range(3):
+            await asyncio.sleep(0.2)  # 200ms between strokes
+            spam_result = await sess.evaluate(DRAW_TRIANGLE_RACE_JS, timeout=30)
+            if not spam_result or not spam_result.get("ok"):
+                print(f"  Stroke {i+1} rejected (expected during cooldown)")
+            else:
+                print(f"  Stroke {i+1} unexpectedly accepted during cooldown!")
+
+        # Wait for cooldown to expire
+        await asyncio.sleep(0.6)
+
+        # Final swap count check
+        final_count = await sess.evaluate(CHECK_SWAP_COUNT_JS, await_promise=False)
+        if not final_count or not final_count.get("ok"):
+            print(f"WARNING: Could not get final swap count: {final_count}")
+        else:
+            print(f"  Final swap count: {final_count['current']}/{final_count['max']}")
+            # Should still be 1 (initial_swaps + 1), NOT 4
+            if final_count['current'] != initial_swaps + 1:
+                print(f"FAIL: Expected {initial_swaps + 1} swaps after cooldown spam, got {final_count['current']}")
+                print("  Cooldown did not prevent rapid swaps!")
+                await screenshot(sess, os.path.join(artifacts_dir, "cooldown-fail.png"))
+                return False
+            else:
+                print("  PASS: Cooldown correctly prevented rapid swaps")
+
+        # Capture final screenshot
+        final_shot = os.path.join(artifacts_dir, "cooldown-test-final.png")
+        await screenshot(sess, final_shot)
+
+        collector.feed_batch(await sess.drain_events(1.0))
+        try:
+            collector.assert_clean()
+        except RuntimeError as exc:
+            print(f"FAIL: Error during cooldown test: {exc}")
+            return False
+
+        await sess.stop()
+
+    print("\n=== COOLDOWN TEST PASSED ===")
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -657,15 +812,30 @@ def main():
         "--save-baselines", action="store_true",
         help="Write screenshots as new baselines instead of comparing",
     )
+    parser.add_argument(
+        "--scenario", choices=["smoke", "cooldown"], default="smoke",
+        help="Test scenario to run: 'smoke' (default) or 'cooldown' (tests 500ms swap cooldown)",
+    )
+    parser.add_argument(
+        "--cooldown-artifacts", default="e2e/phone-smoke/artifacts-cooldown",
+        help="Directory for cooldown test screenshots",
+    )
     args = parser.parse_args()
 
-    ok = asyncio.run(run_smoke(
-        url=args.url,
-        ws_url=args.ws,
-        artifacts_dir=args.artifacts,
-        baseline_dir=args.baseline_dir,
-        save_baselines=args.save_baselines,
-    ))
+    if args.scenario == "cooldown":
+        ok = asyncio.run(run_cooldown_test(
+            url=args.url,
+            ws_url=args.ws,
+            artifacts_dir=args.cooldown_artifacts,
+        ))
+    else:
+        ok = asyncio.run(run_smoke(
+            url=args.url,
+            ws_url=args.ws,
+            artifacts_dir=args.artifacts,
+            baseline_dir=args.baseline_dir,
+            save_baselines=args.save_baselines,
+        ))
     sys.exit(0 if ok else 1)
 
 

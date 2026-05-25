@@ -6,7 +6,8 @@
 # then tears everything down.
 #
 # Usage:
-#   bash e2e/phone-smoke/run.sh                    # build + serve + smoke
+#   bash e2e/phone-smoke/run.sh                    # build + serve + smoke test
+#   bash e2e/phone-smoke/run.sh --scenario cooldown # run cooldown test instead
 #   bash e2e/phone-smoke/run.sh --save-baselines   # capture new baselines
 #   bash e2e/phone-smoke/run.sh --skip-build       # skip pnpm build (use existing dist)
 #
@@ -24,10 +25,13 @@ CDP_PORT=9222
 TAILSCALE_IP="100.72.170.64"
 
 SKIP_BUILD=false
+SCENARIO="smoke"
 DRIVER_ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --skip-build) SKIP_BUILD=true ;;
+    --scenario) SCENARIO="cooldown" ;;
+    --scenario=*) SCENARIO="${arg#--scenario=}" ;;
     *) DRIVER_ARGS+=("$arg") ;;
   esac
 done
@@ -92,17 +96,11 @@ echo "    Waiting for page to load..."
 sleep 5
 
 # 6. Run the CDP driver
-echo "=== Running phone-smoke driver ==="
+echo "=== Running phone-smoke driver (scenario: $SCENARIO) ==="
 mkdir -p "$ARTIFACTS_DIR"
-if [[ ${#DRIVER_ARGS[@]} -gt 0 ]]; then
-  python3 "$SCRIPT_DIR/driver.py" \
-    --url "$URL" \
-    --artifacts "$ARTIFACTS_DIR" \
-    --baseline-dir "$BASELINE_DIR" \
-    "${DRIVER_ARGS[@]}"
-else
-  python3 "$SCRIPT_DIR/driver.py" \
-    --url "$URL" \
-    --artifacts "$ARTIFACTS_DIR" \
-    --baseline-dir "$BASELINE_DIR"
-fi
+python3 "$SCRIPT_DIR/driver.py" \
+  --url "$URL" \
+  --artifacts "$ARTIFACTS_DIR" \
+  --baseline-dir "$BASELINE_DIR" \
+  --scenario "$SCENARIO" \
+  "${DRIVER_ARGS[@]}"
