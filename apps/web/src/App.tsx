@@ -9,8 +9,9 @@ import { LeaderboardScreen } from "./LeaderboardScreen.js";
 import { DailyChallengeScreen } from "./DailyChallengeScreen.js";
 import { fetchGhosts, submitCrashReport, type GhostData } from "./api.js";
 import { getHaptics } from "./Haptics.js";
+import { getPlayerUuid } from "./player-identity.js";
 import type { DrawResult, WheelSwap, DrawConstraints, ChallengeModifiers } from "@drawrace/engine-core";
-import { parseSurfaces, validateZones } from "@drawrace/engine-core";
+import { parseSurfaces, validateZones, hashSeed } from "@drawrace/engine-core";
 
 type Screen = "draw" | "race" | "result" | "daily" | "daily_draw" | "daily_race" | "daily_result";
 
@@ -90,6 +91,14 @@ export function App() {
     return 0;
   });
 
+  // Race run index and seed
+  const [runIndex, setRunIndex] = useState(0);
+  const [raceSeed, setRaceSeed] = useState<number>(() => {
+    // Initial seed from track, player, and runIndex
+    const playerId = getPlayerUuid();
+    return hashSeed(TRACKS[0].id, playerId, 0);
+  });
+
   // Daily challenge state
   const [dailyChallengeTrackId, setDailyChallengeTrackId] = useState<number | null>(null);
   const [dailyModifiers, setDailyModifiers] = useState<ChallengeModifiers | null>(null);
@@ -144,13 +153,24 @@ export function App() {
   const handleDrawComplete = useCallback((result: DrawResult, strokePoints: StrokePoint[]) => {
     setDrawResult(result);
     setRawStrokePoints(strokePoints);
+
+    // Generate new seed for this run using track, player, and runIndex
+    const playerId = getPlayerUuid();
+    const currentTrack = TRACKS[currentTrackIndex];
+    // For daily challenges, use the daily track ID
+    const trackId = screen === "daily_draw" && dailyChallengeTrackId
+      ? `daily-${dailyChallengeTrackId}`
+      : currentTrack.id;
+    const newSeed = hashSeed(trackId, playerId, runIndex);
+    setRaceSeed(newSeed);
+
     // Transition to appropriate race screen
     if (screen === "daily_draw") {
       setScreen("daily_race");
     } else {
       setScreen("race");
     }
-  }, [screen]);
+  }, [screen, currentTrackIndex, runIndex, dailyChallengeTrackId]);
 
   const handleRaceFinished = useCallback((elapsedMs: number, wheelSwaps: WheelSwap[], stuck: boolean) => {
     setFinishTimeMs(elapsedMs);
@@ -169,6 +189,8 @@ export function App() {
     setRawStrokePoints([]);
     setFinishTimeMs(0);
     setSwapLog([]);
+    // Increment runIndex for the new attempt
+    setRunIndex((prev) => prev + 1);
     // Return to appropriate draw screen
     if (screen === "daily_result" || screen === "daily_race") {
       setScreen("daily_draw");
@@ -236,6 +258,16 @@ export function App() {
     setDailyGhosts([]);
   }, []);
 
+  const handleQuitFromRace = useCallback(() => {
+    // Return to Home (LandingScreen) when quitting a race
+    setShowLanding(true);
+    // Clear race state
+    setDrawResult(null);
+    setRawStrokePoints([]);
+    setFinishTimeMs(0);
+    setSwapLog([]);
+  }, []);
+
   const currentTrackInfo = TRACKS[currentTrackIndex];
 
   if (!track) {
@@ -281,8 +313,9 @@ export function App() {
           ghosts={ghosts}
           onFinished={handleRaceFinished}
           onRestart={handleRetry}
-          onQuit={handleRetry}
+          onQuit={handleQuitFromRace}
           constraints={constraints}
+          seed={raceSeed}
         />
       )}
       {screen === "result" && drawResult && (
@@ -325,6 +358,7 @@ export function App() {
           onRestart={handleRetry}
           onQuit={handleDailyBack}
           constraints={constraints}
+          seed={raceSeed}
         />
       )}
       {screen === "daily_result" && drawResult && track && dailyChallengeDate && (

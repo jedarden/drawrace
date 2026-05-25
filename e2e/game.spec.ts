@@ -135,6 +135,104 @@ test.describe("Race Screen", () => {
 
     await expect(page.getByRole("img", { name: /race view/i })).toBeVisible();
   });
+
+  test("pause menu opens and closes", async ({ page }) => {
+    await page.goto(getDeterministicTestUrl());
+    await waitForDrawScreen(page);
+    await drawWheel(page);
+
+    await page.getByRole("button", { name: /race/i }).click();
+
+    // Wait for race canvas to appear
+    await expect(page.getByRole("img", { name: /race view/i })).toBeVisible();
+
+    // Click pause button
+    await page.getByRole("button", { name: "Pause race" }).click();
+
+    // Pause menu should be visible
+    await expect(page.getByRole("dialog", { name: "Game paused" })).toBeVisible();
+
+    // Click backdrop (outside the menu) to resume
+    const dialog = page.getByRole("dialog", { name: "Game paused" });
+    const box = await dialog.boundingBox();
+    await page.mouse.click(box!.x - 10, box!.y); // Click outside
+
+    // Dialog should close (resume)
+    await expect(page.getByRole("dialog", { name: "Game paused" })).not.toBeVisible();
+  });
+
+  test("pause menu resume button resumes race", async ({ page }) => {
+    await page.goto(getDeterministicTestUrl());
+    await waitForDrawScreen(page);
+    await drawWheel(page);
+
+    await page.getByRole("button", { name: /race/i }).click();
+
+    // Wait for race canvas to appear
+    await expect(page.getByRole("img", { name: /race view/i })).toBeVisible();
+
+    // Click pause button
+    await page.getByRole("button", { name: "Pause race" }).click();
+
+    // Pause menu should be visible
+    await expect(page.getByRole("dialog", { name: "Game paused" })).toBeVisible();
+
+    // Click Resume button
+    await page.getByRole("button", { name: "Resume race" }).click();
+
+    // Dialog should close and race should resume
+    await expect(page.getByRole("dialog", { name: "Game paused" })).not.toBeVisible();
+    await expect(page.getByRole("img", { name: /race view/i })).toBeVisible();
+  });
+
+  test("pause menu restart returns to draw screen", async ({ page }) => {
+    await page.goto(getDeterministicTestUrl());
+    await waitForDrawScreen(page);
+    await drawWheel(page);
+
+    await page.getByRole("button", { name: /race/i }).click();
+
+    // Wait for race canvas to appear
+    await expect(page.getByRole("img", { name: /race view/i })).toBeVisible();
+
+    // Click pause button
+    await page.getByRole("button", { name: "Pause race" }).click();
+
+    // Pause menu should be visible
+    await expect(page.getByRole("dialog", { name: "Game paused" })).toBeVisible();
+
+    // Click Restart button
+    await page.getByRole("button", { name: "Restart race" }).click();
+
+    // Should return to draw screen with empty canvas
+    await expect(page.getByRole("main", { name: "Draw your wheel screen" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /race/i })).toBeDisabled();
+  });
+
+  test("pause menu quit returns to landing screen", async ({ page }) => {
+    await page.goto(getDeterministicTestUrl());
+    await waitForDrawScreen(page);
+    await drawWheel(page);
+
+    await page.getByRole("button", { name: /race/i }).click();
+
+    // Wait for race canvas to appear
+    await expect(page.getByRole("img", { name: /race view/i })).toBeVisible();
+
+    // Click pause button
+    await page.getByRole("button", { name: "Pause race" }).click();
+
+    // Pause menu should be visible
+    await expect(page.getByRole("dialog", { name: "Game paused" })).toBeVisible();
+
+    // Click Quit button
+    await page.getByRole("button", { name: "Quit race" }).click();
+
+    // Should return to landing screen
+    await expect(page.getByRole("dialog", { name: "Game paused" })).not.toBeVisible();
+    // Landing screen should be visible (check for welcome message or start button)
+    await expect(page.getByRole("button", { name: /start/i })).toBeVisible();
+  });
 });
 
 test.describe("Result Screen", () => {

@@ -9,7 +9,6 @@ import { getSoundManager } from "./Sound.js";
 import { DrawOverlay } from "./DrawOverlay.js";
 import { PauseMenu } from "./PauseMenu.js";
 import { MAX_SWAPS } from "./cooldown-machine.js";
-import { getTestSeed } from "./test-hooks.js";
 
 interface GhostDef {
   id: string;
@@ -28,6 +27,7 @@ interface RaceScreenProps {
   onRestart: () => void;
   onQuit: () => void;
   constraints?: DrawConstraints;
+  seed: number;
 }
 
 type RacePhase = "countdown" | "racing" | "done";
@@ -44,7 +44,7 @@ function formatTime(ms: number): string {
   return `${min}:${String(sec).padStart(2, "0")}.${String(centis).padStart(2, "0")}`;
 }
 
-export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, onQuit, constraints }: RaceScreenProps) {
+export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, onQuit, constraints, seed }: RaceScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const phaseRef = useRef<RacePhase>("countdown");
   const countdownRef = useRef(3);
@@ -144,8 +144,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
         const MAX_R = 1.0;
         const scale = maxR < MIN_R ? MIN_R / maxR : maxR > MAX_R ? MAX_R / maxR : 1;
         const playerVerts = rawVerts.map((v) => ({ x: v.x * scale, y: v.y * scale }));
-        const playerSeed = getTestSeed();
-        const sim = new RaceSim(track, playerVerts, playerSeed);
+        const sim = new RaceSim(track, playerVerts, seed);
         simRef.current = sim;
         const ghostSims = capturedGhosts.map((g) => new RaceSim(track, g.wheelVertices, g.seed));
 
@@ -409,7 +408,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [track, wheelDraw, onFinished]);
+  }, [track, wheelDraw, onFinished, seed]);
 
   // ── Swap counter chip color ──────────────────────────────────────────────
   const isCapped = swapCount >= MAX_SWAPS;
