@@ -11,10 +11,10 @@ spec:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: "api.drawrace.ardenone.com"
+  commonName: "api-drawrace.ardenone.com"
   dnsNames:
-  - "api.drawrace.ardenone.com"
-  - "live.drawrace.ardenone.com"
+  - "api-drawrace.ardenone.com"
+  - "live-drawrace.ardenone.com"
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -22,12 +22,12 @@ metadata:
   name: drawrace-api-ingressroute
   namespace: drawrace
   annotations:
-    external-dns.alpha.kubernetes.io/hostname: api.drawrace.ardenone.com
+    external-dns.alpha.kubernetes.io/hostname: api-drawrace.ardenone.com
 spec:
   entryPoints:
     - websecure
   routes:
-  - match: Host(`api.drawrace.ardenone.com`)
+  - match: Host(`api-drawrace.ardenone.com`)
     kind: Rule
     services:
     - name: drawrace-api
@@ -41,13 +41,13 @@ metadata:
   name: drawrace-live-ingressroute
   namespace: drawrace
   annotations:
-    external-dns.alpha.kubernetes.io/hostname: live.drawrace.ardenone.com
+    external-dns.alpha.kubernetes.io/hostname: live-drawrace.ardenone.com
     traefik.ingress.kubernetes.io/router.middlewares: drawrace-websocket-headers
 spec:
   entryPoints:
     - websecure
   routes:
-  - match: Host(`live.drawrace.ardenone.com`)
+  - match: Host(`live-drawrace.ardenone.com`)
     kind: Rule
     services:
     - name: drawrace-live
@@ -70,6 +70,6 @@ spec:
   headers:
     customRequestHeaders:
       X-Forwarded-Proto: "https"
-      X-Forwarded-Host: "live.drawrace.ardenone.com"
+      X-Forwarded-Host: "live-drawrace.ardenone.com"
     # Pass through WebSocket upgrade headers
     # Note: Traefik handles WebSocket upgrade automatically

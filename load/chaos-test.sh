@@ -7,7 +7,7 @@
 #   - The drawrace API is deployed and healthy
 #
 # Usage:
-#   API=https://api.drawrace.ardenone.com ./load/chaos-test.sh
+#   API=https://api-drawrace.ardenone.com ./load/chaos-test.sh
 #
 # The script:
 #   1. Starts a background k6 load test at 500 RPS
@@ -19,7 +19,7 @@
 
 set -euo pipefail
 
-API="${API:-https://api.drawrace.ardenone.com}"
+API="${API:-https://api-drawrace.ardenone.com}"
 KUBECONF="${KUBECONF:-}"
 NS="drawrace"
 ERROR_THRESHOLD=0.05  # max 5% error rate during chaos

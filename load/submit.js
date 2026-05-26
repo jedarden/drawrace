@@ -3,7 +3,7 @@ import { check, sleep } from "k6";
 import { hmac } from "k6/crypto";
 
 // k6 load test for DrawRace POST /v1/submissions
-// Run: k6 run -e API=https://api.drawrace.ardenone.com load/submit.js
+// Run: k6 run -e API=https://api-drawrace.ardenone.com load/submit.js
 // Staging with rate-limit bypass: ensure runner IP is in DRAWRACE_RATE_LIMIT_BYPASS_CIDR
 
 export const options = {
@@ -28,7 +28,7 @@ export const options = {
   },
 };
 
-const API = __ENV.API || "https://api.drawrace.ardenone.com";
+const API = __ENV.API || "https://api-drawrace.ardenone.com";
 const HMAC_KEY = __ENV.HMAC_KEY || "drawrace-dev-key-2026";
 
 function makeGhostBlob() {

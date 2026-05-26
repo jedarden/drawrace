@@ -62,7 +62,7 @@
 **Remaining operational tasks (not code):**
 1. Deploy K8s manifests to production cluster via ArgoCD
 2. Configure Cloudflare Pages production project for web app
-3. Set up DNS: `api.drawrace.ardenone.com` → cluster ingress
+3. Set up DNS: `api-drawrace.ardenone.com` → cluster ingress
 4. Import Grafana dashboard into production Grafana
 5. Recruit 20-40 beta testers
 6. Run k6 load test against staging
@@ -123,7 +123,7 @@ All non-goals respected — no scope creep:
 |-----------|--------|--------|
 | API Deployment | `k8s/api-deployment.yaml` (2 replicas, topology spread) | Ready to deploy |
 | Validator Deployment | `k8s/validator-deployment.yaml` (1 replica, HPA 1-3) | Ready to deploy |
-| Ingress | `k8s/ingress.yaml` (Traefik + cert-manager, `api.drawrace.ardenone.com`) | Ready to deploy |
+| Ingress | `k8s/ingress.yaml` (Traefik + cert-manager, `api-drawrace.ardenone.com`) | Ready to deploy |
 | Postgres | `k8s/postgres-cluster.yaml` (CloudNativePG) | Ready to deploy |
 | Redis | `k8s/redis.yaml` (Redis 8 Alpine) | Ready to deploy |
 | Monitoring | `k8s/servicemonitor.yaml` + `monitoring/` | Ready to deploy |

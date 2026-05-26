@@ -1338,7 +1338,7 @@ spec:
         parameters:
           - name: expected-physics-version
           - name: health-url
-            value: "https://api.drawrace.ardenone.com/v1/health"
+            value: "https://api-drawrace.ardenone.com/v1/health"
           - name: timeout-seconds
             value: "1200"
           - name: poll-interval-seconds
@@ -1661,6 +1661,15 @@ Once the `CLOUDFLARE_API_TOKEN` sealed-secret is committed to `declarative-confi
 | `DRAWRACE_API_URL` | Vite build env (`VITE_API_URL`) | Points the frontend at the correct backend host per environment |
 
 The `VITE_API_URL` is baked at build time by Vite (only `VITE_`-prefixed vars are embedded). PR preview builds use a staging api URL; main-branch builds use the production api URL. Set these as **Pages environment variables** in the Cloudflare dashboard (Settings → Environment variables), not in `wrangler.toml` — keeping them out of source control.
+
+> **Hostname convention — single-level subdomains only.** Cloudflare's `*.ardenone.com`
+> Universal SSL/DNS does **not** cover *nested* subdomains like `api.drawrace.ardenone.com`
+> (that needs a `*.drawrace.ardenone.com` cert the zone won't issue), so nested hosts fail to
+> resolve/serve. Use a single label under `ardenone.com`, hyphenating the service prefix:
+> `api-drawrace.ardenone.com`, `live-drawrace.ardenone.com` (not `api.drawrace…`,
+> `live.drawrace…`). This applies to the cert `dnsNames`, the Traefik `Host()` rules, the
+> `external-dns` annotations, the CSP `connect-src`, and the `VITE_API_URL` Pages var. The
+> nested names were flattened 2026-05-25 — do not reintroduce a `*.drawrace.ardenone.com` form.
 
 ---
 

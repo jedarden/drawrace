@@ -3,7 +3,7 @@ import { check, sleep } from "k6";
 import { uuidv4 } from "https://jslib.k6.io/k6-utils/1.4.0/index.js";
 
 // k6 load test for DrawRace GET /v1/matchmake and GET /v1/leaderboard
-// Run: k6 run -e API=https://api.drawrace.ardenone.com load/matchmake.js
+// Run: k6 run -e API=https://api-drawrace.ardenone.com load/matchmake.js
 
 export const options = {
   scenarios: {
@@ -27,7 +27,7 @@ export const options = {
   },
 };
 
-const API = __ENV.API || "https://api.drawrace.ardenone.com";
+const API = __ENV.API || "https://api-drawrace.ardenone.com";
 
 export default function () {
   // Each VU uses a unique player UUID per iteration

@@ -54,7 +54,7 @@ spec:
             arguments:
               parameters:
                 - name: health-url
-                  value: https://api.drawrace.ardenone.com/v1/health
+                  value: https://api-drawrace.ardenone.com/v1/health
         - - name: pages-publish
             template: wrangler-pages
             arguments:
