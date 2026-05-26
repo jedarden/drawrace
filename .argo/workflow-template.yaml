@@ -33,6 +33,8 @@ spec:
                   value: ronaldraygun/drawrace-api
                 - name: dockerfile
                   value: Dockerfile.api
+                - name: version-path
+                  value: crates/api/Cargo.toml
           - name: buildx-validator
             template: docker-buildx
             arguments:
@@ -41,6 +43,8 @@ spec:
                   value: ronaldraygun/drawrace-validator
                 - name: dockerfile
                   value: Dockerfile.validator
+                - name: version-path
+                  value: crates/validator/Cargo.toml
         - - name: bump-manifest
             template: update-declarative-config
             arguments:
@@ -101,6 +105,7 @@ spec:
         parameters:
           - name: image
           - name: dockerfile
+          - name: version-path
         artifacts:
           - name: src
             path: /src
@@ -111,7 +116,12 @@ spec:
           - |
             set -ex
             cd /src
-            TAG=$(git rev-parse --short HEAD)
+            # Tag images with the crate's semver (Rule 8: no :latest/sha pins in manifests).
+            TAG=$(grep -m1 '^version' "{{inputs.parameters.version-path}}" | sed -E 's/.*"([^"]+)".*/\1/')
+            case "$TAG" in
+              [0-9]*.[0-9]*.[0-9]*) : ;;
+              *) echo "version-path {{inputs.parameters.version-path}} did not yield a semver: '$TAG'" >&2; exit 1 ;;
+            esac
             echo "Building {{inputs.parameters.image}}:$TAG"
             docker buildx build --push --platform linux/amd64 -f {{inputs.parameters.dockerfile}} -t {{inputs.parameters.image}}:$TAG -t {{inputs.parameters.image}}:latest .
             echo "$TAG" > /tmp/image-tag
