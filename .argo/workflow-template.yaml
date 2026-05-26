@@ -152,15 +152,34 @@ spec:
         command: [sh, -c]
         args:
           - |
-            set -ex
-            git clone https://github.com/jedarden/declarative-config /tmp/dc
+            set -eu
+            git clone --depth 1 https://github.com/jedarden/declarative-config /tmp/dc
             cd /tmp/dc
-            echo "{{inputs.parameters.images}}" > k8s/iad-acb/drawrace/images.txt
+            DIR=k8s/apexalgo-iad/drawrace
+            # Patch each deployment's image: field with the built <image>:<semver> ref.
+            printf '%s\n' "{{inputs.parameters.images}}" | while IFS= read -r ref; do
+              [ -z "$ref" ] && continue
+              base=${ref%:*}
+              case "$base" in
+                */drawrace-api)       f=$DIR/api-deployment.yaml ;;
+                */drawrace-validator) f=$DIR/validator-deployment.yaml ;;
+                *) echo "skip unknown image: $ref" >&2; continue ;;
+              esac
+              sed -i "s#image: ${base}:[^[:space:]]*#image: ${ref}#" "$f"
+              echo "pinned $f -> $ref"
+            done
             git config user.name "DrawRace CI"
-            git config user.email "ci@drawrace.example"
-            git add k8s/iad-acb/drawrace/images.txt
-            git commit -m "drawrace: update images"
-            git push
+            git config user.email "ci@drawrace.ardenone.com"
+            git add -A "$DIR"
+            if git diff --cached --quiet; then echo "no image changes"; exit 0; fi
+            git commit -m "drawrace: pin deployment images to built semver tags"
+            # declarative-config is written concurrently — rebase-retry on non-fast-forward.
+            for i in 1 2 3 4 5; do
+              if git push; then exit 0; fi
+              git pull --rebase
+            done
+            echo "push failed after retries" >&2
+            exit 1
 
     - name: wait-validator-live
       inputs:
