@@ -2864,11 +2864,11 @@ Deliverables:
 
 ### Phase 4 — Beta (1 week)
 
-**Goal:** 20–40 invited testers produce enough real data to validate matchmaking and surface anti-cheat edge cases.
+**Goal:** 20–40 invited testers produce enough real data to validate matchmaking and surface anti-cheat edge cases. ("Invited" means we recruit a small cohort out-of-band to test — the app does **not** enforce an in-app invite gate; anyone with the URL can play.)
 
 Deliverables:
 - `beta.drawrace.example` on Cloudflare Pages production; `api.drawrace.example` on spot cluster.
-- Invite link + short landing page.
+- Short landing page — **open to all visitors; NO invite-code or email access gate.** Beta testers are recruited out-of-band via a shared link; the page itself must never require an invite code or email to play, and must never disable "Start Racing" behind an access check. (An invite-code gate was added in code during Phase 4 and removed 2026-05-25; do not reintroduce it.)
 - Feedback channel (Google Form or a simple `/feedback` endpoint logging to Postgres).
 - Replay-mismatch dashboard green; alerts wired to me@jedcabanero.com.
 - Load test (Layer 8) run against staging during beta; results reviewed.
