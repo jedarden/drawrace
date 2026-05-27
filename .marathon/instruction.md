@@ -73,6 +73,26 @@ Everything lives under two epics:
 
 Run `~/.local/bin/br ready` at the top of every iteration to see the current ready set (unblocked, open).
 
+**If `br ready` returns nothing eligible** (empty queue, or only beads needing human/ADB
+access), do NOT exit idle — the seeded beads are not the whole job, **the plan is**. Run a
+plan-vs-artifacts gap audit and refill the queue:
+
+1. Walk `docs/plan/plan.md` section by section (the §Gameplay / §Multiplayer / §Graphics /
+   §Testing / §Roadmap sections, including the 2026-04-24 revisions above).
+2. For each planned item — gameplay rule, engine-core procedure, schema/blob field, golden
+   scenario, graphics/HUD element, acceptance criterion — verify it actually exists *and
+   works* in the tree: grep for the symbol under `packages/` / `apps/web/`, read the module,
+   run its test, and (for user-visible behaviour) confirm via phone-smoke.
+3. For every planned-but-missing, stubbed, or incomplete item that is **not already an open
+   bead** (check `~/.local/bin/br list --status open | grep`), create one:
+   ```bash
+   ~/.local/bin/br create --title "plan-gap: <plan §> — <what's missing>" --type task --priority <0-3> \
+     --description "Plan: <§/line range>. Gap evidence: <absent symbol / missing golden or test>. Acceptance: <what done looks like>."
+   ```
+4. Re-run `~/.local/bin/br ready` and pick the highest-impact new bead.
+
+The work is truly done only when a **full** plan audit finds zero gaps — then say so and exit.
+
 ## ADB is wired to a real Pixel 6 — keep using it
 
 Nothing about ADB access has changed. Reminder:
