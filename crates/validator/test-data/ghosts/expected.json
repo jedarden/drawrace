@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "description": "Expected results for Layer 6 replay verification tests",
+  "note": "Run with REPLAY_RECORD=1 to update expected_finish_ticks after physics changes",
+  "ghosts": [
+    {
+      "file": "ghost-dev-001.blob",
+      "track_id": 1,
+      "seed": 1001,
+      "expected_finish_ticks": 2236,
+      "description": "Dev ghost 001 on hills-01 track"
+    },
+    {
+      "file": "ghost-dev-002.blob",
+      "track_id": 1,
+      "seed": 2002,
+      "expected_finish_ticks": 1741,
+      "description": "Dev ghost 002 on hills-01 track"
+    },
+    {
+      "file": "ghost-dev-003.blob",
+      "track_id": 1,
+      "seed": 3003,
+      "expected_finish_ticks": 1710,
+      "description": "Dev ghost 003 on hills-01 track"
+    },
+    {
+      "file": "ghost-tutorial-a.blob",
+      "track_id": 1,
+      "seed": 1001,
+      "expected_finish_ticks": 576,
+      "description": "Tutorial ghost A on hills-01 track"
+    },
+    {
+      "file": "ghost-tutorial-b.blob",
+      "track_id": 1,
+      "seed": 2002,
+      "expected_finish_ticks": 652,
+      "description": "Tutorial ghost B on hills-01 track"
+    },
+    {
+      "file": "ghost-tutorial-c.blob",
+      "track_id": 1,
+      "seed": 3003,
+      "expected_finish_ticks": 632,
+      "description": "Tutorial ghost C on hills-01 track"
+    }
+  ]
+}
