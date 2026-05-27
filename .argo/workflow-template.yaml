@@ -25,6 +25,12 @@ spec:
       steps:
         - - name: checkout
             template: checkout
+        - - name: replay-verify
+            template: replay-verify
+            arguments:
+              artifacts:
+                - name: src
+                  from: "{{steps.checkout.outputs.artifacts.src}}"
         - - name: buildx-api
             template: docker-buildx
             arguments:
@@ -99,6 +105,34 @@ spec:
           - name: git-short-sha
             valueFrom:
               path: /tmp/git-short-sha
+
+    - name: replay-verify
+      inputs:
+        artifacts:
+          - name: src
+            path: /src
+      container:
+        image: rust:1.83-bookworm
+        command: [sh, -c]
+        args:
+          - |
+            set -ex
+            cd /src
+            # Build the validator WASM first
+            pnpm install
+            pnpm --filter @drawrace/engine-core build
+            # Run replay verification tests
+            cargo test -p drawrace-validator --test replay -- --nocapture
+        env:
+          - name: CARGO_TERM_COLOR
+            value: always
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
 
     - name: docker-buildx
       inputs:
