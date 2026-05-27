@@ -94,6 +94,19 @@ pub async fn post_submission(
         });
     }
 
+    // Physics version check: reject submissions from stale clients
+    let validator = state.validator_cache.read().await;
+    if header.version as u16 != validator.physics_version {
+        return Ok((
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({
+                "error": "PHYSICS_VERSION_MISMATCH",
+                "expected": validator.physics_version
+            })),
+        ).into_response());
+    }
+    drop(validator);
+
     {
         let hmac_cfg = state.hmac_config.read().await;
         if !hmac_cfg.verify(&body, &client_hmac) {

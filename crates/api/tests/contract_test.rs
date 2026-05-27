@@ -64,7 +64,7 @@ async fn test_app() -> Router {
         }),
         validator_cache: tokio::sync::RwLock::new(
             drawrace_api::handlers::health::CachedValidator {
-                physics_version: 0,
+                physics_version: 2,
                 engine_core_wasm_sha256: String::new(),
                 ok: false,
                 last_success: std::time::Instant::now(),
@@ -110,7 +110,7 @@ async fn test_app_with_pool(pool: PgPool) -> Router {
         }),
         validator_cache: tokio::sync::RwLock::new(
             drawrace_api::handlers::health::CachedValidator {
-                physics_version: 0,
+                physics_version: 2,
                 engine_core_wasm_sha256: String::new(),
                 ok: false,
                 last_success: std::time::Instant::now(),
@@ -193,9 +193,13 @@ fn make_test_blob(player_uuid: &str, track_id: u16) -> Vec<u8> {
 }
 
 fn make_blob_with_time(player_uuid: &str, track_id: u16, time_ms: u32) -> Vec<u8> {
+    make_blob_with_version_time(player_uuid, track_id, 2, time_ms)
+}
+
+fn make_blob_with_version_time(player_uuid: &str, track_id: u16, version: u8, time_ms: u32) -> Vec<u8> {
     let mut buf = Vec::new();
     buf.extend_from_slice(b"DRGH");
-    buf.push(2); // version
+    buf.push(version); // physics_version
     buf.extend_from_slice(&track_id.to_le_bytes());
     buf.push(0);
     buf.extend_from_slice(&time_ms.to_le_bytes());
@@ -309,6 +313,71 @@ async fn golden_submission_rejects_mismatched_track_header() {
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn golden_submission_rejects_physics_version_mismatch() {
+    // Create an app with validator physics_version = 4
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect_lazy("postgres://test:test@localhost:5432/drawrace_test")
+        .expect("pool");
+
+    let redis_pool = deadpool_redis::Config::from_url("redis://127.0.0.1:6333")
+        .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+        .expect("redis pool");
+
+    let s3_config = {
+        let endpoint =
+            std::env::var("S3_ENDPOINT").unwrap_or_else(|_| "http://127.0.0.1:9000".into());
+        aws_config::defaults(BehaviorVersion::latest())
+            .region(aws_sdk_s3::config::Region::new("garage"))
+            .endpoint_url(endpoint)
+    };
+    let s3_client = S3Client::new(&s3_config.load().await);
+
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+    let metrics_handle = recorder.handle();
+
+    let state = Arc::new(drawrace_api::AppState {
+        pool,
+        redis: redis_pool,
+        s3: s3_client,
+        s3_bucket: "test-bucket".into(),
+        hmac_config: tokio::sync::RwLock::new(hmac_mod::HmacConfig {
+            current_key: TEST_HMAC_KEY.to_vec(),
+            previous_key: None,
+            rotated_at: None,
+        }),
+        validator_cache: tokio::sync::RwLock::new(
+            drawrace_api::handlers::health::CachedValidator {
+                physics_version: 4, // Current validator physics_version
+                engine_core_wasm_sha256: String::new(),
+                ok: true,
+                last_success: std::time::Instant::now(),
+            },
+        ),
+        readiness: drawrace_api::handlers::health::ReadinessState {
+            has_ever_polled: std::sync::atomic::AtomicBool::new(true),
+            boot_instant: std::time::Instant::now(),
+        },
+        metrics_handle,
+    });
+
+    let app = app::app(state);
+
+    // Create a blob with physics_version = 3 (stale client)
+    let body = make_blob_with_version_time(TEST_PLAYER_UUID, 1, 3, 28441);
+    let hmac = compute_hmac(&body);
+
+    let req = submission_request(&body, TEST_PLAYER_UUID, 1, &hmac);
+    let resp = app.oneshot(req).await.unwrap();
+
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+
+    let json = read_json(resp).await;
+    assert_eq!(json["error"], "PHYSICS_VERSION_MISMATCH");
+    assert_eq!(json["expected"], 4);
 }
 
 // ===========================================================================
