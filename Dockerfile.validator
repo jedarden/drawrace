@@ -45,8 +45,14 @@ COPY --from=builder /build/target/release/drawrace-validator /app/drawrace-valid
 # Copy engine-core WASM artifacts (content-hashed .wasm and metadata .json)
 COPY --from=builder /build/packages/engine-core/dist /app/packages/engine-core/dist
 
+# Copy track JSON files for validator re-simulation
+COPY --from=builder /build/apps/web/public/tracks /app/tracks
+
 # Set environment variable so validator can find WASM at runtime
 ENV ENGINE_CORE_WASM_PATH=/app/packages/engine-core/dist/engine-core.wasm.json
+
+# Set tracks directory for validator
+ENV TRACKS_DIR=/app/tracks
 
 # Create non-root user
 RUN useradd -m -u 1000 drawrace

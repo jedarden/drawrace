@@ -4,6 +4,7 @@ pub mod wasm_loader;
 pub mod wasm_abi;
 pub mod resim;
 pub mod champion;
+pub mod track;
 
 #[cfg(test)]
 mod tests {

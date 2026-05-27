@@ -26,30 +26,30 @@ wat = "1"
 # Shared blob parsing
 drawrace-api = { path = "../api" }
 
+[dev-dependencies]
+tempfile = "3"
+anyhow = "1.0"
+aws-sdk-s3 = "1"
+aws-config = "1"
+axum = "0.8"
+deadpool-redis = "0.18"
+redis = { version = "0.27", features = ["tokio-comp"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono"] }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = "0.4"
+wasmtime = "30"
+wasm-encoder = "0.219"
+wasmparser = "0.219"
+wat = "1"
+
+# Shared blob parsing
+drawrace-api = { path = "../api" }
+
 [[bin]]
 name = "drawrace-validator"
 path = "src/main.rs"
-
-[[bin]]
-name = "test_wasm_load_debug"
-path = "src/bin/test_wasm_load_debug.rs"
-
-[[bin]]
-name = "build_resim"
-path = "src/bin/build_resim.rs"
-
-[[bin]]
-name = "debug_tick_issue"
-path = "src/bin/debug_tick_issue.rs"
-
-[[bin]]
-name = "test_resim_validate"
-path = "src/bin/test_resim_validate.rs"
-
-[[bin]]
-name = "test_simple_wasm"
-path = "src/bin/test_simple_wasm.rs"
-
-[[bin]]
-name = "test_if_return"
-path = "src/bin/test_if_return.rs"

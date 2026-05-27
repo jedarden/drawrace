@@ -2,6 +2,7 @@ mod resim;
 mod wasm_abi;
 mod wasm_loader;
 mod champion;
+mod track;
 
 use anyhow::Context;
 use aws_config::BehaviorVersion;
@@ -9,6 +10,7 @@ use aws_sdk_s3::config::Region;
 use drawrace_api::blob::{BlobHeader, GhostBlob, MIN_SWAP_TICK_GAP};
 use serde_json::json;
 use sqlx::PgPool;
+use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -18,6 +20,7 @@ struct ValidatorState {
     s3_bucket: String,
     redis: deadpool_redis::Pool,
     champion_validator: Option<champion::ChampionValidator>,
+    track_store: Arc<track::TrackStore>,
 }
 
 #[tokio::main]
@@ -32,6 +35,28 @@ async fn main() -> anyhow::Result<()> {
     let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?;
     let redis_url = std::env::var("REDIS_URL").context("REDIS_URL must be set")?;
     let s3_bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "drawrace-ghosts".to_string());
+
+    // Track store - load from versioned track JSON files
+    let tracks_dir = std::env::var("TRACKS_DIR")
+        .unwrap_or_else(|_| {
+            // Default: relative to workspace root
+            let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+            let workspace_root = PathBuf::from(&manifest_dir)
+                .parent() // crates
+                .and_then(|p| p.parent()) // workspace root
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| ".".to_string());
+            format!("{}/apps/web/public/tracks", workspace_root)
+        });
+    let track_store = Arc::new(
+        track::TrackStore::load(PathBuf::from(&tracks_dir))
+            .with_context(|| format!("Failed to load track store from: {}", tracks_dir))?
+    );
+    let track_ids: Vec<String> = track_store.track_ids().iter().map(|id| id.to_string()).collect();
+    tracing::info!(
+        track_ids = %track_ids.join(","),
+        "Loaded track store"
+    );
 
     // Postgres connection
     let pool = PgPool::connect(&database_url)
@@ -59,6 +84,7 @@ async fn main() -> anyhow::Result<()> {
         s3_bucket,
         redis,
         champion_validator: champion::ChampionValidator::load().ok(),
+        track_store,
     });
 
     // Port 8080: /internal/version — used by API pod for readiness-cache poll,
@@ -166,6 +192,7 @@ async fn process_one_submission(state: &ValidatorState) -> anyhow::Result<Option
         track_id as u16,
         &physics_version,
         state.champion_validator.as_ref(),
+        &state.track_store,
     )
     .await?;
 
@@ -202,6 +229,7 @@ async fn validate_ghost(
     expected_track_id: u16,
     _physics_version: &str,
     champion_validator: Option<&champion::ChampionValidator>,
+    track_store: &track::TrackStore,
 ) -> anyhow::Result<Verdict> {
     // Parse blob header
     let header = BlobHeader::parse(blob).context("Failed to parse blob header")?;
@@ -314,21 +342,16 @@ async fn validate_ghost(
     // Layer 3: run re-simulation — apply wheel swaps at their recorded ticks
     // and verify the finish tick is within tolerance of the client's claim.
 
-    // TODO: Load track data from track store. For now, use a simple straight-line fixture.
-    // This is a minimal track: flat ground from x=0 to x=10000 at y=500.
-    let terrain = vec![
-        (0.0, 500.0),
-        (10000.0, 500.0),
-    ];
-    let obstacles: Vec<wasm_abi::Obstacle> = vec![];
+    // Load track data from track store
+    let track_data = track_store.get(expected_track_id)
+        .context(format!("Track {} not found in track store", expected_track_id))?;
 
-    // Calculate finish_x from the claimed finish time
-    // For Phase 2 simplified physics: dx/tick = 1.361111, so finish_x = start_x + ticks * 1.361111
-    // Speed is calibrated to: distance (4900) / expected_ticks (3600) = 1.361111 units/tick
-    let start_x = 100.0;
-    let start_y = 400.0;
+    let terrain = &track_data.terrain;
+    let obstacles = &track_data.obstacles;
+    let start_x = track_data.start_x;
+    let start_y = track_data.start_y;
+    let finish_x = track_data.finish_x;
     let claimed_finish = client_finish_ticks;
-    let finish_x = start_x + (claimed_finish as f32) * 1.361111;
 
     // Load the WASM resim engine
     let engine = match resim::ResimEngine::load() {
@@ -580,7 +603,8 @@ mod tests {
     #[tokio::test]
     async fn valid_blob_is_accepted() {
         let blob = make_valid_blob();
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "accepted");
         assert!(verdict.ghost_id.is_some());
         assert_eq!(verdict.time_ms, Some(28441));
@@ -590,7 +614,8 @@ mod tests {
     #[tokio::test]
     async fn track_id_mismatch_rejected() {
         let blob = make_blob(1, 28441, &[12], &[0], &[5000, 15000, 25000]);
-        let verdict = validate_ghost(&blob, 2, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 2, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(verdict.reject_reason.as_deref(), Some("track_id mismatch"));
     }
@@ -600,7 +625,8 @@ mod tests {
         let mut blob = make_valid_blob();
         // swap_tick at HEADER_SIZE+1 (4 bytes), then vertex_count at HEADER_SIZE+5
         blob[HEADER_SIZE + 5] = 4; // vertex_count = 4 (below min 8)
-        let result = validate_ghost(&blob, 1, "2", None).await;
+        let track_store = test_track_store().await;
+        let result = validate_ghost(&blob, 1, "2", None, &track_store).await;
         assert!(result.is_err(), "blob with 4 vertices should fail parse");
     }
 
@@ -608,14 +634,16 @@ mod tests {
     async fn too_many_vertices_rejected() {
         let mut blob = make_valid_blob();
         blob[HEADER_SIZE + 5] = 40; // vertex_count = 40 (above max 32)
-        let result = validate_ghost(&blob, 1, "2", None).await;
+        let track_store = test_track_store().await;
+        let result = validate_ghost(&blob, 1, "2", None, &track_store).await;
         assert!(result.is_err(), "blob with 40 vertices should fail parse");
     }
 
     #[tokio::test]
     async fn non_monotonic_checkpoints_rejected() {
         let blob = make_blob(1, 28441, &[12], &[0], &[10000, 5000, 15000]);
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(
             verdict.reject_reason.as_deref(),
@@ -626,7 +654,8 @@ mod tests {
     #[tokio::test]
     async fn equal_checkpoints_rejected() {
         let blob = make_blob(1, 28441, &[12], &[0], &[10000, 10000, 15000]);
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(
             verdict.reject_reason.as_deref(),
@@ -637,7 +666,8 @@ mod tests {
     #[tokio::test]
     async fn zero_finish_time_rejected() {
         let blob = make_blob(1, 0, &[12], &[0], &[5000, 15000, 25000]);
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(
             verdict.reject_reason.as_deref(),
@@ -648,21 +678,24 @@ mod tests {
     #[tokio::test]
     async fn single_checkpoint_accepted() {
         let blob = make_blob(1, 28441, &[12], &[0], &[15000]);
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
     #[tokio::test]
     async fn empty_checkpoints_accepted() {
         let blob = make_blob(1, 28441, &[12], &[0], &[]);
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
     #[tokio::test]
     async fn malformed_blob_rejected() {
         let blob = vec![0u8; 20]; // too short
-        let result = validate_ghost(&blob, 1, "2", None).await;
+        let track_store = test_track_store().await;
+        let result = validate_ghost(&blob, 1, "2", None, &track_store).await;
         assert!(result.is_err());
     }
 
@@ -676,7 +709,8 @@ mod tests {
             &[0, 10, 50], // gap between first two is 10 < 30
             &[5000, 15000],
         );
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert!(verdict.reject_reason.as_deref().unwrap().contains("swap_tick gap"));
     }
@@ -690,7 +724,8 @@ mod tests {
             &[0, 30],
             &[5000],
         );
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -699,7 +734,8 @@ mod tests {
         let vertex_counts: Vec<u8> = (0..6).map(|_| 12u8).collect();
         let swap_ticks: Vec<u32> = (0..6).map(|i| i * 60).collect();
         let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000, 15000, 25000]);
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -708,7 +744,8 @@ mod tests {
         let vertex_counts: Vec<u8> = (0..21).map(|_| 12u8).collect();
         let swap_ticks: Vec<u32> = (0..21).map(|i| i * 60).collect();
         let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000]);
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -718,7 +755,8 @@ mod tests {
         let vertex_counts: Vec<u8> = (0..22).map(|_| 12u8).collect();
         let swap_ticks: Vec<u32> = (0..22).map(|i| i * 60).collect();
         let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000]);
-        let result = validate_ghost(&blob, 1, "2", None).await;
+        let track_store = test_track_store().await;
+        let result = validate_ghost(&blob, 1, "2", None, &track_store).await;
         assert!(result.is_err(), "blob with 22 wheels should fail parse");
     }
 
@@ -729,7 +767,8 @@ mod tests {
         // finish_time_ms = 1000 → finishTicks = 60 (floor(1000*60/1000))
         // final swap_tick = 90 > 60 → must reject
         let blob = make_blob(1, 1000, &[12, 12], &[0, 90], &[]);
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "rejected");
         assert!(
             verdict.reject_reason.as_deref().unwrap().contains("swap_tick"),
@@ -743,7 +782,8 @@ mod tests {
         // finish_time_ms = 1500 → finishTicks = 90 (floor(1500*60/1000))
         // final swap_tick = 90 == 90 → boundary: must accept
         let blob = make_blob(1, 1500, &[12, 12], &[0, 90], &[]);
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -753,7 +793,8 @@ mod tests {
     #[tokio::test]
     async fn single_wheel_resim_accepted() {
         let blob = make_valid_blob();
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "accepted");
         assert!(verdict.ghost_id.is_some());
     }
@@ -769,7 +810,8 @@ mod tests {
             &[0, 30, 90, 200, 350, 500],
             &[5000, 15000, 25000],
         );
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -779,7 +821,8 @@ mod tests {
         let vertex_counts: Vec<u8> = (0..21).map(|_| 12u8).collect();
         let swap_ticks: Vec<u32> = (0..21).map(|i| i * 60).collect();
         let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000]);
-        let verdict = validate_ghost(&blob, 1, "2", None).await.unwrap();
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -788,7 +831,8 @@ mod tests {
     async fn out_of_order_swap_ticks_rejected() {
         // swap_ticks [0, 60, 30] — third entry decreases → parse error
         let blob = make_blob(1, 28441, &[12, 12, 12], &[0, 60, 30], &[5000]);
-        let result = validate_ghost(&blob, 1, "2", None).await;
+        let track_store = test_track_store().await;
+        let result = validate_ghost(&blob, 1, "2", None, &track_store).await;
         assert!(result.is_err(), "non-increasing swap_ticks must fail parse");
     }
 
@@ -806,7 +850,8 @@ mod tests {
         let blob = make_blob(1, 27844, &[12], &[0], &[5000, 15000, 25000]);
         let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
             .unwrap();
-        let verdict = validate_ghost(&blob, 1, "2", Some(&validator))
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", Some(&validator), &track_store)
             .await
             .unwrap();
         assert_eq!(verdict.status, "quarantined");
@@ -820,7 +865,8 @@ mod tests {
         let blob = make_blob(1, 29000, &[12], &[0], &[5000, 15000, 25000]);
         let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
             .unwrap();
-        let verdict = validate_ghost(&blob, 1, "2", Some(&validator))
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", Some(&validator), &track_store)
             .await
             .unwrap();
         assert_eq!(verdict.status, "accepted");
@@ -833,9 +879,44 @@ mod tests {
         let blob = make_blob(1, 27873, &[12], &[0], &[5000, 15000, 25000]);
         let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
             .unwrap();
-        let verdict = validate_ghost(&blob, 1, "2", Some(&validator))
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", Some(&validator), &track_store)
             .await
             .unwrap();
         assert_eq!(verdict.status, "accepted");
+    }
+
+    /// Helper function to create a test track store.
+    /// Returns a minimal track store with a synthetic track for testing.
+    async fn test_track_store() -> track::TrackStore {
+        use std::io::Write;
+        use tempfile::TempDir;
+
+        // Create a temporary directory for test tracks
+        let temp_dir = TempDir::new().unwrap();
+        let tracks_dir = temp_dir.path().join("tracks");
+        std::fs::create_dir_all(&tracks_dir).unwrap();
+
+        // Create a minimal test track JSON
+        let track_json = r#"{
+            "id": "test-01",
+            "numeric_id": 1,
+            "name": "Test Track",
+            "version": 1,
+            "terrain": [[0, 0.0], [10, 1.0], [20, 0.5], [30, 0.0], [40, 0.0]],
+            "obstacles": [],
+            "surfaces": [],
+            "ramps": [],
+            "start": {"pos": [1.5, 0.0], "facing": 1},
+            "finish": {"pos": [40.0, 0.0], "width": 0.2},
+            "hazards": []
+        }"#;
+
+        let track_path = tracks_dir.join("hills-01.json");
+        let mut file = std::fs::File::create(&track_path).unwrap();
+        file.write_all(track_json.as_bytes()).unwrap();
+
+        // Load the track store
+        track::TrackStore::load(tracks_dir).unwrap()
     }
 }
