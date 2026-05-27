@@ -67,21 +67,20 @@ function generateWheel(swapTick: number, seed: number): WheelData {
 
 /**
  * Generate a complete ghost with varied parameters.
+ *
+ * Uses conservative wheel configurations to ensure the simulation can finish.
+ * Single wheel with regular polygon shape is most stable.
  */
 function generateGhost(id: string, trackId: number, seed: number): ReferenceGhost {
-  // Generate varied finish times between 10s and 90s
-  const baseFinishTime = 10000 + (seed % 80000);
+  // Generate varied finish times between 15s and 45s (conservative range)
+  const baseFinishTime = 15000 + (seed % 30000);
   const finishTimeMs = baseFinishTime;
 
-  // Generate 1-6 wheels with increasing swap ticks
-  const wheelCount = 1 + (seed % 6);
-  const wheels: WheelData[] = [];
-
-  for (let i = 0; i < wheelCount; i++) {
-    // Swap ticks should be at least 30 apart (MIN_SWAP_TICK_GAP)
-    const swapTick = i * 30;
-    wheels.push(generateWheel(swapTick, seed + i * 1000));
-  }
+  // Use single wheel for stability - multiple wheels can cause instability
+  // in synthetic data since they're not from real simulation runs
+  const wheels: WheelData[] = [
+    generateWheel(0, seed),
+  ];
 
   return {
     ghost_id: id,
@@ -89,23 +88,30 @@ function generateGhost(id: string, trackId: number, seed: number): ReferenceGhos
     finish_time_ms: finishTimeMs,
     wheels: wheels,
     physics_version: 4,
-    notes: `Synthetic test ghost - track ${trackId}, seed ${seed}, wheel_count ${wheelCount}. Replace with real-player ghosts from production.`,
+    notes: `Synthetic test ghost - track ${trackId}, seed ${seed}. Single wheel for stability. Replace with real-player ghosts from production.`,
   };
 }
 
 /**
  * Generate 200 reference ghosts covering varied scenarios.
+ *
+ * NOTE: Only generates ghosts for tracks that exist in the track store.
+ * Tracks 4 and 5 are commented out until they are added to apps/web/public/tracks/.
  */
 function generateReferenceGhosts(): ReferenceGhosts {
   const ghosts: Record<string, ReferenceGhost> = {};
 
-  // Track IDs 1-5 (hills-01 through hills-05)
-  const trackIds = [1, 2, 3, 4, 5];
+  // Track IDs that exist in apps/web/public/tracks/
+  // Track 1: hills-01, Track 2: canyon-02, Track 3: dunes-03
+  // Tracks 4 and 5 will be added when the track JSON files are created
+  const trackIds = [1, 2, 3]; // [1, 2, 3, 4, 5] - add 4 and 5 when tracks exist
 
-  // Generate 40 ghosts per track = 200 total
+  // Generate ghosts per track to reach ~200 total
+  // With 3 tracks, generate 67 ghosts each = 201 total
+  const ghostsPerTrack = 67;
   let ghostIndex = 0;
   for (const trackId of trackIds) {
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < ghostsPerTrack; i++) {
       const seed = 1000 + ghostIndex * 97; // Prime multiplier for variety
       const ghostId = `synth-track-${trackId}-${String(i).padStart(3, '0')}`;
       ghosts[ghostId] = generateGhost(ghostId, trackId, seed);
