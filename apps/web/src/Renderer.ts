@@ -657,7 +657,7 @@ export function createRenderer(
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(sx, sy);
-    ctx.rotate(-body.angle);
+    ctx.rotate(body.angle);
 
     // Base fill
     ctx.fillStyle = fillStyle;
@@ -692,7 +692,7 @@ export function createRenderer(
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(sx, sy);
-    ctx.rotate(-body.angle);
+    ctx.rotate(body.angle);
 
     const bw = 1.2 * PPM;
     const bh = 0.4 * PPM;
