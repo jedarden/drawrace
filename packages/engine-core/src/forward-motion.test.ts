@@ -4,12 +4,15 @@
  * Pure-physics headless test that verifies a standard circle wheel can move
  * forward at least 100m before the 3-minute DNF ceiling. This is the
  * infrastructure-free complement to the ADB full playthrough test.
+ *
+ * Uses the standard unit circle wheel (12 vertices, radius 1.0) that apps/web
+ * sends after a circular draw gesture.
  */
 import { describe, it, expect } from "vitest";
 import { createHeadlessRace, type TrackDef } from "./headless-race.js";
 
-// Standard unit circle wheel (12 vertices) — matches what apps/web sends
-// after a circular draw gesture
+// Standard unit circle wheel (12 vertices, radius 1.0)
+// Matches what apps/web sends after a circular draw gesture
 const UNIT_CIRCLE_12: [number, number][] = [];
 for (let i = 0; i < 12; i++) {
   const angle = (i / 12) * Math.PI * 2;
@@ -40,6 +43,14 @@ describe("forward-motion verification (bf-55wdy)", () => {
       wheel: { vertices: UNIT_CIRCLE_12 },
     });
 
+    console.log(
+      `forward-motion: finalX=${result.finalX.toFixed(1)}m, ` +
+      `ticks=${result.finishTicks}, ` +
+      `time=${(result.finishTicks / 60).toFixed(1)}s, ` +
+      `dnf=${result.finishTicks >= MAX_TICKS ? "YES" : "NO"}, ` +
+      `stuck=${result.stuck ? "YES" : "NO"}`
+    );
+
     // Car must travel at least 100 meters forward
     expect(result.finalX, "Car must cross 100m mark").toBeGreaterThan(100);
 
@@ -48,13 +59,5 @@ describe("forward-motion verification (bf-55wdy)", () => {
 
     // Car should not be stuck (spinning wheels without forward progress)
     expect(result.stuck, "Car must not get stuck").toBe(false);
-
-    console.log(
-      `forward-motion: finalX=${result.finalX.toFixed(1)}m, ` +
-      `ticks=${result.finishTicks}, ` +
-      `time=${(result.finishTicks / 60).toFixed(1)}s, ` +
-      `dnf=${result.finishTicks >= MAX_TICKS ? "YES" : "NO"}, ` +
-      `stuck=${result.stuck ? "YES" : "NO"}`
-    );
   });
 });
