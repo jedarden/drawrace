@@ -378,6 +378,36 @@ export class RaceSim {
   getElapsedMs(): number {
     return this.elapsedMs;
   }
+
+  /**
+   * Returns diagnostic velocity data for debugging wheel/chassis motion.
+   * Used to investigate whether wheels are spinning and if torque translates to forward motion.
+   */
+  getDiagnosticData(): {
+    frontWheelAngVel: number;
+    rearWheelAngVel: number;
+    chassisVelX: number;
+    chassisVelY: number;
+    chassisX: number;
+    chassisY: number;
+    frontWheelAngle: number;
+    rearWheelAngle: number;
+    motorEnabled: boolean;
+  } {
+    const cv = this.chassisBody.getLinearVelocity();
+    const cp = this.chassisBody.getPosition();
+    return {
+      frontWheelAngVel: this.wheelBody.getAngularVelocity(),
+      rearWheelAngVel: this.rearWheelBody.getAngularVelocity(),
+      chassisVelX: cv.x,
+      chassisVelY: cv.y,
+      chassisX: cp.x,
+      chassisY: cp.y,
+      frontWheelAngle: this.wheelBody.getAngle(),
+      rearWheelAngle: this.rearWheelBody.getAngle(),
+      motorEnabled: this.motorEnabled,
+    };
+  }
 }
 
 export { PHYSICS_VERSION, DT };
