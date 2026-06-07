@@ -147,8 +147,53 @@ Chassis X displacement: 0.236 m
 
 CONCLUSION:
 1. WHEEL SHAPE DETERMINES GRIP: 12-gon (smooth) wheels spin but chassis moves BACKWARD; Triangle (sharp) wheels spin and chassis moves FORWARD
-2. THE ISSUE IS NOT MOTOR SPEED SIGN: With MOTOR_SPEED=8, triangular wheels move forward correctly
+2. MOTOR SPEED SIGN CONFIRMED: With MOTOR_SPEED=8, triangular wheels move forward; With MOTOR_SPEED=-8, triangular wheels move backward (confirmed by sign-flip test)
 3. ROOT CAUSE: WHEEL GRIP - Smooth polygons can't grip the terrain; Sharp vertices provide intermittent high-pressure contact
+
+## MOTOR_SPEED=-8 Sign-Flip Confirmation Test
+
+To definitively confirm that MOTOR_SPEED=8 is correct for forward motion, a diagnostic test was run with MOTOR_SPEED=-8:
+
+```
+=== MOTOR_SPEED=-8 Test: diagnostic-flat with triangular wheel ===
+Summary:
+Average front wheel angular velocity: -5.137 rad/s
+Average chassis X velocity: -0.403 m/s
+Chassis X displacement: -0.199 m
+
+--- Verification ---
+✓ CONFIRMED: With MOTOR_SPEED=-8, chassis moves BACKWARD
+  This proves MOTOR_SPEED=8 is the CORRECT sign for forward motion
+```
+
+This test definitively confirms:
+- MOTOR_SPEED=8 → Forward motion (correct)
+- MOTOR_SPEED=-8 → Backward motion (opposite)
+- The issue was NEVER motor direction; it is wheel shape grip
+
+## Retrospective
+
+### What worked
+- **Incremental diagnostic approach**: Started with simple flat ground, added cliff edge, then motor sign-flip test. Each test built on the previous one.
+- **Headless simulation**: Using `RaceSim` directly without UI was fast and reproducible. No need to launch the full app.
+- **Comparison framework**: Testing multiple wheel shapes (12-gon, hexagon, triangle) side-by-side made the pattern obvious. The progression from smooth→sharp was clear.
+
+### What didn't
+- **Initial investigation path**: I initially suspected motor direction or suspension issues, but wheel shape was the culprit all along. The motor direction test was useful but ultimately confirmed a red herring.
+- **Complex diagnostic script**: The standalone TypeScript script became quite long (300+ lines). A simpler focused test with just the key comparison would have been clearer.
+
+### Surprise
+- **Smooth polygons slip BACKWARD**: I expected smooth wheels to just stay still (neutral), not actively move backward. The interaction between motor spin, wheel geometry, and friction creates counterintuitive behavior.
+- **Initial drop is universal**: All wheel shapes (even triangles) show negative Vx on the first tick. This is the car settling onto the ground, not a grip issue.
+
+### Reusable pattern
+For physics bugs, create a minimal headless simulation with:
+1. **Simple test cases**: Flat ground, single cliff
+2. **Incremental complexity**: Add cliff, add motor variation
+3. **Comparison tests**: Multiple wheel shapes
+4. **Console logging**: Key physics quantities (ω, Vx, Vy, X, Y)
+5. **Summary statistics**: avg/max values, displacement
+6. **Automated diagnosis**: Threshold-based conclusions
 
 ## Test Commands
 
