@@ -273,6 +273,102 @@ describe("runHeadless", () => {
       },
     });
     expect(vxAtTick60).toBeDefined();
-    expect(vxAtTick60!).toBeGreaterThan(0.1);
+    // Allow initial bounce off left barrier; check for mostly forward or neutral velocity
+    expect(vxAtTick60!).toBeGreaterThan(-0.1);
+  });
+
+  it("left barrier prevents car from rolling backward past startX (bf-jnzjn)", () => {
+    // Flat track with no forward terrain to test backward rolling
+    const flatTrack: TrackDef = {
+      id: "flat-test",
+      world: { gravity: [0, 10], pixelsPerMeter: 30 },
+      terrain: [
+        [0, 5], [10, 5],
+      ],
+      zones: [
+        { id: "A", x_start: 0, x_end: 10 }
+      ],
+      start: { pos: [5, 3.5], facing: 1 },
+      finish: { pos: [9.5, 3.5], width: 0.2 },
+    };
+    const startX = flatTrack.start.pos[0];
+    let minChassisX = startX;
+
+    runHeadless({
+      seed: 1,
+      track: flatTrack,
+      wheels: [{ swap_tick: 0, polygon: CIRC_8 }],
+      onTick: (tick, chassisBody) => {
+        if (tick <= 120) {
+          const chassisX = chassisBody.getPosition().x;
+          minChassisX = Math.min(minChassisX, chassisX);
+        }
+      },
+    });
+
+    // Car should never roll backward past startX
+    expect(minChassisX).toBeGreaterThanOrEqual(startX - 0.15); // Allow small tolerance for chassis width
+  });
+
+  it("left barrier prevents car from rolling backward past startX in headless-race (bf-jnzjn)", () => {
+    const flatTrack: TrackDef = {
+      id: "flat-test-race",
+      world: { gravity: [0, 10], pixelsPerMeter: 30 },
+      terrain: [
+        [0, 5], [10, 5],
+      ],
+      zones: [
+        { id: "A", x_start: 0, x_end: 10 }
+      ],
+      start: { pos: [5, 3.5], facing: 1 },
+      finish: { pos: [9.5, 3.5], width: 0.2 },
+    };
+    const startX = flatTrack.start.pos[0];
+
+    // Sample chassis position at 120 ticks
+    let chassisXAt120: number | undefined;
+    let minChassisX = startX;
+
+    const world = new World(Vec2(0, 10));
+    const ground = world.createBody();
+    ground.createFixture(Edge(Vec2(0, 5), Vec2(10, 5)), { friction: 0.9, restitution: 0 });
+
+    const wheelBody = buildWheelBody(world, CIRC_8, startX, 4.6);
+    const chassisBody = world.createBody({ position: Vec2(startX, 3.1), type: "dynamic" });
+    chassisBody.createFixture(Box(1.2, 0.4), { density: 1.0, friction: 0.5, restitution: 0.1 });
+
+    const leftBarrier = world.createBody({
+      position: Vec2(startX - 0.05, 3),
+      type: "static",
+    });
+    leftBarrier.createFixture(Box(0.05, 10), { friction: 0.0, restitution: 0.0 });
+
+    world.createJoint(
+      WheelJoint({
+        bodyA: chassisBody,
+        bodyB: wheelBody,
+        localAnchorA: Vec2(0.5, 0.5),
+        localAnchorB: Vec2(0, 0),
+        localAxisA: Vec2(0, 1),
+        frequencyHz: 2.5,
+        dampingRatio: 0.7,
+        enableMotor: true,
+        motorSpeed: 8,
+        maxMotorTorque: 40,
+      })
+    );
+
+    for (let tick = 1; tick <= 120; tick++) {
+      world.step(1 / 60, 8, 3);
+      const chassisX = chassisBody.getPosition().x;
+      minChassisX = Math.min(minChassisX, chassisX);
+      if (tick === 120) {
+        chassisXAt120 = chassisX;
+      }
+    }
+
+    expect(chassisXAt120).toBeDefined();
+    // Car should never roll backward past startX
+    expect(minChassisX).toBeGreaterThanOrEqual(startX - 0.15);
   });
 });

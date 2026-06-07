@@ -139,6 +139,16 @@ export function createHeadlessRace(
     }
   }
 
+  // Add left barrier at startX to prevent car from rolling backward past start line
+  const leftBarrier = world.createBody({
+    position: Vec2(startX - 0.05, terrainY - 2),
+    type: "static",
+  });
+  leftBarrier.createFixture(Box(0.05, 10), {
+    friction: 0.0,
+    restitution: 0.0,
+  });
+
   // Place wheel center just above terrain surface; gravity pulls it down to rest on surface
   const wheelSpawnY = terrainY - wheelRadius;
 

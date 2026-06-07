@@ -99,6 +99,16 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
     }
   }
 
+  // --- left barrier at startX to prevent car from rolling backward past start line ---
+  const leftBarrier = world.createBody({
+    position: Vec2(startX - 0.05, terrainY - 2),
+    type: "static",
+  });
+  leftBarrier.createFixture(Box(0.05, 10), {
+    friction: 0.0,
+    restitution: 0.0,
+  });
+
   // --- initial wheel spawn position (mirrors headless-race.ts exactly) ---
   const initialPoly = wheels[0].polygon;
   const rawVerts = initialPoly;
