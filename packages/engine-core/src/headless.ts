@@ -9,11 +9,15 @@ import { StuckDetector } from "./stuck-detector.js";
 
 export type { WheelSwap };
 
+export type TickSampler = (tick: number, chassisBody: { getPosition: { (): { x: number; y: number } }, getLinearVelocity: { (): { x: number; y: number } } }) => void;
+
 export interface MultiWheelInput {
   /** wheels[0].swap_tick must be 0 (initial spawn); remaining entries are mid-race swaps */
   wheels: WheelSwap[];
   track: TrackDef;
   seed: number;
+  /** Optional callback for sampling state at each tick (useful for regression tests) */
+  onTick?: TickSampler;
 }
 
 const DT = 1 / 60;
@@ -27,7 +31,7 @@ const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 
 export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
-  const { track, wheels, seed } = input;
+  const { track, wheels, seed, onTick } = input;
 
   if (wheels.length === 0) throw new Error("wheels must not be empty");
   if (wheels[0].swap_tick !== 0) throw new Error("wheels[0].swap_tick must be 0");
@@ -166,6 +170,11 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
     applyDrag(chassisBody, surfaces);
     world.step(DT, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
     clock.advance(DT * 1000);
+
+    // Optional tick sampling for regression tests
+    if (onTick) {
+      onTick(ticks + 1, chassisBody);
+    }
 
     const currentTick = ticks + 1;
 

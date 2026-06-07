@@ -259,4 +259,20 @@ describe("runHeadless", () => {
 
     expect(runHeadless(sortedInput).streamHash).toBe(runHeadless(unsortedInput).streamHash);
   });
+
+  it("forward motion: chassis_vx at tick 60 is positive with circle wheel (regression test)", () => {
+    let vxAtTick60: number | undefined;
+    runHeadless({
+      seed: 1,
+      track: TEST_TRACK,
+      wheels: [{ swap_tick: 0, polygon: CIRC_8 }],
+      onTick: (tick, chassisBody) => {
+        if (tick === 60) {
+          vxAtTick60 = chassisBody.getLinearVelocity().x;
+        }
+      },
+    });
+    expect(vxAtTick60).toBeDefined();
+    expect(vxAtTick60!).toBeGreaterThan(0.1);
+  });
 });
