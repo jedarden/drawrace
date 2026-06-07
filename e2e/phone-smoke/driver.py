@@ -907,8 +907,30 @@ async def run_forward_motion(url, ws_url, artifacts_dir):
 
         print(f"Navigating to {url}")
         await sess.call("Page.navigate", {"url": url})
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)  # Wait longer for page to fully load
         collector.feed_batch(await sess.drain_events(1.0))
+
+        # Check for errors before proceeding
+        try:
+            collector.assert_clean()
+        except RuntimeError as exc:
+            print(f"FAIL: Page load errors: {exc}")
+            await screenshot(sess, os.path.join(artifacts_dir, "forward-motion-error-load.png"))
+            return False
+
+        # Debug: take screenshot before draw
+        pre_draw_shot = os.path.join(artifacts_dir, "forward-motion-00-pre-draw.png")
+        await screenshot(sess, pre_draw_shot)
+
+        # Check for canvas explicitly
+        canvas_check = await sess.evaluate(
+            r"""(() => {
+              const canvases = document.querySelectorAll('canvas');
+              return {ok: true, count: canvases.length, first: canvases[0] ? {width: canvases[0].width, height: canvases[0].height} : null};
+            })()""",
+            await_promise=False,
+        )
+        print(f"  Canvas check: {canvas_check}")
 
         # Draw circle
         print("Drawing circle wheel...")
