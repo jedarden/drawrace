@@ -7,9 +7,9 @@ export interface WheelSwap {
 }
 
 const WHEEL_DENSITY = 1.0;
-const WHEEL_FRICTION = 0.8;
+const WHEEL_FRICTION = 2.5;  // Increased from 0.8 for better terrain grip while maintaining performance (bf-5fz89)
 const WHEEL_RESTITUTION = 0.3;
-const SUSPENSION_FREQ_HZ = 4.0;
+const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
 const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;

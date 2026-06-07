@@ -52,12 +52,12 @@ const POSITION_ITERATIONS = 3;
 const MAX_TICKS = 60 * 180; // 3 minute DNF
 const CHASSIS_DENSITY = 1.0;
 const WHEEL_DENSITY = 1.0;
-const WHEEL_FRICTION = 0.8;
+const WHEEL_FRICTION = 2.5;  // Increased from 0.8 for better terrain grip (bf-5fz89)
 const WHEEL_RESTITUTION = 0.3;
 const REAR_WHEEL_RADIUS = 0.35;
 const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
-const SUSPENSION_FREQ_HZ = 4.0;
+const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
 
 export function createHeadlessRace(

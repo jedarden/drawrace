@@ -170,4 +170,20 @@ describe("RaceSim", () => {
       expect(snap!.dnf).toBe(false);
     }
   });
+
+  it("front wheel has sufficient angular velocity during motion (bf-5fz89)", () => {
+    // Regression test for wheel slip issue — ensures wheels grip terrain
+    // bf-2evf2 found 12-gon slipped so badly it pushed car backward
+    sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 12), 42); // 12-gon is smoothest common shape
+    sim.enableMotor();
+
+    // Run to tick 60 (1 second) — enough time for wheels to spin up
+    for (let i = 0; i < 60; i++) {
+      sim.step();
+    }
+
+    // Front wheel should be spinning (angular velocity > 0.5 rad/s)
+    const diag = sim.getDiagnosticData();
+    expect(Math.abs(diag.frontWheelAngVel)).toBeGreaterThan(0.5);
+  });
 });

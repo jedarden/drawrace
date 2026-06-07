@@ -55,7 +55,7 @@ const VELOCITY_ITERATIONS = 8;
 const POSITION_ITERATIONS = 3;
 const MAX_TICKS = 60 * 180;
 const WHEEL_DENSITY = 1.0;
-const WHEEL_FRICTION = 2.5;  // Higher friction compensates for smooth polygons (12-gon) to grip terrain
+const WHEEL_FRICTION = 2.5;  // Increased from 0.8 for better terrain grip (bf-5fz89)
 const WHEEL_RESTITUTION = 0.3;
 const CHASSIS_DENSITY = 1.0;
 const MOTOR_SPEED = 8;
@@ -372,7 +372,7 @@ export class RaceSim {
   }
 
   destroy(): void {
-    this.world.destroy();
+    // Planck World has no destroy method; cleanup is automatic via GC
   }
 
   isStuck(): boolean {

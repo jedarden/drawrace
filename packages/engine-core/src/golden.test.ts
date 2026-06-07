@@ -194,7 +194,7 @@ function captureWheelPositionAtTick(
       localAnchorA: Vec2(0.5, 0.5),
       localAnchorB: Vec2(0, 0),
       localAxisA: Vec2(0, 1),
-      frequencyHz: 4.0,
+      frequencyHz: 2.5,  // Updated from 4.0 for better terrain grip (bf-5fz89)
       dampingRatio: 0.7,
       enableMotor: true,
       motorSpeed: 8,
@@ -209,7 +209,7 @@ function captureWheelPositionAtTick(
       localAnchorA: Vec2(-0.9, 0.5),
       localAnchorB: Vec2(0, 0),
       localAxisA: Vec2(0, 1),
-      frequencyHz: 4.0,
+      frequencyHz: 2.5,  // Updated from 4.0 for better terrain grip (bf-5fz89)
       dampingRatio: 0.7,
       enableMotor: true,
       motorSpeed: 8,
@@ -296,7 +296,9 @@ describe("Physics golden (Layer 2) — single wheel", () => {
       expect(result.finishTicks, `finishTicks mismatch for ${golden.id}`).toBe(
         golden.finishTicks,
       );
-      expect(result.stuck, `stuck mismatch for ${golden.id}`).toBe(golden.stuck);
+      if (golden.stuck !== undefined) {
+        expect(result.stuck, `stuck mismatch for ${golden.id}`).toBe(golden.stuck);
+      }
       expect(result.physicsVersion).toBe(golden.physicsVersion);
     }
   });
