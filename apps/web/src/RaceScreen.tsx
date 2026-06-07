@@ -212,7 +212,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
 
           if (phaseRef.current === "countdown") {
             // Step physics during countdown so car settles under gravity
-            // Motor torque is zeroed until enableMotor() is called (race-sim.ts:301-311)
+            // Motor uses small holding torque to prevent sliding on slopes (race-sim.ts:MOTOR_HOLD_TORQUE)
             sim.step();
             ghostSims.forEach((gs) => gs.step());
 

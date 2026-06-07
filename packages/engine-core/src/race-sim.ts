@@ -60,6 +60,7 @@ const WHEEL_RESTITUTION = 0.3;
 const CHASSIS_DENSITY = 1.0;
 const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
+const MOTOR_HOLD_TORQUE = 5;  // Small torque to hold position during countdown (bf-31s6q)
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
 
@@ -299,13 +300,13 @@ export class RaceSim {
 
     // Gravity always active; motor controlled separately
     if (!this.motorEnabled) {
-      // Temporarily disable motor torque during countdown
+      // Apply small holding torque during countdown to prevent sliding on slopes (bf-31s6q)
       const joints = this.chassisBody.getJointList();
       let curr = joints;
       while (curr) {
         const j = curr.joint!;
         if (j.getType() === "wheel-joint") {
-          (j as WheelJointType).setMaxMotorTorque(0);
+          (j as WheelJointType).setMaxMotorTorque(MOTOR_HOLD_TORQUE);
         }
         curr = curr.next;
       }
