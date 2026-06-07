@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { RaceSim } from "./race-sim.js";
 import type { TrackDef } from "./headless-race.js";
 
@@ -29,8 +29,15 @@ function makeCircle(radius: number, n: number): Array<{ x: number; y: number }> 
 }
 
 describe("RaceSim", () => {
+  let sim: RaceSim | undefined;
+
+  afterEach(() => {
+    sim?.destroy();
+    sim = undefined;
+  });
+
   it("finishes the race", () => {
-    const sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
+    sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
     sim.enableMotor();
 
     let snap = sim.snapshot();
@@ -47,14 +54,15 @@ describe("RaceSim", () => {
   it("produces deterministic results", () => {
     const results: number[] = [];
     for (let run = 0; run < 5; run++) {
-      const sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
-      sim.enableMotor();
+      const loopSim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
+      loopSim.enableMotor();
       let snap;
       for (let i = 0; i < 10800; i++) {
-        snap = sim.step();
+        snap = loopSim.step();
         if (snap.finished) break;
       }
       results.push(snap!.tick);
+      loopSim.destroy();
     }
 
     const first = results[0];
@@ -64,7 +72,7 @@ describe("RaceSim", () => {
   });
 
   it("motor disabled during countdown prevents forward motion", () => {
-    const sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
+    sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
     // Don't enable motor — simulate countdown phase
     const snap60 = sim.step(); // first step
     for (let i = 0; i < 60; i++) sim.step();
@@ -75,7 +83,7 @@ describe("RaceSim", () => {
   });
 
   it("detects stuck-DNF when wheels spin without chassis progress", () => {
-    const sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
+    sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
     sim.enableMotor();
 
     // Run a few steps to settle
@@ -118,7 +126,7 @@ describe("RaceSim", () => {
   });
 
   it("resets stuck detection on wheel swap", () => {
-    const sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
+    sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
     sim.enableMotor();
 
     // Run for a bit to accumulate some rotations
@@ -142,10 +150,12 @@ describe("RaceSim", () => {
 
     // The swap shouldn't have caused a race finish
     expect(afterSwapSnap.dnf).toBe(false);
+
+    void beforeSwapSnap;
   });
 
   it("does not trigger DNF when chassis makes sufficient progress", () => {
-    const sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
+    sim = new RaceSim(TEST_TRACK, makeCircle(0.4, 8), 42);
     sim.enableMotor();
 
     let snap;

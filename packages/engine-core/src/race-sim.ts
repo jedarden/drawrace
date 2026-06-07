@@ -55,12 +55,12 @@ const VELOCITY_ITERATIONS = 8;
 const POSITION_ITERATIONS = 3;
 const MAX_TICKS = 60 * 180;
 const WHEEL_DENSITY = 1.0;
-const WHEEL_FRICTION = 0.8;
+const WHEEL_FRICTION = 2.5;  // Higher friction compensates for smooth polygons (12-gon) to grip terrain
 const WHEEL_RESTITUTION = 0.3;
 const CHASSIS_DENSITY = 1.0;
 const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
-const SUSPENSION_FREQ_HZ = 4.0;
+const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
 
 export class RaceSim {
@@ -369,6 +369,10 @@ export class RaceSim {
 
   isDnf(): boolean {
     return this.dnf;
+  }
+
+  destroy(): void {
+    this.world.destroy();
   }
 
   isStuck(): boolean {

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const mockMatchMedia = (reducedMotion: boolean) => {
   Object.defineProperty(window, "matchMedia", {
@@ -18,21 +18,28 @@ const mockMatchMedia = (reducedMotion: boolean) => {
 };
 
 describe("SoundManager (Layer 1)", () => {
+  let sound: Awaited<ReturnType<typeof import("./Sound.js")["getSoundManager"]>> | undefined;
+
   beforeEach(() => {
     mockMatchMedia(false);
     localStorage.clear();
     vi.resetModules();
   });
 
+  afterEach(() => {
+    sound?.dispose();
+    sound = undefined;
+  });
+
   it("starts disabled by default", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
+    sound = getSoundManager();
     expect(sound.isEnabled).toBe(false);
   });
 
   it("can be enabled and persists", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
+    sound = getSoundManager();
     sound.saveSettings(true);
     expect(sound.isEnabled).toBe(true);
     expect(localStorage.getItem("drawrace.sound")).toBe("true");
@@ -40,7 +47,7 @@ describe("SoundManager (Layer 1)", () => {
 
   it("can be disabled after enabling", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
+    sound = getSoundManager();
     sound.saveSettings(true);
     expect(sound.isEnabled).toBe(true);
     sound.saveSettings(false);
@@ -49,93 +56,93 @@ describe("SoundManager (Layer 1)", () => {
 
   it("playCountdown does not throw when disabled", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
-    expect(() => sound.playCountdown()).not.toThrow();
+    sound = getSoundManager();
+    expect(() => sound!.playCountdown()).not.toThrow();
   });
 
   it("playGo does not throw when disabled", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
-    expect(() => sound.playGo()).not.toThrow();
+    sound = getSoundManager();
+    expect(() => sound!.playGo()).not.toThrow();
   });
 
   it("playFinishLine does not throw when disabled", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
-    expect(() => sound.playFinishLine()).not.toThrow();
+    sound = getSoundManager();
+    expect(() => sound!.playFinishLine()).not.toThrow();
   });
 
   it("playDnf does not throw when disabled", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
-    expect(() => sound.playDnf()).not.toThrow();
+    sound = getSoundManager();
+    expect(() => sound!.playDnf()).not.toThrow();
   });
 
   it("playStrokeClosure does not throw when disabled", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
-    expect(() => sound.playStrokeClosure()).not.toThrow();
+    sound = getSoundManager();
+    expect(() => sound!.playStrokeClosure()).not.toThrow();
   });
 
   it("playBounce does not throw when disabled", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
-    expect(() => sound.playBounce()).not.toThrow();
+    sound = getSoundManager();
+    expect(() => sound!.playBounce()).not.toThrow();
   });
 
   it("playWhoosh does not throw when disabled", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
-    expect(() => sound.playWhoosh()).not.toThrow();
+    sound = getSoundManager();
+    expect(() => sound!.playWhoosh()).not.toThrow();
   });
 
   it("playUiTap does not throw when disabled", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
-    expect(() => sound.playUiTap()).not.toThrow();
+    sound = getSoundManager();
+    expect(() => sound!.playUiTap()).not.toThrow();
   });
 
   it("playClear does not throw when disabled", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
-    expect(() => sound.playClear()).not.toThrow();
+    sound = getSoundManager();
+    expect(() => sound!.playClear()).not.toThrow();
   });
 
   it("motor hum lifecycle does not throw when disabled", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
+    sound = getSoundManager();
     expect(() => {
-      sound.startMotorHum();
-      sound.updateMotorSpeed(0.5);
-      sound.stopMotorHum();
+      sound!.startMotorHum();
+      sound!.updateMotorSpeed(0.5);
+      sound!.stopMotorHum();
     }).not.toThrow();
   });
 
   it("updateMotorSpeed is safe without starting hum", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
-    expect(() => sound.updateMotorSpeed(0.5)).not.toThrow();
+    sound = getSoundManager();
+    expect(() => sound!.updateMotorSpeed(0.5)).not.toThrow();
   });
 
   it("stopMotorHum is safe without starting hum", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
-    expect(() => sound.stopMotorHum()).not.toThrow();
+    sound = getSoundManager();
+    expect(() => sound!.stopMotorHum()).not.toThrow();
   });
 
   it("dispose cleans up without errors", async () => {
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
+    sound = getSoundManager();
     sound.saveSettings(true);
     sound.startMotorHum();
-    expect(() => sound.dispose()).not.toThrow();
+    expect(() => sound!.dispose()).not.toThrow();
   });
 
   it("reads settings from localStorage on construction", async () => {
     localStorage.setItem("drawrace.sound", "true");
     vi.resetModules();
     const { getSoundManager } = await import("./Sound.js");
-    const sound = getSoundManager();
+    sound = getSoundManager();
     expect(sound.isEnabled).toBe(true);
   });
 });
