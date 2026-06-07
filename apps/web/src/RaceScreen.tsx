@@ -211,6 +211,11 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
           perf.recordFrame(dt);
 
           if (phaseRef.current === "countdown") {
+            // Step physics during countdown so car settles under gravity
+            // Motor torque is zeroed until enableMotor() is called (race-sim.ts:301-311)
+            sim.step();
+            ghostSims.forEach((gs) => gs.step());
+
             const snap = sim.snapshot();
             const ghostSnaps = ghostSims.map((gs, i) => ({
               snapshot: gs.snapshot(),
