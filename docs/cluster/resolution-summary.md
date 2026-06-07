@@ -1,7 +1,8 @@
 # Drawrace Cluster Resolution Summary
 
-**Date:** 2025-01-07  
+**Date:** 2026-06-07
 **Bead:** bf-3w4x5
+**Status:** VERIFIED - Infrastructure in place
 
 ## Executive Summary
 
@@ -58,6 +59,44 @@ These secrets need to be created in OpenBao on rs-manager before the deployments
 2. ✅ **Manifests Created:** All manifests exist at `k8s/iad-acb/drawrace/`
 3. ✅ **ArgoCD Application Registered:** Managed by ApplicationSet `manifest-appset-iad-acb`
 4. ✅ **External-Secrets Operator:** Healthy and configured with ClusterSecretStore `openbao`
+
+### Verification (2026-06-07)
+
+All infrastructure verified to be in place:
+
+- **ApplicationSet `manifest-appset-iad-acb`**: Exists and active on rs-manager
+  - Creates `drawrace-ns-iad-acb` Application from `k8s/iad-acb/drawrace/` manifests
+  - Owner reference confirms it is ApplicationSet-managed
+
+- **Application `drawrace-ns-iad-acb`**: Synced but Degraded
+  - Synced: Manifests are being applied correctly
+  - Degraded: Missing OpenBao secrets (expected blocker)
+
+- **Old Application `drawrace`**: Being deleted
+  - Has `deletionTimestamp: "2026-06-07T18:33:34Z"`
+  - Finalizer `foregroundDeletion` causing gradual cleanup
+  - Conflicts with ApplicationSet-managed resources (SharedResourceWarning conditions)
+  - Once deleted, only `drawrace-ns-iad-acb` will remain
+
+- **Manifests Directory**: `k8s/iad-acb/drawrace/`
+  - Contains 17 YAML files including deployments, services, ingress, external-secrets
+  - All manifests synced to cluster via ArgoCD
+
+## Verification Status (2026-06-07)
+
+**Infrastructure**: ✅ Complete
+- Cluster target: iad-acb (https://hcp-ffb2da77-ad4e-4468-acfb-e1b3d477a8d7.spot.rackspace.com)
+- Manifests: k8s/iad-acb/drawrace/ in declarative-config repo
+- ApplicationSet: manifest-appset-iad-acb (creates drawrace-ns-iad-acb)
+- Application: drawrace-ns-iad-acb (Synced, Degraded due to missing secrets)
+- Old application: drawrace (deleting, blocked by finalizer)
+
+**Deployment Blocker**: Missing OpenBao secrets
+- rs-manager/drawrace/postgres
+- rs-manager/drawrace/postgres-backup  
+- rs-manager/drawrace/s3
+
+Once secrets are created, deployments will transition from Degraded to Healthy.
 
 ## Next Steps
 

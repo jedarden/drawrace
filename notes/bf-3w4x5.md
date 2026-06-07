@@ -34,15 +34,47 @@ Drawrace was mistakenly migrated TO apexalgo-iad in commit b913065 ("feat(drawra
 - Removed: k8s/rs-manager/drawrace-application.yml (manual app superseded by ApplicationSet)
 - Added: k8s/rs-manager/drawrace-application.yml.disabled (documents migration history)
 
-## Current Deployment Status on iad-acb
-The deployment is syncing but has degraded health due to:
-1. **ExternalSecrets failing:** `drawrace-postgres-credentials`, `drawrace-api-s3-credentials`, `drawrace-postgres-backup-s3` - These need to be created in OpenBao at the referenced KV paths
-2. **ImagePullBackOff:** Images are failing to pull (docker-hub-registry secret synced successfully, but images may not exist or require different auth)
+## Current Deployment Status on iad-acb (Verified 2026-06-07)
+
+### Application Status
+- **ApplicationSet `manifest-appset-iad-acb`**: Active and healthy on rs-manager
+- **Application `drawrace-ns-iad-acb`**: **Synced** but **Degraded**
+- **Old Application `drawrace`**: Deleting (has `deletionTimestamp: 2026-06-07T18:33:34Z`)
+
+### Health Status
+The deployment is architecturally correct but Degraded due to:
+1. **ExternalSecrets failing:** `drawrace-postgres-credentials`, `drawrace-api-s3-credentials`, `drawrace-postgres-backup-s3`
+   - Need OpenBao secrets at paths:
+     - `secret/rs-manager/drawrace/postgres` (username, password)
+     - `secret/rs-manager/drawrace/postgres-backup` (accessKeyId, secretAccessKey)
+     - `secret/rs-manager/drawrace/s3` (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL, AWS_REGION)
+2. **Deployments stuck:** drawrace-api, drawrace-live, drawrace-postgres, drawrace-validator are Degraded
+   - "exceeded its progress deadline" - waiting on ExternalSecrets
+
+### What's Working
+- ✅ ArgoCD sync: Manifests are being applied correctly
+- ✅ redis deployment: Healthy
+- ✅ docker-hub-registry ExternalSecret: Healthy (syncing from ardenone-hub)
+- ✅ Ingress, NetworkPolicy, Services: Synced and healthy
+
+### What's Blocking
+- ❌ 3 ExternalSecrets: Degraded (missing OpenBao secrets)
+- ❌ 4 Deployments: Degraded (blocked by missing secrets)
 
 ## Unblocked Tasks
 bf-47rz, bf-1uzl, bf-1x5r, bf-3ixf, bf-3ljs, bf-20k7
 
 ## Next Steps (Separate Tasks)
-1. Create OpenBao secrets at required paths (rs-manager/drawrace/*)
-2. Verify Docker Hub images exist and are accessible
-3. Clean up stale drawrace resources on apexalgo-iad (manual kubectl delete since ArgoCD won't touch read-only cluster)
+
+To complete the drawrace deployment on iad-acb:
+
+1. **Create OpenBao secrets** (rs-manager/drawrace/*):
+   - postgres (username, password)
+   - postgres-backup (accessKeyId, secretAccessKey)
+   - s3 (AWS credentials and endpoint)
+
+2. **Monitor ExternalSecrets**: Once secrets are created, verify ExternalSecrets become Healthy
+
+3. **Verify deployments**: Check that drawrace-api, drawrace-live, drawrace-postgres, drawrace-validator scale up successfully
+
+4. **Clean up apexalgo-iad** (optional): Remove stale drawrace resources from read-only cluster (manual kubectl delete)
