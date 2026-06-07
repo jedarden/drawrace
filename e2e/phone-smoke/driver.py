@@ -314,6 +314,87 @@ CHECK_SWAP_COUNT_JS = """
 })()
 """
 
+GET_CHASSIS_X_JS = """
+(() => {
+  // Try to read chassis X position from the canvas renderer state
+  // The renderer stores the simulation snapshot which contains chassis position
+  const canvas = document.querySelector('canvas');
+  if (!canvas) return {ok: false, err: 'no canvas found'};
+  // We'll infer chassis position from the wheel position since we can't access internal state directly
+  // The chassis is offset from the wheel by the rear wheel radius (~0.5m in physics units)
+  // For this test, we just need to detect X-axis movement, so tracking any game object works
+  return {ok: true, x: 0, note: 'fallback - will track via camera/scroll position'};
+})()
+"""
+
+# Injected at page load to track chassis velocity from canvas rendering
+TRACK_CHASSIS_VELOCITY_JS = """
+(() => {
+  if (window.__drawrace_chassis_tracker__) return;
+  window.__drawrace_chassis_tracker__ = {
+    lastX: null,
+    lastTime: null,
+    velocityX: 0,
+    sampleCount: 0,
+    init: false
+  };
+
+  // Sample every 100ms via requestAnimationFrame
+  function sample() {
+    try {
+      const canvas = document.querySelector('canvas');
+      if (!canvas) {
+        requestAnimationFrame(sample);
+        return;
+      }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        requestAnimationFrame(sample);
+        return;
+      }
+
+      // Get current transform to infer camera/chassis movement
+      const transform = ctx.getTransform();
+      // transform.e is the X translation - as the car moves right, camera follows, so transform.e increases negatively
+      const currentX = -transform.e / 50; // Approximate PPM scale (actual is 50)
+      const now = performance.now();
+
+      const tracker = window.__drawrace_chassis_tracker__;
+      if (tracker.lastX !== null && tracker.lastTime !== null) {
+        const dt = (now - tracker.lastTime) / 1000; // seconds
+        if (dt > 0.05) { // Minimum 50ms between samples for stable velocity
+          tracker.velocityX = (currentX - tracker.lastX) / dt;
+          tracker.lastX = currentX;
+          tracker.lastTime = now;
+          tracker.sampleCount++;
+          tracker.init = true;
+        }
+      } else {
+        tracker.lastX = currentX;
+        tracker.lastTime = now;
+      }
+    } catch (e) {
+      // Silently fail on errors
+    }
+    requestAnimationFrame(sample);
+  };
+
+  requestAnimationFrame(sample);
+  return {ok: true};
+})()
+"""
+
+GET_CHASSIS_VELOCITY_JS = """
+(() => {
+  const tracker = window.__drawrace_chassis_tracker__;
+  if (!tracker || !tracker.init) {
+    return {ok: false, err: 'tracker not initialized', velocityX: 0, samples: 0};
+  }
+  return {ok: true, velocityX: tracker.velocityX, samples: tracker.sampleCount};
+})()
+"""
+
 
 # ---------------------------------------------------------------------------
 # Screenshot + pixel helpers
@@ -787,6 +868,135 @@ async def run_cooldown_test(url, ws_url, artifacts_dir):
 
 
 # ---------------------------------------------------------------------------
+# Forward motion test scenario
+# ---------------------------------------------------------------------------
+
+async def run_forward_motion(url, ws_url, artifacts_dir):
+    """Test that drawing a wheel and starting a race produces positive x-velocity."""
+    os.makedirs(artifacts_dir, exist_ok=True)
+
+    tab_ws = await find_tab(ws_url)
+    if not tab_ws:
+        print("FAIL: No browser tab found. Is Chrome running with --remote-debugging-port?")
+        return False
+    print(f"Tab: {tab_ws[:80]}...")
+
+    async with websockets.connect(
+        tab_ws, max_size=2**24, open_timeout=10,
+        ping_interval=None, close_timeout=5,
+    ) as ws:
+        sess = CDPSession(ws)
+        await sess.start()
+        collector = EventCollector()
+
+        # Enable CDP domains
+        await sess.call("Runtime.enable")
+        await sess.call("Log.enable")
+        await sess.call("Console.enable")
+        await sess.call("Page.enable")
+
+        # Bypass landing
+        await sess.call("Page.addScriptToEvaluateOnNewDocument", {
+            "source": LANDING_BYPASS_JS,
+        })
+
+        # Inject chassis velocity tracker at page load
+        await sess.call("Page.addScriptToEvaluateOnNewDocument", {
+            "source": TRACK_CHASSIS_VELOCITY_JS,
+        })
+
+        print(f"Navigating to {url}")
+        await sess.call("Page.navigate", {"url": url})
+        await asyncio.sleep(3)
+        collector.feed_batch(await sess.drain_events(1.0))
+
+        # Draw circle
+        print("Drawing circle wheel...")
+        draw_result = await sess.evaluate(DRAW_CIRCLE_JS, timeout=30)
+        if not draw_result or not draw_result.get("ok"):
+            print(f"FAIL: Draw failed: {draw_result}")
+            return False
+        print(f"  Wheel drawn at cx={draw_result['cx']:.0f} cy={draw_result['cy']:.0f} r={draw_result['r']:.0f}")
+
+        # Screenshot after draw
+        draw_screen = os.path.join(artifacts_dir, "forward-motion-01-drawn.png")
+        await screenshot(sess, draw_screen)
+
+        # Click Race
+        print("Clicking Race...")
+        click_result = await sess.evaluate(CLICK_RACE_JS, await_promise=False)
+        if not click_result or not click_result.get("ok"):
+            print(f"FAIL: Race button: {click_result}")
+            return False
+        print(f"  Clicked: {click_result['clicked']!r}")
+
+        # Wait 1s for physics to start (countdown runs, physics stepping begins)
+        await asyncio.sleep(1)
+        collector.feed_batch(await sess.drain_events(0.5))
+
+        try:
+            collector.assert_clean()
+        except RuntimeError as exc:
+            print(f"FAIL: Error detected after clicking Race: {exc}")
+            await screenshot(sess, os.path.join(artifacts_dir, "forward-motion-error-init.png"))
+            return False
+
+        # Poll chassis velocity every 1s for up to 10s
+        print("Polling chassis x-velocity (max 10s, threshold > 0.1 m/s)...")
+        max_attempts = 10
+        positive_velocity_seen = False
+        final_velocity = None
+
+        for attempt in range(1, max_attempts + 1):
+            await asyncio.sleep(1)  # Poll every 1s
+
+            vel_result = await sess.evaluate(GET_CHASSIS_VELOCITY_JS, await_promise=False)
+            if not vel_result or not vel_result.get("ok"):
+                print(f"  [{attempt}/{max_attempts}] Velocity tracker not ready: {vel_result}")
+                # If tracker fails, try to initialize it manually
+                await sess.evaluate(TRACK_CHASSIS_VELOCITY_JS, await_promise=False)
+                continue
+
+            vx = vel_result.get("velocityX", 0)
+            samples = vel_result.get("samples", 0)
+            final_velocity = vx
+            print(f"  [{attempt}/{max_attempts}] vx = {vx:+.3f} m/s (samples: {samples})")
+
+            if vx > 0.1:
+                positive_velocity_seen = True
+                print(f"  PASS: Positive x-velocity detected ({vx:.3f} m/s > 0.1 m/s)")
+                break
+            elif attempt >= 5:
+                # After 5s, if still no positive velocity, capture screenshot for debugging
+                debug_shot = os.path.join(artifacts_dir, f"forward-motion-debug-{attempt}s.png")
+                await screenshot(sess, debug_shot)
+                print(f"  Warning: No positive velocity after {attempt}s, captured debug screenshot")
+
+        # Final screenshot
+        final_shot = os.path.join(artifacts_dir, "forward-motion-final.png")
+        await screenshot(sess, final_shot)
+
+        # Assert result
+        if not positive_velocity_seen:
+            print(f"FAIL: Chassis x-velocity never exceeded 0.1 m/s within {max_attempts}s")
+            print(f"  Final velocity reading: {final_velocity:.3f} m/s")
+            print("  This indicates the car may not be moving forward (motor direction bug or wheel contact issue)")
+            return False
+
+        collector.feed_batch(await sess.drain_events(1.0))
+        try:
+            collector.assert_clean()
+        except RuntimeError as exc:
+            print(f"FAIL: Error during forward motion test: {exc}")
+            return False
+
+        await sess.stop()
+
+    print("\n=== FORWARD MOTION TEST PASSED ===")
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -813,8 +1023,8 @@ def main():
         help="Write screenshots as new baselines instead of comparing",
     )
     parser.add_argument(
-        "--scenario", choices=["smoke", "cooldown"], default="smoke",
-        help="Test scenario to run: 'smoke' (default) or 'cooldown' (tests 500ms swap cooldown)",
+        "--scenario", choices=["smoke", "cooldown", "forward-motion"], default="smoke",
+        help="Test scenario to run: 'smoke' (default), 'cooldown' (tests 500ms swap cooldown), or 'forward-motion' (tests positive x-velocity)",
     )
     parser.add_argument(
         "--cooldown-artifacts", default="e2e/phone-smoke/artifacts-cooldown",
@@ -827,6 +1037,12 @@ def main():
             url=args.url,
             ws_url=args.ws,
             artifacts_dir=args.cooldown_artifacts,
+        ))
+    elif args.scenario == "forward-motion":
+        ok = asyncio.run(run_forward_motion(
+            url=args.url,
+            ws_url=args.ws,
+            artifacts_dir=args.artifacts,
         ))
     else:
         ok = asyncio.run(run_smoke(

@@ -6,10 +6,11 @@
 # then tears everything down.
 #
 # Usage:
-#   bash e2e/phone-smoke/run.sh                    # build + serve + smoke test
-#   bash e2e/phone-smoke/run.sh --scenario cooldown # run cooldown test instead
-#   bash e2e/phone-smoke/run.sh --save-baselines   # capture new baselines
-#   bash e2e/phone-smoke/run.sh --skip-build       # skip pnpm build (use existing dist)
+#   bash e2e/phone-smoke/run.sh                          # build + serve + smoke test
+#   bash e2e/phone-smoke/run.sh --scenario cooldown     # run cooldown test instead
+#   bash e2e/phone-smoke/run.sh --scenario forward-motion # run forward motion test
+#   bash e2e/phone-smoke/run.sh --save-baselines         # capture new baselines
+#   bash e2e/phone-smoke/run.sh --skip-build             # skip pnpm build (use existing dist)
 #
 # To point at an existing preview instead of a local server:
 #   PHONE_SMOKE_URL=https://abc123.drawrace.pages.dev bash e2e/phone-smoke/run.sh
@@ -27,13 +28,19 @@ TAILSCALE_IP="100.72.170.64"
 SKIP_BUILD=false
 SCENARIO="smoke"
 DRIVER_ARGS=()
-for arg in "$@"; do
+i=0
+while [[ $i -lt $# ]]; do
+  arg="${@:$((i+1)):1}"
   case "$arg" in
     --skip-build) SKIP_BUILD=true ;;
-    --scenario) SCENARIO="cooldown" ;;
+    --scenario)
+      i=$((i+1))
+      SCENARIO="${@:$((i+1)):1}"
+      ;;
     --scenario=*) SCENARIO="${arg#--scenario=}" ;;
     *) DRIVER_ARGS+=("$arg") ;;
   esac
+  i=$((i+1))
 done
 
 # Prefer externally supplied URL; otherwise use local Tailscale server
