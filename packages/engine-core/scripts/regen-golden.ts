@@ -21,6 +21,7 @@ const TEST_TRACK: TrackDef = {
     [18, 5.8], [22, 5.8], [25, 5], [30, 5],
     [35, 5.2], [40, 5.2],
   ],
+  zones: [{ id: "hills", x_start: 0, x_end: 40 }],
   start: { pos: [1.5, 3.5], facing: 1 },
   finish: { pos: [39, 3.5], width: 0.2 },
 };
@@ -161,11 +162,17 @@ const WHEELS: WheelEntry[] = [
   { id: "blob-smooth", wheel: { vertices: makeBlob(42, 24, 0.5) } },
   { id: "figure8-sm", wheel: { vertices: makeFigure8(24, 0.3) } },
   { id: "figure8-lg", wheel: { vertices: makeFigure8(32, 0.5) } },
+  // Stuck-DNF scenarios
+  { id: "stuck-flipped-triangle", wheel: { vertices: makeRegularPolygon(3, 0.6) } },
+  { id: "stuck-line-wheel", wheel: { vertices: [[-0.4, 0], [0.4, 0]] as [number, number][] } },
 ];
 
 const SEED = 42;
 
-interface GoldenEntry {
+// Union type for unified wheels.json
+type GoldenEntry = SingleWheelGolden | MultiWheelGolden;
+
+interface SingleWheelGolden {
   id: string;
   seed: number;
   trackId: string;
@@ -173,10 +180,25 @@ interface GoldenEntry {
   finishTicks: number;
   finalX: number;
   streamHash: string;
+  stuck?: boolean;
   physicsVersion: number;
 }
 
-const goldens: GoldenEntry[] = WHEELS.map((entry) => {
+interface MultiWheelGolden {
+  id: string;
+  seed: number;
+  trackId: string;
+  wheels: WheelSwap[];
+  finishTicks?: number;
+  finalX?: number;
+  streamHash?: string;
+  stuck?: boolean;
+  structuralReject?: boolean;
+  rejectReason?: string;
+  physicsVersion: number;
+}
+
+const singleWheelGoldens: SingleWheelGolden[] = WHEELS.map((entry) => {
   const result = createHeadlessRace({ seed: SEED, track: TEST_TRACK, wheel: entry.wheel });
   return {
     id: entry.id,
@@ -186,6 +208,7 @@ const goldens: GoldenEntry[] = WHEELS.map((entry) => {
     finishTicks: result.finishTicks,
     finalX: result.finalX,
     streamHash: result.streamHash,
+    stuck: result.stuck,
     physicsVersion: PHYSICS_VERSION,
   };
 });
@@ -200,58 +223,60 @@ const CIRC_32 = makeCircle(0.4, 32);
 const TRI = makeRegularPolygon(3, 0.4);
 const HEX = makeRegularPolygon(6, 0.4);
 const SQUA = makeRegularPolygon(4, 0.4);
+const OVAL = makeEllipse(0.5, 0.3, 24);  // oval-slim
+const STAR = makeStar(5, 0.15, 0.45);     // star-5-sharp
 
-interface SwapGoldenEntry {
-  id: string;
-  seed: number;
-  trackId: string;
-  wheels: WheelSwap[];
-  finishTicks: number;
-  finalX: number;
-  streamHash: string;
-  physicsVersion: number;
-}
-
-const SWAP_SCENARIOS: Array<{ id: string; wheels: WheelSwap[] }> = [
+const SWAP_SCENARIOS: Array<{ id: string; wheels: WheelSwap[]; isStructuralReject?: boolean; rejectReason?: string }> = [
   // Swap at tick 0 only — must match single-wheel result for the same polygon
   {
     id: "swap-tick0-only",
     wheels: [{ swap_tick: 0, polygon: CIRC_32 }],
   },
-  // Circle → triangle at tick 60 (1s in)
+  // Triangle → circle at tick 300
   {
-    id: "swap-circ-to-tri-t60",
-    wheels: [
-      { swap_tick: 0, polygon: CIRC_8 },
-      { swap_tick: 60, polygon: TRI },
-    ],
-  },
-  // Triangle → circle at tick 120
-  {
-    id: "swap-tri-to-circ-t120",
+    id: "swap-tri-to-circ-t300",
     wheels: [
       { swap_tick: 0, polygon: TRI },
-      { swap_tick: 120, polygon: CIRC_8 },
+      { swap_tick: 300, polygon: CIRC_8 },
     ],
   },
-  // 3-swap chain: circle → hex → square
+  // Circle → triangle at tick 600
+  {
+    id: "swap-circ-to-tri-t600",
+    wheels: [
+      { swap_tick: 0, polygon: CIRC_8 },
+      { swap_tick: 600, polygon: TRI },
+    ],
+  },
+  // 3-swap chain: circle → oval → star (swaps at 300 and 900)
   {
     id: "swap-chain-3",
     wheels: [
       { swap_tick: 0, polygon: CIRC_8 },
-      { swap_tick: 60, polygon: HEX },
-      { swap_tick: 180, polygon: SQUA },
+      { swap_tick: 300, polygon: OVAL },
+      { swap_tick: 900, polygon: STAR },
     ],
   },
-  // 5-swap seeded determinism reference (§Testing 3)
+  // 20-swap cap: exactly 21 wheel entries (1 initial + 20 swaps)
   {
-    id: "swap-5-determinism",
+    id: "swap-cap-20",
     wheels: [
       { swap_tick: 0, polygon: CIRC_8 },
-      { swap_tick: 60, polygon: TRI },
-      { swap_tick: 120, polygon: CIRC_8 },
-      { swap_tick: 180, polygon: TRI },
-      { swap_tick: 240, polygon: CIRC_8 },
+      // Swaps at 60, 120, ..., 1200 (evenly spaced every 60 ticks)
+      ...Array.from({ length: 20 }, (_, i) => ({
+        swap_tick: (i + 1) * 60,
+        polygon: i % 2 === 0 ? TRI : CIRC_8,
+      })),
+    ],
+  },
+  // Cooldown violation: swap gap < 30 ticks (structural rejection)
+  {
+    id: "swap-cooldown-violation",
+    isStructuralReject: true,
+    rejectReason: "cooldown_violation",
+    wheels: [
+      { swap_tick: 0, polygon: CIRC_8 },
+      { swap_tick: 15, polygon: TRI },  // 15 tick gap < 30 minimum
     ],
   },
   // Position-continuity probe: swap at tick 500 with two distinct shapes
@@ -262,9 +287,31 @@ const SWAP_SCENARIOS: Array<{ id: string; wheels: WheelSwap[] }> = [
       { swap_tick: 500, polygon: HEX },
     ],
   },
+  // 5-swap determinism test
+  {
+    id: "swap-5-determinism",
+    wheels: [
+      { swap_tick: 0, polygon: CIRC_8 },
+      { swap_tick: 60, polygon: TRI },
+      { swap_tick: 120, polygon: CIRC_8 },
+      { swap_tick: 180, polygon: TRI },
+      { swap_tick: 240, polygon: CIRC_8 },
+    ],
+  },
 ];
 
-const swapGoldens: SwapGoldenEntry[] = SWAP_SCENARIOS.map((scenario) => {
+const multiWheelGoldens: MultiWheelGolden[] = SWAP_SCENARIOS.map((scenario) => {
+  if (scenario.isStructuralReject) {
+    return {
+      id: scenario.id,
+      seed: SEED,
+      trackId: TEST_TRACK.id,
+      wheels: scenario.wheels,
+      structuralReject: true,
+      rejectReason: scenario.rejectReason,
+      physicsVersion: PHYSICS_VERSION,
+    };
+  }
   const result = runHeadless({ seed: SEED, track: TEST_TRACK, wheels: scenario.wheels });
   return {
     id: scenario.id,
@@ -285,24 +332,35 @@ const swapGoldens: SwapGoldenEntry[] = SWAP_SCENARIOS.map((scenario) => {
 const outDir = join(__dirname, "..", "golden");
 mkdirSync(outDir, { recursive: true });
 
+// Unified wheels.json containing both single-wheel and multi-wheel entries
+const goldens: GoldenEntry[] = [
+  ...singleWheelGoldens,
+  ...multiWheelGoldens,
+];
+
 writeFileSync(
   join(outDir, "wheels.json"),
   JSON.stringify({ physicsVersion: PHYSICS_VERSION, goldens }, null, 2) + "\n",
 );
 
+// Legacy swaps.json — kept for backwards compatibility
 writeFileSync(
   join(outDir, "swaps.json"),
-  JSON.stringify({ physicsVersion: PHYSICS_VERSION, swapGoldens }, null, 2) + "\n",
+  JSON.stringify({ physicsVersion: PHYSICS_VERSION, swapGoldens: multiWheelGoldens }, null, 2) + "\n",
 );
 
-console.log(`Generated ${goldens.length} single-wheel golden entries (PHYSICS_VERSION=${PHYSICS_VERSION})`);
-for (const g of goldens) {
+console.log(`Generated ${singleWheelGoldens.length} single-wheel golden entries (PHYSICS_VERSION=${PHYSICS_VERSION})`);
+for (const g of singleWheelGoldens) {
   const dnf = g.finishTicks >= 60 * 180 ? " DNF" : "";
   console.log(`  ${g.id} ticks=${g.finishTicks} hash=${g.streamHash} finalX=${g.finalX.toFixed(2)}${dnf}`);
 }
 
-console.log(`\nGenerated ${swapGoldens.length} swap golden entries:`);
-for (const g of swapGoldens) {
-  const dnf = g.finishTicks >= 60 * 180 ? " DNF" : "";
-  console.log(`  ${g.id} ticks=${g.finishTicks} hash=${g.streamHash} finalX=${g.finalX.toFixed(2)}${dnf}`);
+console.log(`\nGenerated ${multiWheelGoldens.length} multi-wheel golden entries:`);
+for (const g of multiWheelGoldens) {
+  if (g.structuralReject) {
+    console.log(`  ${g.id} structuralReject=true reason=${g.rejectReason}`);
+  } else {
+    const dnf = g.finishTicks! >= 60 * 180 ? " DNF" : "";
+    console.log(`  ${g.id} ticks=${g.finishTicks} hash=${g.streamHash} finalX=${g.finalX!.toFixed(2)}${dnf}`);
+  }
 }

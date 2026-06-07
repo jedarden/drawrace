@@ -322,18 +322,21 @@ describe("Physics golden (Layer 2) — single wheel", () => {
     expect(result.streamHash).toBe(entry!.streamHash);
   });
 
-  it("stuck-line-wheel: degenerate line wheel triggers stuck-DNF", () => {
+  it("stuck-line-wheel: degenerate line wheel DNFs without stuck detection", () => {
     const goldenFile = loadGoldens();
     const entry = goldenFile.goldens.find((g) => g.id === "stuck-line-wheel") as SingleWheelGolden | undefined;
     expect(entry).toBeDefined();
-    expect(entry!.stuck).toBe(true);
+    // After adding left barrier (bf-jnzjn), line wheel makes enough forward progress
+    // to avoid stuck detection, but still DNFs due to timeout (flat wheel can't roll efficiently)
+    expect(entry!.stuck).toBe(false);
+    expect(entry!.finishTicks).toBe(60 * 180 + 1); // 3-minute DNF ceiling (ticks starts at 0, returns ticks+1)
 
     const result = createHeadlessRace({
       seed: entry!.seed,
       track: TEST_TRACK,
       wheel: entry!.wheel,
     });
-    expect(result.stuck).toBe(true);
+    expect(result.stuck).toBe(false);
     expect(result.finishTicks).toBe(entry!.finishTicks);
     expect(result.streamHash).toBe(entry!.streamHash);
   });
@@ -592,6 +595,13 @@ describe("Physics golden (Layer 2) — swap scenarios (legacy swaps.json)", () =
     expect(swapFile.physicsVersion).toBe(PHYSICS_VERSION);
 
     for (const golden of swapFile.swapGoldens) {
+      // Skip structural reject entries (they don't run through the simulator)
+      if (golden.structuralReject) {
+        expect(golden.structuralReject).toBe(true);
+        expect(golden.rejectReason).toBeDefined();
+        continue;
+      }
+
       const result = runHeadless({
         seed: golden.seed,
         track: TEST_TRACK,
