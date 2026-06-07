@@ -208,6 +208,15 @@ impl ResimEngine {
             let current_tick = wasm_abi::read_u32(&memory, &mut store, wasm_abi::STATE_OFFSET + wasm_abi::state::SIM_TICK)?;
             let chassis_x = wasm_abi::read_f32(&memory, &mut store, wasm_abi::STATE_OFFSET + wasm_abi::state::CHASSIS_X)?;
             let finished = wasm_abi::read_u32(&memory, &mut store, wasm_abi::STATE_OFFSET + wasm_abi::state::FINISHED)?;
+
+            // Dump raw memory around STATE_OFFSET for debugging
+            if iterations <= 3 {
+                let data = memory.data(&store);
+                let state_start = (wasm_abi::STATE_OFFSET) as usize;
+                eprintln!("DEBUG RAW: iteration={}, memory[{}..{}]={:?}", iterations, state_start, state_start+32, &data[state_start..state_start+32]);
+                eprintln!("DEBUG RAW: iteration={}, memory[{}..{}]={:?}", iterations, state_start+16, state_start+24, &data[state_start+16..state_start+24]);
+            }
+
             eprintln!("DEBUG: iteration={}, tick={}, chassis_x={}, finished={}", iterations, current_tick, chassis_x, finished);
             if current_tick > max_ticks {
                 anyhow::bail!("Simulation exceeded maximum tick count: {}", current_tick);
