@@ -301,12 +301,14 @@ export class RaceSim {
     // Gravity always active; motor controlled separately
     if (!this.motorEnabled) {
       // Apply small holding torque during countdown to prevent sliding on slopes (bf-31s6q)
+      // Set motorSpeed to 0 so the motor actively resists rotation (holds position)
       const joints = this.chassisBody.getJointList();
       let curr = joints;
       while (curr) {
         const j = curr.joint!;
         if (j.getType() === "wheel-joint") {
           (j as WheelJointType).setMaxMotorTorque(MOTOR_HOLD_TORQUE);
+          (j as WheelJointType).setMotorSpeed(0);
         }
         curr = curr.next;
       }
@@ -317,6 +319,7 @@ export class RaceSim {
         const j = curr.joint!;
         if (j.getType() === "wheel-joint") {
           (j as WheelJointType).setMaxMotorTorque(MOTOR_MAX_TORQUE);
+          (j as WheelJointType).setMotorSpeed(MOTOR_SPEED);
         }
         curr = curr.next;
       }

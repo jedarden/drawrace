@@ -191,4 +191,54 @@ describe("RaceSim", () => {
     const diag = sim.getDiagnosticData();
     expect(Math.abs(diag.frontWheelAngVel)).toBeGreaterThan(0.5);
   });
+
+  it("countdown on slope with motor torque holds position (bf-31s6q)", () => {
+    // Regression test for car sliding to cliff during countdown on sloped terrain
+    // The motor should apply holding torque (setMotorSpeed=0) to resist gravity
+    const SLOPED_TRACK: TrackDef = {
+      id: "scribble-slope",
+      world: { gravity: [0, 10], pixelsPerMeter: 30 },
+      // Terrain slopes upward toward a "cliff" (right side higher)
+      terrain: [
+        [-5, 5], [0, 5], [5, 4.8], [10, 4.5], [15, 4.0], [20, 3.5],
+      ],
+      zones: [{ id: "A", x_start: -5, x_end: 20 }],
+      start: { pos: [0, 3.5], facing: 1 },
+      finish: { pos: [18, 3.5], width: 0.2 },
+    };
+    sim = new RaceSim(SLOPED_TRACK, makeCircle(0.4, 8), 42);
+    // Don't enable motor — simulate countdown phase (180 ticks / 3 seconds)
+
+    const initialSnap = sim.snapshot();
+    const initialX = initialSnap.wheel.x;
+
+    // Step for full countdown duration (180 ticks)
+    for (let i = 0; i < 180; i++) {
+      sim.step();
+    }
+
+    const afterCountdownSnap = sim.snapshot();
+    const deltaX = Math.abs(afterCountdownSnap.wheel.x - initialX);
+
+    // Car should NOT have slid significantly during countdown
+    // With holding torque, movement should be < 0.5 meters
+    // Without the fix (motorSpeed=8 with low torque), car could slide 2-3m downhill
+    expect(deltaX).toBeLessThan(0.5);
+
+    // After enabling motor, car should accelerate forward
+    sim.enableMotor();
+    const afterEnableSnap = sim.snapshot();
+    const startXAfterEnable = afterEnableSnap.wheel.x;
+
+    // Run 60 ticks with motor enabled
+    for (let i = 0; i < 60; i++) {
+      sim.step();
+    }
+
+    const afterMotorSnap = sim.snapshot();
+    const motorDeltaX = afterMotorSnap.wheel.x - startXAfterEnable;
+
+    // With motor enabled, car should move forward (positive X)
+    expect(motorDeltaX).toBeGreaterThan(0.1);
+  });
 });
