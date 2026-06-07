@@ -17,6 +17,7 @@ export type StuckResult = "running" | "stuck";
 export class StuckDetector {
   private rotations = 0;
   private baselineX = 0;
+  private maxChassisX = 0; // High-water mark since last baseline advance
 
   /**
    * Reset the detector (called on race start and on wheel swap).
@@ -24,6 +25,7 @@ export class StuckDetector {
   reset(): void {
     this.rotations = 0;
     this.baselineX = 0;
+    this.maxChassisX = 0;
   }
 
   /**
@@ -31,6 +33,7 @@ export class StuckDetector {
    */
   setBaseline(x: number): void {
     this.baselineX = x;
+    this.maxChassisX = x;
   }
 
   /**
@@ -48,12 +51,15 @@ export class StuckDetector {
       (Math.abs(frontAngVel) + Math.abs(rearAngVel)) * DT / (2 * Math.PI * 2);
     this.rotations += rotationIncrement;
 
-    const deltaX = chassisX - this.baselineX;
+    // Track high-water mark since last baseline advance
+    this.maxChassisX = Math.max(this.maxChassisX, chassisX);
 
-    // If we've made sufficient progress, reset the counter and grant a fresh window.
+    // Only reset rotations if we've made NEW progress beyond the previous high-water mark.
+    // This prevents cliff oscillation from repeatedly resetting the counter.
+    const deltaX = this.maxChassisX - this.baselineX;
     if (deltaX >= PROGRESS_THRESHOLD_METRES) {
       this.rotations = 0;
-      this.baselineX = chassisX;
+      this.baselineX = this.maxChassisX;
       return "running";
     }
 
@@ -77,5 +83,12 @@ export class StuckDetector {
    */
   getBaselineX(): number {
     return this.baselineX;
+  }
+
+  /**
+   * Get the current high-water mark X position (for testing/debugging).
+   */
+  getMaxChassisX(): number {
+    return this.maxChassisX;
   }
 }

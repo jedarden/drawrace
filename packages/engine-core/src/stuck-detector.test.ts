@@ -185,4 +185,74 @@ describe("StuckDetector", () => {
     detector.setBaseline(15.0);
     expect(detector.getBaselineX()).toBe(15.0);
   });
+
+  it("cliff oscillation does not prevent stuck detection", () => {
+    // Bug: at a cliff, chassis oscillates - wheel torque pushes it 0.5m into
+    // the cliff face, baseline resets, then it slides back. Loop repeats.
+    // Fix: track maxChassisX high-water mark; only reset when net NEW progress.
+    const detector = new StuckDetector();
+    detector.setBaseline(0);
+
+    const angVel = 2 * Math.PI; // 1 rotation per second per wheel
+
+    // Simulate oscillation at cliff edge:
+    // - Car pushes forward to 0.5m (threshold met in old buggy code)
+    // - Then slides back to 0.3m
+    // - Forward to 0.5m again, slide back, repeat
+    let stuckTriggered = false;
+    for (let cycle = 0; cycle < 20; cycle++) {
+      // Push forward to 0.5m (progress threshold would trigger reset in old code)
+      for (let i = 0; i < 30; i++) {
+        const result = detector.tick(angVel, angVel, 0.5);
+        if (result === "stuck") {
+          stuckTriggered = true;
+          break;
+        }
+      }
+      if (stuckTriggered) break;
+
+      // Slide back to 0.3m
+      for (let i = 0; i < 30; i++) {
+        const result = detector.tick(angVel, angVel, 0.3);
+        if (result === "stuck") {
+          stuckTriggered = true;
+          break;
+        }
+      }
+      if (stuckTriggered) break;
+    }
+
+    // Should trigger stuck because maxChassisX never exceeds 0.5m
+    // so no net new progress is made beyond initial threshold
+    expect(stuckTriggered).toBe(true);
+  });
+
+  it("progress beyond high-water mark resets counter correctly", () => {
+    // Verify that actual forward progress (not oscillation) still resets
+    const detector = new StuckDetector();
+    detector.setBaseline(0);
+
+    const angVel = 2 * Math.PI;
+
+    // Accumulate 5 rotations at x=0.4m (below progress threshold)
+    for (let i = 0; i < 300; i++) {
+      detector.tick(angVel, angVel, 0.4);
+    }
+    const rotationsAt04 = detector.getRotations();
+
+    // Max should be 0.4, no reset yet
+    expect(detector.getMaxChassisX()).toBe(0.4);
+    expect(detector.getBaselineX()).toBe(0);
+
+    // Now make progress to 0.9m (0.5m beyond baseline, exceeding threshold)
+    // This should trigger reset
+    for (let i = 0; i < 30; i++) {
+      detector.tick(angVel, angVel, 0.9);
+    }
+
+    // Reset should have happened
+    expect(detector.getBaselineX()).toBe(0.9);
+    expect(detector.getMaxChassisX()).toBe(0.9);
+    expect(detector.getRotations()).toBeLessThan(rotationsAt04);
+  });
 });
