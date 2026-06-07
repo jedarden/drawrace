@@ -105,9 +105,50 @@ The triangular wheel shows forward motion with MOTOR_SPEED=8, confirming that th
 ## Files Modified
 
 - `packages/engine-core/src/race-sim.ts` - Added `getDiagnosticData()` method
-- `packages/engine-core/src/diagnostic-wheel-spin.test.ts` - Created diagnostic test suite
 - `packages/engine-core/src/diagnostic-wheel-spin.ts` - Created standalone diagnostic script
+- `packages/engine-core/src/test-motor-negative.ts` - Created motor direction confirmation test
 - `notes/bf-2evf2.md` - This file
+
+## Latest Diagnostic Run (2026-06-06)
+
+```
+=== Diagnostic: diagnostic-flat with 12-gon wheel ===
+Summary:
+Average front wheel angular velocity: -0.508 rad/s
+Max front wheel angular velocity: 0.905 rad/s
+Average chassis X velocity: -0.874 m/s
+Chassis X displacement: -0.501 m
+⚠️  CHASSIS MOVING BACKWARD - Motor speed sign may be inverted
+
+=== Diagnostic: diagnostic-flat with triangular wheel ===
+Summary:
+Average front wheel angular velocity: 7.094 rad/s
+Max front wheel angular velocity: 8.535 rad/s
+Average chassis X velocity: 0.412 m/s
+Chassis X displacement: 0.236 m
+✓ Normal forward motion observed
+
+=== Diagnostic: diagnostic-cliff with 12-gon wheel ===
+Summary:
+Average front wheel angular velocity: -0.338 rad/s
+Max front wheel angular velocity: 1.665 rad/s
+Average chassis X velocity: -0.895 m/s
+Chassis X displacement: -0.508 m
+⚠️  CHASSIS MOVING BACKWARD - Motor speed sign may be inverted
+
+=== Diagnostic: diagnostic-cliff with triangular wheel ===
+Summary:
+Average front wheel angular velocity: 7.094 rad/s
+Max front wheel angular velocity: 8.535 rad/s
+Average chassis X velocity: 0.412 m/s
+Chassis X displacement: 0.236 m
+✓ Normal forward motion observed
+```
+
+CONCLUSION:
+1. WHEEL SHAPE DETERMINES GRIP: 12-gon (smooth) wheels spin but chassis moves BACKWARD; Triangle (sharp) wheels spin and chassis moves FORWARD
+2. THE ISSUE IS NOT MOTOR SPEED SIGN: With MOTOR_SPEED=8, triangular wheels move forward correctly
+3. ROOT CAUSE: WHEEL GRIP - Smooth polygons can't grip the terrain; Sharp vertices provide intermittent high-pressure contact
 
 ## Test Commands
 
