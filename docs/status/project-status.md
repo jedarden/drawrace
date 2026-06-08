@@ -107,7 +107,7 @@ Remaining operational (non-code):
 | 3 | Rendering Snapshots | ✅ COMPLETE | `e2e/snapshot.spec.ts` with pixelmatch, Docker-pinned container |
 | 4 | E2E (Playwright) | ✅ COMPLETE | `game.spec.ts`, `a11y.spec.ts`, `debug.spec.ts` |
 | 5 | Backend Contract | ✅ COMPLETE | `crates/api/tests/contract_test.rs` (33 tests, 23 pass, 10 need DB) |
-| 6 | Replay Verification | ✅ COMPLETE | Validator crate tests |
+| 6 | Replay Verification | ⚠️ PARTIAL | Test infrastructure complete, awaiting 200 real-player ghosts from production (currently using 201 synthetic placeholders) |
 | 7 | Performance Budget | ✅ COMPLETE | `e2e/perf.spec.ts` + size-limit: engine 307B/100KB, web 124KB/400KB |
 | 8 | Load & Chaos | ✅ SCRIPTS READY | k6 load + chaos scripts; needs staging env |
 | 9 | Device Matrix | ⏸️ DEFERRED | Requires real-device testing (operational) |
