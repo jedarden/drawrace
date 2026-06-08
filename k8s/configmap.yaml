@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: drawrace-client-key
+  namespace: drawrace
+  annotations:
+    # Ignore extraneous keys in the ConfigMap so rotate-client-key job can add fields
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+    # Use ServerSideApply instead of Replace to avoid overwriting rotated keys
+    argocd.argoproj.io/sync-options: Replace=false
+data:
+  # HMAC key for client submissions - rotate via sealed-secrets
+  current: "placeholder-replace-with-sealed-secret"
+  previous: ""
+  rotated_at: ""

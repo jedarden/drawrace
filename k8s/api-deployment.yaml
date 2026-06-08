@@ -1,15 +1,4 @@
 apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: drawrace-client-key
-  namespace: drawrace
-data:
-  # HMAC key for client submissions - rotate via sealed-secrets
-  current: "placeholder-replace-with-sealed-secret"
-  previous: ""
-  rotated_at: ""
----
-apiVersion: v1
 kind: Secret
 metadata:
   name: drawrace-api-secrets
