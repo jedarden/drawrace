@@ -254,10 +254,11 @@ export function DrawOverlay({ active, swapCount, onSwapCommit, constraints }: Dr
       const rect = canvas.getBoundingClientRect();
 
       const pts = rawPointsRef.current;
-      const coalescedEvents =
+      const _coalesced =
         e.nativeEvent instanceof PointerEvent
-          ? (e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent])
-          : [e.nativeEvent];
+          ? e.nativeEvent.getCoalescedEvents?.()
+          : null;
+      const coalescedEvents = _coalesced && _coalesced.length > 0 ? _coalesced : [e.nativeEvent];
 
       for (const ce of coalescedEvents) {
         const x = ce.clientX - rect.left;

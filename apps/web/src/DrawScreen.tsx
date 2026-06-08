@@ -142,9 +142,10 @@ export function DrawScreen({ onComplete, onOpenSettings, constraints, trackName,
       const pts = rawPointsRef.current;
       const canvas = canvasRef.current;
       const rect = canvas?.getBoundingClientRect();
-      const events = e.nativeEvent instanceof PointerEvent
-        ? (e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent])
-        : [e.nativeEvent];
+      const coalesced = e.nativeEvent instanceof PointerEvent
+        ? e.nativeEvent.getCoalescedEvents?.()
+        : null;
+      const events = coalesced && coalesced.length > 0 ? coalesced : [e.nativeEvent];
 
       for (const ce of events) {
         // Coalesced events on Android Chrome may not have offsetX/offsetY set.

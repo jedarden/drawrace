@@ -28,28 +28,6 @@ def ensure_dir(dir: Path) -> None:
 def get_content_hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:16]
 
-def encode_i32(n: int) -> bytes:
-    """Encode an integer as WASM unsigned LEB128."""
-    if n == 0:
-        return b'\x00'
-
-    bytes_list = []
-    value = n & 0xffffffff  # Treat as unsigned
-
-    while value > 0:
-        byte = value & 0x7f
-        value >>= 7
-        if value > 0:
-            byte |= 0x80
-        bytes_list.append(byte)
-
-    return bytes(bytes_list)
-
-def string_bytes(s: str) -> bytes:
-    """Encode a string for WASM (length prefix + UTF-8)."""
-    utf8 = s.encode('utf-8')
-    return bytes([len(utf8)]) + utf8
-
 def extract_physics_version() -> int:
     """Extract PHYSICS_VERSION from version.ts"""
     version_file = ROOT_DIR / "src" / "version.ts"
@@ -59,110 +37,49 @@ def extract_physics_version() -> int:
         raise ValueError("Could not find PHYSICS_VERSION in version.ts")
     return int(match.group(1))
 
-def create_minimal_wasm(physics_version: int) -> bytes:
-    """Create a minimal valid WASM binary with physics_version export."""
+def compile_resim_wat() -> bytes:
+    """Compile resim.wat to WASM using wat2wasm."""
+    import subprocess
 
-    # WASM magic number and version
-    magic = b'\x00\x61\x73\x6d'  # \0asm
-    version = b'\x01\x00\x00\x00'  # version 1
+    wat_path = ROOT_DIR / "src" / "resim.wat"
+    wasm_path = DIST_DIR / "resim.wasm"
 
-    # Type section: function types
-    # Format: func_type = 0x60 + num_params + (param types...) + num_results + (result types...)
-    type_section = bytes([
-        0x01,  # section id (type)
-        0x09,  # section length (1 + 4 + 4)
-        0x02,  # num types
-        # Type 0: [] -> i32 (physics_version)
-        0x60, 0x00, 0x01, 0x7f,
-        # Type 1: [] -> i32 (wasm_validate)
-        0x60, 0x00, 0x01, 0x7f,
-    ])
+    if not wat_path.exists():
+        raise FileNotFoundError(f"resim.wat not found at {wat_path}")
 
-    # Function section: function declarations
-    function_section = bytes([
-        0x03,  # section id (function)
-        0x03,  # section length
-        0x02,  # num functions
-        0x00,  # physics_version uses type 0
-        0x01,  # wasm_validate uses type 1
-    ])
+    log("info", f"Compiling {wat_path} to {wasm_path}")
 
-    # Memory section: 1 page (64KB) - must come before global/export sections
-    memory_section = bytes([
-        0x05,  # section id (memory)
-        0x03,  # section length
-        0x01,  # num memories
-        0x00,  # limits type (no maximum)
-        0x01,  # initial pages (64KB)
-    ])
+    # Run wat2wasm
+    result = subprocess.run(
+        ["wat2wasm", str(wat_path), "-o", str(wasm_path)],
+        capture_output=True,
+        text=True,
+    )
 
-    # Global section: physics version constant - must come after memory section
-    global_section = bytes([0x06])  # section id (global)
-    global_section += encode_i32(6)  # section length (1 + 1 + 1 + 1 + 1 + 1)
-    global_section += bytes([
-        0x01,  # num globals
-        0x7f,  # i32
-        0x00,  # immutable
-        0x41,  # i32.const
-    ])
-    global_section += encode_i32(physics_version)
-    global_section += bytes([0x0b])  # end
+    if result.returncode != 0:
+        raise RuntimeError(f"wat2wasm failed: {result.stderr}")
 
-    # Export section - must come after global section
-    export_section = bytes([0x07])  # section id (export)
-    export_section += encode_i32(29)  # section length (1 + 1 + 7 + 2 + 1 + 13 + 2 + 1 + 6 + 2)
-    export_section += bytes([0x03])  # num exports
+    log("done", f"WASM compiled to {wasm_path}")
+    return wasm_path.read_bytes()
 
-    # physics_version export
-    export_section += string_bytes("physics_version")
-    export_section += bytes([0x00, 0x00])  # export kind (function), function index
-
-    # wasm_validate export
-    export_section += string_bytes("wasm_validate")
-    export_section += bytes([0x00, 0x01])  # export kind (function), function index
-
-    # memory export
-    export_section += string_bytes("memory")
-    export_section += bytes([0x02, 0x00])  # export kind (memory), memory index
-
-    # Code section: function bodies
-    code_section = bytes([0x0a])  # section id (code)
-    code_section += encode_i32(16)  # section length (1 + 6 + 9)
-    code_section += bytes([0x02])  # num functions
-
-    # physics_version body
-    code_section += bytes([
-        0x06,  # function size
-        0x00,  # num locals
-        0x23, 0x00,  # global.get 0
-        0x0b,  # end
-    ])
-
-    # wasm_validate body
-    code_section += bytes([
-        0x09,  # function size
-        0x00,  # num locals
-        0x23, 0x00,  # global.get 0
-        0x41, 0x00,  # i32.const 0
-        0x48,  # i32.gt_s
-        0x0b,  # end
-    ])
-
-    # Sections must appear in ascending order of their section IDs:
-    # 1 (type), 3 (function), 5 (memory), 6 (global), 7 (export), 10 (code)
-    return magic + version + type_section + function_section + memory_section + global_section + export_section + code_section
-
-def create_hashed_artifact(wasm_path: Path, physics_version: int) -> dict:
-    """Generate content hash and create content-hashed artifact."""
+def create_hashed_artifact(wasm_bytes: bytes, physics_version: int) -> dict:
+    """Generate content hash and create content-hashed artifacts."""
     log("hash", "Generating content hash...")
 
-    wasm_buffer = wasm_path.read_bytes()
-    content_hash = get_content_hash(wasm_buffer)
+    content_hash = get_content_hash(wasm_bytes)
 
-    hashed_name = f"engine-core.{content_hash}.wasm"
+    # Create content-hashed artifact
+    hashed_name = f"resim.{content_hash}.wasm"
     hashed_path = DIST_DIR / hashed_name
+    hashed_path.write_bytes(wasm_bytes)
 
-    wasm_path.rename(hashed_path)
+    # Also create a symlink/copy as resim.wasm for validator to find
+    symlink_path = DIST_DIR / "resim.wasm"
+    symlink_path.write_bytes(wasm_bytes)
+
+    # Also copy as resim-test.wasm for fallback
+    test_path = DIST_DIR / "resim-test.wasm"
+    test_path.write_bytes(wasm_bytes)
 
     # Write metadata file
     metadata = {
@@ -172,7 +89,7 @@ def create_hashed_artifact(wasm_path: Path, physics_version: int) -> dict:
         "buildTime": datetime.now().isoformat(),
     }
 
-    metadata_path = DIST_DIR / "engine-core.wasm.json"
+    metadata_path = DIST_DIR / "resim.wasm.json"
     metadata_path.write_text(json.dumps(metadata, indent=2))
 
     log("done", f"Created {hashed_name}")
@@ -185,7 +102,7 @@ def create_hashed_artifact(wasm_path: Path, physics_version: int) -> dict:
     }
 
 def main() -> dict:
-    log("start", "Building engine-core WASM...")
+    log("start", "Building resim.wasm from resim.wat...")
 
     ensure_dir(DIST_DIR)
 
@@ -193,19 +110,13 @@ def main() -> dict:
     physics_version = extract_physics_version()
     log("version", f"PHYSICS_VERSION = {physics_version}")
 
-    # Step 2: Create WASM binary
-    log("compile", "Creating WebAssembly binary...")
-    wasm_bytes = create_minimal_wasm(physics_version)
+    # Step 2: Compile resim.wat to WASM
+    wasm_bytes = compile_resim_wat()
 
-    # Step 3: Write WASM file
-    wasm_path = DIST_DIR / "engine-core.wasm"
-    wasm_path.write_bytes(wasm_bytes)
-    log("done", f"WASM written to {wasm_path}")
+    # Step 3: Create content-hashed artifacts
+    result = create_hashed_artifact(wasm_bytes, physics_version)
 
-    # Step 4: Create content-hashed artifact
-    result = create_hashed_artifact(wasm_path, physics_version)
-
-    log("complete", "✓ engine-core.wasm build complete!")
+    log("complete", "✓ resim.wasm build complete!")
     log("output", f"Artifact: {result['wasmFile']}")
 
     return result

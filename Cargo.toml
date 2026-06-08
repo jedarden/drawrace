@@ -1,3 +1,3 @@
 [workspace]
-members = ["crates/api", "crates/validator", "crates/live"]
+members = ["crates/api", "crates/validator", "crates/live", "crates/update-ghosts"]
 resolver = "2"

@@ -87,177 +87,45 @@ function wasm_validate() {
 }
 
 /**
- * Compile JavaScript to WASM using Javy.
- * For Phase 2, we create a stub WASM module with the required exports.
+ * Compile resim.wat to WASM using wat2wasm.
+ * The real WASM module with full physics simulation.
  */
 function compileToWasm(bundlePath: string): { wasmPath: string; physicsVersion: number } {
-  log("compile", "Compiling to WebAssembly...");
+  log("compile", "Compiling resim.wat to WebAssembly...");
 
   // Extract physics version from bundle
   const bundleContent = readFileSync(bundlePath, "utf-8");
   const versionMatch = bundleContent.match(/PHYSICS_VERSION\s*=\s*(\d+)/);
   const physicsVersion = versionMatch ? parseInt(versionMatch[1], 10) : 0;
 
-  // For Phase 2, create a minimal WASM module using Wat (WebAssembly Text format)
-  // This is a stub that exports the required functions
-  // In a full implementation, we'd use Javy or a similar JS-to-WASM compiler
+  const watPath = join(ROOT_DIR, "src/resim.wat");
+  const wasmPath = join(DIST_DIR, "resim.wasm");
 
-  const watCode = `
-(module
-  ;; Physics version constant (stored in global)
-  (global $PHYSICS_VERSION i32 (i32.const ${physicsVersion}))
+  // Check if resim.wat exists
+  try {
+    const watStat = readFileSync(watPath, "utf-8");
+    log("info", `Found resim.wat (${watStat.length} bytes)`);
+  } catch (e) {
+    throw new Error(`resim.wat not found at ${watPath}: ${e}`);
+  }
 
-  ;; Export: physics_version() -> i32
-  (func $physics_version (result i32)
-    global.get $PHYSICS_VERSION
-  )
-  (export "physics_version" (func $physics_version))
+  // Compile wat to wasm using wat2wasm
+  try {
+    execSync(`wat2wasm "${watPath}" -o "${wasmPath}"`, {
+      stdio: "inherit",
+    });
+    log("done", `WASM compiled to ${wasmPath}`);
+  } catch (e) {
+    throw new Error(`wat2wasm failed: ${e}`);
+  }
 
-  ;; Export: wasm_validate() -> i32 (returns 1 for true)
-  (func $wasm_validate (result i32)
-    global.get $PHYSICS_VERSION
-    i32.const 0
-    i32.gt_s
-  )
-  (export "wasm_validate" (func $wasm_validate))
+  // Verify the WASM module exports the required functions
+  const wasmBuffer = readFileSync(wasmPath);
+  log("info", `WASM size: ${wasmBuffer.length} bytes`);
 
-  ;; Memory export (required for some WASM runtimes)
-  (memory (export "memory") 16)
-)
-`;
-
-  // Use wat2wasm from wabt if available, otherwise create a binary WASM directly
-  // For now, we'll create a minimal valid WASM binary manually
-  const wasmPath = join(DIST_DIR, "engine-core.wasm");
-
-  // Create a minimal WASM binary with the required exports
-  // This is a simplified WASM module structure
-  const wasmBytes = createMinimalWasm(physicsVersion);
-  writeFileSync(wasmPath, Buffer.from(wasmBytes));
-
-  log("done", `WASM compiled to ${wasmPath}`);
   return { wasmPath, physicsVersion };
 }
 
-/**
- * Create a minimal valid WASM binary with physics_version export.
- * This creates the raw binary format manually to avoid external dependencies.
- */
-function createMinimalWasm(physicsVersion: number): Uint8Array {
-  // WASM magic number and version
-  const magic = [0x00, 0x61, 0x73, 0x6d]; // \0asm
-  const version = [0x01, 0x00, 0x00, 0x00]; // version 1
-
-  // Type section: function types
-  const typeSection = [
-    0x01, // section id (type)
-    0x06, // section length
-    0x02, // num types
-    0x60, 0x00, 0x7f, // [func] -> i32 (physics_version)
-    0x60, 0x00, 0x7f, // [func] -> i32 (wasm_validate)
-  ];
-
-  // Function section: function declarations
-  const functionSection = [
-    0x03, // section id (function)
-    0x03, // section length
-    0x02, // num functions
-    0x00, // physics_version uses type 0
-    0x01, // wasm_validate uses type 1
-  ];
-
-  // Global section: physics version constant
-  const globalSection = [
-    0x06, // section id (global)
-    0x07, // section length
-    0x01, // num globals
-    0x7f, // i32
-    0x00, // immutable
-    0x41, // i32.const
-    ...encodeI32(physicsVersion),
-    0x0b, // end
-  ];
-
-  // Export section
-  const exportSection = [
-    0x07, // section id (export)
-    0x1e, // section length
-    0x03, // num exports
-    // physics_version
-    ...stringBytes("physics_version"),
-    0x00, // export kind (function)
-    0x00, // function index
-    // wasm_validate
-    ...stringBytes("wasm_validate"),
-    0x00, // export kind (function)
-    0x01, // function index
-    // memory
-    ...stringBytes("memory"),
-    0x02, // export kind (memory)
-    0x00, // memory index
-  ];
-
-  // Code section: function bodies
-  const codeSection = [
-    0x0a, // section id (code)
-    0x0d, // section length
-    0x02, // num functions
-    // physics_version body
-    0x06, // function size
-    0x00, // num locals
-    0x23, 0x00, // global.get 0
-    0x0b, // end
-    // wasm_validate body
-    0x09, // function size
-    0x00, // num locals
-    0x23, 0x00, // global.get 0
-    0x41, 0x00, // i32.const 0
-    0x48, // i32.gt_s
-    0x0b, // end
-  ];
-
-  // Memory section: 1 page (64KB)
-  const memorySection = [
-    0x05, // section id (memory)
-    0x03, // section length
-    0x01, // num memories
-    0x00, // limits type (no maximum)
-    0x01, // initial pages (64KB)
-  ];
-
-  const allSections = [
-    ...typeSection,
-    ...functionSection,
-    ...globalSection,
-    ...exportSection,
-    ...codeSection,
-    ...memorySection,
-  ];
-
-  return new Uint8Array([...magic, ...version, ...allSections]);
-}
-
-function encodeI32(n: number): number[] {
-  const bytes: number[] = [];
-  let value = n >>> 0; // treat as unsigned
-
-  // Handle 0 specially
-  if (value === 0) return [0x00];
-
-  while (value > 0) {
-    let byte = value & 0x7f;
-    value >>>= 7;
-    if (value > 0) byte |= 0x80;
-    bytes.push(byte);
-  }
-
-  return bytes;
-}
-
-function stringBytes(s: string): number[] {
-  const utf8 = Buffer.from(s, "utf-8");
-  return [utf8.length, ...utf8];
-}
 
 /**
  * Generate content hash and create content-hashed artifact.
@@ -268,10 +136,19 @@ function createHashedArtifact(wasmPath: string, physicsVersion: number): BuildRe
   const wasmBuffer = readFileSync(wasmPath);
   const contentHash = getContentHash(wasmBuffer);
 
-  const hashedName = `engine-core.${contentHash}.wasm`;
+  const hashedName = `resim.${contentHash}.wasm`;
   const hashedPath = join(DIST_DIR, hashedName);
 
-  renameSync(wasmPath, hashedPath);
+  // Copy to content-hashed name
+  writeFileSync(hashedPath, wasmBuffer);
+
+  // Also create a symlink/copy as resim.wasm for validator to find
+  const symlinkPath = join(DIST_DIR, "resim.wasm");
+  writeFileSync(symlinkPath, wasmBuffer);
+
+  // Also copy as resim-test.wasm for fallback
+  const testPath = join(DIST_DIR, "resim-test.wasm");
+  writeFileSync(testPath, wasmBuffer);
 
   // Write metadata file
   const metadata = {
@@ -281,7 +158,7 @@ function createHashedArtifact(wasmPath: string, physicsVersion: number): BuildRe
     buildTime: new Date().toISOString(),
   };
 
-  const metadataPath = join(DIST_DIR, "engine-core.wasm.json");
+  const metadataPath = join(DIST_DIR, "resim.wasm.json");
   writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), "utf-8");
 
   log("done", `Created ${hashedName}`);
@@ -298,7 +175,7 @@ function createHashedArtifact(wasmPath: string, physicsVersion: number): BuildRe
  * Main build process.
  */
 function main(): BuildResult {
-  log("start", "Building engine-core WASM...");
+  log("start", "Building resim.wasm from resim.wat...");
 
   ensureDir(DIST_DIR);
 
@@ -308,13 +185,13 @@ function main(): BuildResult {
   // Step 2: Bundle WASM entry point
   const bundlePath = bundleWasmEntry();
 
-  // Step 3: Compile to WASM
+  // Step 3: Compile resim.wat to WASM
   const { wasmPath, physicsVersion } = compileToWasm(bundlePath);
 
   // Step 4: Create content-hashed artifact
   const result = createHashedArtifact(wasmPath, physicsVersion);
 
-  log("complete", `✓ engine-core.wasm build complete!`);
+  log("complete", `✓ resim.wasm build complete!`);
   log("output", `Artifact: ${result.wasmFile}`);
 
   return result;

@@ -56,7 +56,7 @@
 /// All offsets are in bytes from the start of the WASM linear memory.
 /// Total memory size: 128KB (2 pages of 64KB each).
 ///
-/// ```
+/// ```text
 /// +------------------+----------+----------------------------------------+
 /// | Region           | Offset   | Description                            |
 /// +------------------+----------+----------------------------------------+
@@ -413,6 +413,18 @@ pub fn read_i32(memory: &Memory, mut store: &mut wasmtime::Store<()>, offset: u3
     }
     unsafe {
         Ok(i32::from_le(ptr::read(data.as_ptr().add(offset) as *const i32)))
+    }
+}
+
+/// Read a i16 value from WASM memory at the given offset.
+pub fn read_i16(memory: &Memory, mut store: &mut wasmtime::Store<()>, offset: u32) -> anyhow::Result<i16> {
+    let data = memory.data(&mut store);
+    let offset = offset as usize;
+    if offset + 2 > data.len() {
+        anyhow::bail!("Memory read out of bounds: offset={}, size=2, len={}", offset, data.len());
+    }
+    unsafe {
+        Ok(i16::from_le(ptr::read(data.as_ptr().add(offset) as *const i16)))
     }
 }
 

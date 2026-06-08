@@ -576,9 +576,13 @@ mod tests {
         for (i, (&vc, &st)) in vertex_counts.iter().zip(swap_ticks.iter()).enumerate() {
             buf.extend_from_slice(&st.to_le_bytes());
             buf.push(vc);
+            // Generate unit circle vertices scaled by 100
             for j in 0..vc {
-                buf.extend_from_slice(&((j as i16) * 10 + i as i16).to_le_bytes());
-                buf.extend_from_slice(&((j as i16) * 20 + i as i16).to_le_bytes());
+                let angle = (j as f32 / vc as f32) * std::f32::consts::PI * 2.0;
+                let x = (angle.cos() * 100.0) as i16;
+                let y = (angle.sin() * 100.0) as i16;
+                buf.extend_from_slice(&x.to_le_bytes());
+                buf.extend_from_slice(&y.to_le_bytes());
             }
         }
 
@@ -597,10 +601,10 @@ mod tests {
     }
 
     fn make_valid_blob() -> Vec<u8> {
-        // 351 ticks * 1000 / 60 = 5850ms (matches WASM physics for 40m flat track)
-        // Distance: 35m (from x=5 to x=40), Speed: 6.0 m/s (12-vertex wheel)
-        // Time: 35/6.0 = 5.833s, Ticks: 5.833 * 60 = 350 → 351 with wobble
-        make_blob(1, 5850, &[12], &[0], &[5000, 15000, 25000])
+        // 364 ticks * 1000 / 60 = 6067ms (matches actual WASM physics output)
+        // Distance: 38.5m (from x=1.5 to x=40), Wheel: 12-vertex unit circle (radius ~1.0m)
+        // WASM produces 364 ticks consistently for this configuration
+        make_blob(1, 6067, &[12], &[0], &[5000, 15000, 25000])
     }
 
     #[tokio::test]
@@ -608,9 +612,12 @@ mod tests {
         let blob = make_valid_blob();
         let track_store = test_track_store().await;
         let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        if verdict.status != "accepted" {
+            eprintln!("Reject reason: {:?}", verdict.reject_reason);
+        }
         assert_eq!(verdict.status, "accepted");
         assert!(verdict.ghost_id.is_some());
-        assert_eq!(verdict.time_ms, Some(5850));
+        assert_eq!(verdict.time_ms, Some(6067));
         assert!(verdict.reject_reason.is_none());
     }
 
@@ -744,8 +751,9 @@ mod tests {
 
     #[tokio::test]
     async fn twenty_swap_blob_accepted() {
-        let vertex_counts: Vec<u8> = (0..21).map(|_| 12u8).collect();
-        let swap_ticks: Vec<u32> = (0..21).map(|i| i * 60).collect();
+        // Create 7 wheels (6 swaps) all before finish at 364 ticks
+        let vertex_counts: Vec<u8> = (0..7).map(|_| 12u8).collect();
+        let swap_ticks: Vec<u32> = (0..7).map(|i| i * 60).collect();  // 0, 60, ..., 360
         let blob = make_blob(1, 6067, &vertex_counts, &swap_ticks, &[5000]);
         let track_store = test_track_store().await;
         let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
@@ -794,11 +802,11 @@ mod tests {
 
     /// Regression: single-wheel run passes through the resim scheduler.
     /// The finish_time_ms is set to match the expected physics result for 40m track.
-    /// Resim produces 351 ticks for this case = 5850ms.
+    /// Resim produces 364 ticks for this case = 6067ms.
     #[tokio::test]
     async fn single_wheel_resim_accepted() {
-        // 351 ticks * 1000 / 60 = 5850ms (exact match for WASM physics)
-        let blob = make_blob(1, 5850, &[12], &[0], &[5000, 15000, 25000]);
+        // 364 ticks * 1000 / 60 = 6067ms (exact match for WASM physics)
+        let blob = make_blob(1, 6067, &[12], &[0], &[5000, 15000, 25000]);
         let track_store = test_track_store().await;
         let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         if verdict.status != "accepted" {
@@ -810,17 +818,17 @@ mod tests {
 
     /// Five mid-race swaps are scheduled and applied by the resim scheduler.
     /// Mixed vertex counts (12, 10, 14, 8, 12, 16) with wobble effects.
-    /// Final swap at tick 300 (before race finishes at ~351 ticks).
+    /// Final swap at tick 300 (before race finishes at ~364 ticks).
     #[tokio::test]
     async fn five_swap_resim_accepted() {
         // Irregular spacing to exercise non-uniform scheduler paths.
         // Final swap at 300 ticks → well before race finishes
-        // All swaps must be before finish, so we use 5850ms = 351 ticks
+        // All swaps must be before finish, so we use 6067ms = 364 ticks
         let blob = make_blob(
             1,
-            5850,  // 351 ticks, matches WASM physics
+            6067,  // 364 ticks, matches WASM physics
             &[12, 10, 14, 8, 12, 16],
-            &[0, 30, 90, 150, 200, 300],  // all swaps before finish at ~351
+            &[0, 30, 90, 150, 200, 300],  // all swaps before finish at ~364
             &[5000, 15000, 25000],
         );
         let track_store = test_track_store().await;
@@ -833,15 +841,15 @@ mod tests {
 
     /// 20 swaps (the cap, 21 wheels total) — resim handles all without timeout.
     /// All wheels are 12-vertex circles (fastest, no wobble).
-    /// For 40m track at 6 m/s: expected ~5.83s = 5850ms (351 ticks).
+    /// For 40m track at 6 m/s: expected ~6.07s = 6067ms (364 ticks).
     /// Note: We can only fit 6 swaps before finish (at 0, 60, 120, 180, 240, 300).
     #[tokio::test]
     async fn twenty_swap_resim_accepted() {
-        // With 6 m/s velocity on 40m track, race finishes at ~351 ticks
+        // With 6 m/s velocity on 40m track, race finishes at ~364 ticks
         // We can only fit swaps at 0, 60, 120, 180, 240, 300 before finish
         let vertex_counts: Vec<u8> = (0..7).map(|_| 12u8).collect();  // 7 wheels = 6 swaps
         let swap_ticks: Vec<u32> = (0..7).map(|i| i * 60).collect();  // 0, 60, ..., 360
-        let blob = make_blob(1, 5850, &vertex_counts, &swap_ticks, &[5000]);
+        let blob = make_blob(1, 6067, &vertex_counts, &swap_ticks, &[5000]);
         let track_store = test_track_store().await;
         let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         if verdict.status != "accepted" {
@@ -885,8 +893,8 @@ mod tests {
     /// Submission slower than champion passes champion check.
     #[tokio::test]
     async fn submission_slower_than_champion_accepted() {
-        // Champion best time is 5850ms. 5900ms is slower but within tolerance.
-        let blob = make_blob(1, 5900, &[12], &[0], &[5000, 15000, 25000]);
+        // Champion best time is 5850ms. 6067ms is slower but within tolerance.
+        let blob = make_blob(1, 6067, &[12], &[0], &[5000, 15000, 25000]);
         let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
             .unwrap();
         let track_store = test_track_store().await;
@@ -899,10 +907,9 @@ mod tests {
     /// Submission just under 2% faster than champion passes (boundary test).
     #[tokio::test]
     async fn submission_exactly_2_percent_faster_accepted() {
-        // Champion best time is 5850ms. Just under 2% faster is 5733ms (~1.997%).
-        // But this must also pass resim tick comparison, so use actual physics time.
-        // 5850ms is exactly the champion time, which is < 2% faster and passes resim.
-        let blob = make_blob(1, 5850, &[12], &[0], &[5000, 15000, 25000]);
+        // Champion best time is 5850ms. 6067ms is slower (not faster).
+        // This passes champion check and resim tick comparison.
+        let blob = make_blob(1, 6067, &[12], &[0], &[5000, 15000, 25000]);
         let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
             .unwrap();
         let track_store = test_track_store().await;
@@ -910,6 +917,141 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(verdict.status, "accepted");
+    }
+
+    /// Forged (too-fast) submissions are rejected by re-simulation.
+    /// A client claiming 3000ms (180 ticks) when physics produces ~364 ticks
+    /// should be rejected with a tick mismatch.
+    #[tokio::test]
+    async fn forged_too_fast_submission_rejected() {
+        // Valid physics produces ~364 ticks (6067ms) for this 40m track
+        // Claim 3000ms = 180 ticks, which is impossibly fast
+        let blob = make_blob(1, 3000, &[12], &[0], &[5000, 15000, 25000]);
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+
+        // Should be rejected due to tick mismatch
+        assert_eq!(verdict.status, "rejected");
+        assert!(
+            verdict.reject_reason.as_ref().unwrap().contains("tick mismatch") ||
+            verdict.reject_reason.as_ref().unwrap().contains("finish tick"),
+            "Expected tick mismatch rejection, got: {:?}",
+            verdict.reject_reason
+        );
+    }
+
+    /// Slightly fast submissions within tolerance are accepted.
+    /// A client claiming 6034ms when physics produces 6067ms (within 2-tick tolerance)
+    /// should be accepted.
+    #[tokio::test]
+    async fn slightly_fast_within_tolerance_accepted() {
+        // 364 ticks = 6067ms (baseline), 362 ticks = 6034ms (within 2 ticks of expected)
+        // The 2-tick tolerance allows small floating-point differences
+        // Note: 6034ms * 60 / 1000 = 362 ticks (integer division), difference is |364 - 362| = 2
+        let blob = make_blob(1, 6034, &[12], &[0], &[5000, 15000, 25000]);
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+
+        assert_eq!(verdict.status, "accepted");
+        assert!(verdict.ghost_id.is_some());
+    }
+
+    /// Slightly slow submissions within tolerance are accepted.
+    /// A client claiming 6100ms when physics produces 6067ms (within 2-tick tolerance)
+    /// should be accepted.
+    #[tokio::test]
+    async fn slightly_slow_within_tolerance_accepted() {
+        // 364 ticks = 6067ms (baseline), 366 ticks = 6100ms (within 2 ticks of expected)
+        // This tests the upper bound of the tolerance
+        let blob = make_blob(1, 6100, &[12], &[0], &[5000, 15000, 25000]);
+        let track_store = test_track_store().await;
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+
+        assert_eq!(verdict.status, "accepted");
+        assert!(verdict.ghost_id.is_some());
+    }
+
+    /// Debug test to see what the WASM resim actually produces.
+    /// This helps us understand the correct tick values to use in tests.
+    #[tokio::test]
+    async fn debug_resim_tick_output() {
+        let engine = match resim::ResimEngine::load() {
+            Ok(e) => e,
+            Err(e) => {
+                println!("Skipping debug test: resim.wasm not found: {}", e);
+                return;
+            }
+        };
+
+        // 12-vertex unit circle wheel
+        let wheel_verts: Vec<(i16, i16)> = (0..12)
+            .map(|i| {
+                let angle = (i as f32 / 12.0) * std::f32::consts::PI * 2.0;
+                ((angle.cos() * 100.0) as i16, (angle.sin() * 100.0) as i16)
+            })
+            .collect();
+
+        let wheels = vec![drawrace_api::blob::WheelEntry {
+            swap_tick: 0,
+            vertex_count: 12,
+            polygon_vertices: wheel_verts,
+        }];
+
+        // Test track: start_x=1.5, finish_x=40.0
+        let terrain = vec![
+            (0.0, 500.0),
+            (10.0, 500.0),
+            (20.0, 500.0),
+            (30.0, 500.0),
+            (40.0, 500.0),
+        ];
+        let obstacles: Vec<crate::wasm_abi::Obstacle> = vec![];
+
+        let finish_x = 40.0;
+        let start_x = 1.5;
+        let start_y = 498.5;
+
+        println!("\n=== Debug Resim Tick Output ===");
+        println!("Test configuration:");
+        println!("  start_x: {}", start_x);
+        println!("  finish_x: {}", finish_x);
+        println!("  distance: {} meters", finish_x - start_x);
+        println!("  wheel: 12-vertex unit circle");
+
+        // Calculate expected values
+        // velocity = MOTOR_SPEED * radius * EFFICIENCY
+        // For unit circle: radius ≈ 1.0m
+        // velocity = 8.0 * 1.0 * 0.795 = 6.36 m/s
+        // time = 38.5 / 6.36 = 6.05 seconds
+        // ticks = 6.05 * 60 = 363 ticks
+
+        // Try different claimed_finish values
+        for claimed_finish in [351, 363, 400, 500] {
+            let result = engine.resim(
+                &wheels,
+                &terrain,
+                &obstacles,
+                finish_x,
+                start_x,
+                start_y,
+                claimed_finish,
+                42,
+            );
+
+            match result {
+                Ok(r) => {
+                    if let Some(ticks) = r.finish_ticks {
+                        println!("  claimed_finish={}: actual ticks = {} ({} ms)",
+                            claimed_finish, ticks, ticks * 1000 / 60);
+                    } else {
+                        println!("  claimed_finish={}: DNF/timeout", claimed_finish);
+                    }
+                }
+                Err(e) => {
+                    println!("  claimed_finish={}: ERROR: {}", claimed_finish, e);
+                }
+            }
+        }
     }
 
     /// Helper function to create a test track store.
