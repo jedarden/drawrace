@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "updated_at": "2026-06-08T00:00:00Z",
+  "updated_at": "2026-06-08T10:30:00Z",
   "champions": {
     "1": {
       "track_id": 1,
       "track_name": "Scribble Slope",
-      "best_time_ms": 6067,
+      "best_time_ms": 5850,
       "wheel": {
         "swap_tick": 0,
         "vertex_count": 12,
@@ -26,7 +26,7 @@
       },
       "physics_version": 4,
       "created_at": "2026-06-08T00:00:00Z",
-      "notes": "Updated for WASM ABI v1 - 364 ticks for 40m flat track"
+      "notes": "Updated for WASM ABI v1 - 351 ticks for 40m flat track (6.0 m/s, 35m distance)"
     }
   }
 }
