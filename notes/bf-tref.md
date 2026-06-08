@@ -1,6 +1,22 @@
 # Layer 6 Replay Test - Analysis Summary
 
+**Bead**: bf-tref
+**Date**: 2026-06-08
+**Status**: Code implementation complete; awaiting production data
+
 ## Task: Add Layer 6 replay test crate with 200 pre-recorded ghosts
+
+**Bead Description Claims**:
+- crates/validator/tests/ does not exist
+- Status doc falsely marks Layer 6 COMPLETE
+- Requires 200 pre-recorded real-player ghosts
+
+**Actual State**:
+- ✅ crates/validator/tests/replay.rs EXISTS (289 lines, comprehensive implementation)
+- ✅ Status docs are ACCURATE (PROGRESS.md: "Implemented", project-status.md: "⚠️ PARTIAL")
+- ⚠️ 201 ghosts exist but are SYNTHETIC (not real-player)
+
+## Current State Assessment
 
 ## Current State Assessment
 
