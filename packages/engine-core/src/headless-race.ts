@@ -139,18 +139,23 @@ export function createHeadlessRace(
     }
   }
 
-  // Add left barrier at startX to prevent car from rolling backward past start line
+  // Place wheel center just above terrain surface; gravity pulls it down to rest on surface
+  const wheelSpawnY = terrainY - wheelRadius;
+
+  // Add left barrier to prevent car from rolling backward past start.
+  // Position it to the left of all car bodies at spawn (chassis half-width=1.2,
+  // rear wheel at startX-0.9 with radius=wheelRadius).
+  const rearWheelLeftEdge = (startX - 0.9) - wheelRadius;
+  const chassisLeftEdge = startX - 1.2;
+  const barrierX = Math.min(rearWheelLeftEdge, chassisLeftEdge) - 0.1;
   const leftBarrier = world.createBody({
-    position: Vec2(startX - 0.05, terrainY - 2),
+    position: Vec2(barrierX, terrainY - 2),
     type: "static",
   });
   leftBarrier.createFixture(Box(0.05, 10), {
     friction: 0.0,
     restitution: 0.0,
   });
-
-  // Place wheel center just above terrain surface; gravity pulls it down to rest on surface
-  const wheelSpawnY = terrainY - wheelRadius;
 
   // Front wheel (drawn polygon — AWD)
   const wheelBody = buildWheelBody(world, wv, startX, wheelSpawnY);

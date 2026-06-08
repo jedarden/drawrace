@@ -24,6 +24,9 @@ const TEST_TRACK: TrackDef = {
     [18, 5.8], [22, 5.8], [25, 5], [30, 5],
     [35, 5.2], [40, 5.2],
   ],
+  zones: [
+    { id: "A", x_start: 0, x_end: 40 },
+  ],
   start: { pos: [1.5, 3.5], facing: 1 },
   finish: { pos: [39, 3.5], width: 0.2 },
 };
@@ -97,6 +100,7 @@ for (const entry of goldenFile.goldens) {
     entry.finishTicks = result.finishTicks;
     entry.finalX = result.finalX;
     entry.streamHash = result.streamHash;
+    entry.stuck = result.stuck;
     entry.physicsVersion = PHYSICS_VERSION;
   } else {
     if (entry.structuralReject) {

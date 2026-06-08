@@ -31,14 +31,15 @@ export function buildWheelBody(
   const body = world.createBody({ position: Vec2(spawnX, spawnY), type: "dynamic" });
   const pv = verts.map((v) => Vec2(v[0], v[1]));
 
-  if (pv.length <= 8) {
+  if (pv.length <= 12) {
+    // Planck.js supports up to 12 vertices in a single Polygon fixture
     body.createFixture(Polygon(pv), {
       density: WHEEL_DENSITY,
       friction: WHEEL_FRICTION,
       restitution: WHEEL_RESTITUTION,
     });
   } else {
-    // Fan-triangulate from centroid for >8 vertices
+    // Fan-triangulate from centroid for >12 vertices
     const cx = pv.reduce((s, v) => s + v.x, 0) / pv.length;
     const cy = pv.reduce((s, v) => s + v.y, 0) / pv.length;
     const center = Vec2(cx, cy);

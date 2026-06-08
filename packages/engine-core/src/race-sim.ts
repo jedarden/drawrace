@@ -186,11 +186,13 @@ export class RaceSim {
       position: Vec2(startX, wheelSpawnY),
       type: "dynamic",
     });
-    if (wheelVerts.length <= 8) {
+    if (wheelVerts.length <= 12) {
+      // Planck.js supports up to 12 vertices in a single Polygon fixture
       this.wheelBody.createFixture(Polygon(wheelVerts), {
         density: WHEEL_DENSITY, friction: wheelFriction, restitution: WHEEL_RESTITUTION,
       });
     } else {
+      // Fan-triangulate from centroid for >12 vertices
       const cx = wheelVerts.reduce((s, v) => s + v.x, 0) / wheelVerts.length;
       const cy = wheelVerts.reduce((s, v) => s + v.y, 0) / wheelVerts.length;
       const center = Vec2(cx, cy);
