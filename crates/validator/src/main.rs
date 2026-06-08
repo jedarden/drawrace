@@ -597,7 +597,8 @@ mod tests {
     }
 
     fn make_valid_blob() -> Vec<u8> {
-        make_blob(1, 28441, &[12], &[0], &[5000, 15000, 25000])
+        // 364 ticks * 1000 / 60 = 6067ms (matches WASM physics for 40m flat track)
+        make_blob(1, 6067, &[12], &[0], &[5000, 15000, 25000])
     }
 
     #[tokio::test]
@@ -607,7 +608,7 @@ mod tests {
         let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
         assert_eq!(verdict.status, "accepted");
         assert!(verdict.ghost_id.is_some());
-        assert_eq!(verdict.time_ms, Some(28441));
+        assert_eq!(verdict.time_ms, Some(6067));
         assert!(verdict.reject_reason.is_none());
     }
 
@@ -790,39 +791,59 @@ mod tests {
     // ── New Layer 3: resim scheduler integration ──────────────────────────────
 
     /// Regression: single-wheel run passes through the resim scheduler.
+    /// The finish_time_ms is set to match the expected physics result for 40m track.
+    /// Resim produces 364 ticks for this case = 6067ms.
     #[tokio::test]
     async fn single_wheel_resim_accepted() {
-        let blob = make_valid_blob();
+        // 364 ticks * 1000 / 60 = 6067ms (exact match for WASM physics)
+        let blob = make_blob(1, 6067, &[12], &[0], &[5000, 15000, 25000]);
         let track_store = test_track_store().await;
         let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        if verdict.status != "accepted" {
+            eprintln!("Reject reason: {:?}", verdict.reject_reason);
+        }
         assert_eq!(verdict.status, "accepted");
         assert!(verdict.ghost_id.is_some());
     }
 
-    /// Five mid-race swaps are scheduled and applied by the resim stub.
+    /// Five mid-race swaps are scheduled and applied by the resim scheduler.
+    /// Mixed vertex counts (12, 10, 14, 8, 12, 16) with wobble effects.
+    /// Final swap at tick 500, so finish_time_ms must be >= 8334ms.
     #[tokio::test]
     async fn five_swap_resim_accepted() {
         // Irregular spacing to exercise non-uniform scheduler paths.
+        // Final swap at 500 ticks → need at least 500 ticks for finish
+        // 500 ticks * 1000 / 60 = 8334ms
+        // Physics with mixed wheels: ~384 ticks = 6400ms, but swaps extend past that
+        // Setting to 9000ms (540 ticks) to accommodate all swaps + finish
         let blob = make_blob(
             1,
-            28441,
+            9000,  // 540 ticks, accommodates all swaps and expected finish
             &[12, 10, 14, 8, 12, 16],
             &[0, 30, 90, 200, 350, 500],
             &[5000, 15000, 25000],
         );
         let track_store = test_track_store().await;
         let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        if verdict.status != "accepted" {
+            eprintln!("Reject reason: {:?}", verdict.reject_reason);
+        }
         assert_eq!(verdict.status, "accepted");
     }
 
     /// 20 swaps (the cap, 21 wheels total) — resim handles all without timeout.
+    /// All wheels are 12-vertex circles (fastest, no wobble).
+    /// For 40m track at 6 m/s: expected ~6.5s = 6500ms.
     #[tokio::test]
     async fn twenty_swap_resim_accepted() {
         let vertex_counts: Vec<u8> = (0..21).map(|_| 12u8).collect();
         let swap_ticks: Vec<u32> = (0..21).map(|i| i * 60).collect();
-        let blob = make_blob(1, 28441, &vertex_counts, &swap_ticks, &[5000]);
+        let blob = make_blob(1, 6500, &vertex_counts, &swap_ticks, &[5000]);
         let track_store = test_track_store().await;
         let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        if verdict.status != "accepted" {
+            eprintln!("Reject reason: {:?}", verdict.reject_reason);
+        }
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -846,8 +867,8 @@ mod tests {
     /// Submission faster than champion by >2% is quarantined.
     #[tokio::test]
     async fn submission_faster_than_champion_quarantined() {
-        // Champion best time is 28441ms. 2.1% faster is ~27844ms.
-        let blob = make_blob(1, 27844, &[12], &[0], &[5000, 15000, 25000]);
+        // Champion best time is 6067ms. 2.1% faster is ~5940ms.
+        let blob = make_blob(1, 5940, &[12], &[0], &[5000, 15000, 25000]);
         let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
             .unwrap();
         let track_store = test_track_store().await;
@@ -861,8 +882,8 @@ mod tests {
     /// Submission slower than champion passes champion check.
     #[tokio::test]
     async fn submission_slower_than_champion_accepted() {
-        // Champion best time is 28441ms. 29000ms is slower.
-        let blob = make_blob(1, 29000, &[12], &[0], &[5000, 15000, 25000]);
+        // Champion best time is 6067ms. 6100ms is slower but within tolerance.
+        let blob = make_blob(1, 6100, &[12], &[0], &[5000, 15000, 25000]);
         let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
             .unwrap();
         let track_store = test_track_store().await;
@@ -875,8 +896,8 @@ mod tests {
     /// Submission just under 2% faster than champion passes (boundary test).
     #[tokio::test]
     async fn submission_exactly_2_percent_faster_accepted() {
-        // Champion best time is 28441ms. Just under 2% faster is 27873ms (~1.997%).
-        let blob = make_blob(1, 27873, &[12], &[0], &[5000, 15000, 25000]);
+        // Champion best time is 6067ms. Just under 2% faster is 5947ms (~1.997%).
+        let blob = make_blob(1, 5947, &[12], &[0], &[5000, 15000, 25000]);
         let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
             .unwrap();
         let track_store = test_track_store().await;
@@ -898,17 +919,19 @@ mod tests {
         std::fs::create_dir_all(&tracks_dir).unwrap();
 
         // Create a minimal test track JSON
+        // Terrain at y=500, wheel starts at y=498.5 (on ground with wheel radius ~1.5)
+        // This matches the roundtrip test setup
         let track_json = r#"{
             "id": "test-01",
             "numeric_id": 1,
             "name": "Test Track",
             "version": 1,
-            "terrain": [[0, 0.0], [10, 1.0], [20, 0.5], [30, 0.0], [40, 0.0]],
+            "terrain": [[0, 500.0], [10, 500.0], [20, 500.0], [30, 500.0], [40, 500.0]],
             "obstacles": [],
             "surfaces": [],
             "ramps": [],
-            "start": {"pos": [1.5, 0.0], "facing": 1},
-            "finish": {"pos": [40.0, 0.0], "width": 0.2},
+            "start": {"pos": [1.5, 498.5], "facing": 1},
+            "finish": {"pos": [40.0, 500.0], "width": 0.2},
             "hazards": []
         }"#;
 
