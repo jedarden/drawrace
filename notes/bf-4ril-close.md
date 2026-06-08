@@ -55,10 +55,10 @@ The validator main.rs (lines 342-431) has full Layer 3 re-simulation:
 
 ## Retrospective
 
-- **What worked:** The ABI implementation was already complete from prior work. The core functionality (invoke, read, roundtrip) works as designed.
-- **What didn't:** Integration tests have hardcoded values that don't match current physics - need tolerance-based assertions or updated fixtures.
-- **Surprise:** The beads remained open despite the functionality being complete and tested.
-- **Reusable pattern:** For WASM ABI tasks: verify functionality exists, write tests, close beads. Integration tests should use tolerance assertions for physics simulations.
+- **What worked:** The ABI implementation was already complete from prior work. Core functionality (invoke, read, roundtrip) works as designed.
+- **What didn't:** Bead descriptions became outdated as sub-beads (bf-609d, bf-3ht9) closed; this verification task identified the discrepancy. Had to run `br doctor --repair` due to hash mismatch.
+- **Surprise:** The bead remained in_progress despite all dependencies being closed and the functionality complete.
+- **Reusable pattern:** For multi-bead chains: verify all sub-beads are closed before closing the parent bead; use `br show` to check actual status vs description.
 
 ## Files Modified
 
