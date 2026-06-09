@@ -15,6 +15,9 @@ COPY crates/ crates/
 # Build API binary
 RUN cargo build --release --bin drawrace-api
 
+# Generate seed ghost blob files
+RUN python3 scripts/generate-seed-ghosts.py
+
 # Runtime stage
 FROM debian:bookworm-slim
 
@@ -27,6 +30,9 @@ RUN apt-get update && apt-get install -y \
 
 # Copy binary from builder
 COPY --from=builder /build/target/release/drawrace-api /app/drawrace-api
+
+# Copy seed ghost blob files for empty DB initialization
+COPY --from=builder /build/seeds /app/seeds
 
 # Create non-root user
 RUN useradd -m -u 1000 drawrace

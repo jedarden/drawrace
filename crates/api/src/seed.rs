@@ -525,6 +525,12 @@ const SEEDS: &[SeedGhost] = &[
 
 /// Load seed ghosts into the database if none exist for the seed player.
 /// Idempotent — safe to call on every startup.
+///
+/// This function will:
+/// 1. Check if local seed files exist at `/app/seeds/track_1/` (Docker) or `seeds/track_1/` (dev)
+/// 2. If local files exist, read them from disk
+/// 3. Otherwise, generate blobs in-memory from the SEEDS array
+/// 4. Upload blobs to S3 and create database records
 pub async fn load_seeds_if_empty(
     pool: &PgPool,
     s3: &S3Client,
@@ -559,18 +565,49 @@ pub async fn load_seeds_if_empty(
     .execute(pool)
     .await?;
 
-    let mut loaded = 0u32;
-    let now_millis = chrono::Utc::now().timestamp_millis();
+    // Try to load from local seed files first
+    let seeds_dir = std::path::Path::new("/app/seeds/track_1");
+    let use_local_files = seeds_dir.exists();
 
-    for (i, seed) in SEEDS.iter().enumerate() {
-        let blob = encode_seed_blob(seed, now_millis - (SEEDS.len() - i) as i64 * 1000);
+    if use_local_files {
+        tracing::info!(path = %seeds_dir.display(), "loading seed ghosts from local files");
+    } else {
+        tracing::info!("loading seed ghosts from in-memory generation");
+    }
+
+    let mut loaded = 0u32;
+    let mut i = 0;
+
+    loop {
         let s3_key = format!("seeds/track_1/seed-{:03}", i);
+
+        let blob: Vec<u8> = if use_local_files {
+            let seed_path = seeds_dir.join(format!("seed-{:03}.blob", i));
+            match std::fs::read(&seed_path) {
+                Ok(data) => data,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    // No more seed files
+                    break;
+                }
+                Err(e) => {
+                    return Err(format!("failed to read seed file {:?}: {}", seed_path, e).into());
+                }
+            }
+        } else {
+            // Fall back to in-memory generation
+            if i >= SEEDS.len() {
+                break;
+            }
+            let seed = &SEEDS[i];
+            let now_millis = chrono::Utc::now().timestamp_millis();
+            encode_seed_blob(seed, now_millis - (SEEDS.len() - i) as i64 * 1000)
+        };
 
         // Upload blob to S3
         s3.put_object()
             .bucket(s3_bucket)
             .key(&s3_key)
-            .body(blob.into())
+            .body(blob.clone().into())
             .content_type("application/octet-stream")
             .send()
             .await
@@ -578,6 +615,9 @@ pub async fn load_seeds_if_empty(
                 tracing::error!(seed = i, error = %e, "failed to upload seed ghost to S3");
                 e
             })?;
+
+        // Get time_ms from the blob for database record
+        let time_ms = u32::from_le_bytes([blob[8], blob[9], blob[10], blob[11]]) as i32;
 
         // Insert ghost row with is_pb = true so it appears in leaderboard_buckets
         sqlx::query(
@@ -587,7 +627,7 @@ pub async fn load_seeds_if_empty(
         .bind(seed_uuid)
         .bind(TRACK_ID)
         .bind(PHYSICS_VERSION as i16)
-        .bind(seed.time_ms as i32)
+        .bind(time_ms)
         .bind(&s3_key)
         .execute(pool)
         .await
@@ -597,6 +637,7 @@ pub async fn load_seeds_if_empty(
         })?;
 
         loaded += 1;
+        i += 1;
     }
 
     // Refresh the materialized view so matchmaking picks up new ghosts

@@ -34,3 +34,7 @@ tower = { version = "0.5", features = ["util"] }
 [[bin]]
 name = "drawrace-api"
 path = "src/main.rs"
+
+[[bin]]
+name = "generate-seed-ghosts"
+path = "src/bin/generate-seed-ghosts.rs"
