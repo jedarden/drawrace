@@ -149,7 +149,7 @@ export function closeLoop(
 
 export function simplifyStroke(pts: Point[]): Point[] {
   const bbox = computeBBox(pts);
-  let tol = Math.max(1.5, Math.min(5.0, 0.008 * bbox.diagonal));
+  let tol = Math.max(0.5, Math.min(5.0, 0.008 * bbox.diagonal));
   let simplified = simplify(pts, tol, true);
 
   for (let i = 0; i < 3; i++) {
