@@ -21,3 +21,6 @@ tower-http = { version = "0.5", features = ["trace", "cors"] }
 tower = "0.5"
 http = "1.0"
 anyhow = "1.0"
+wasmtime = "22.0"
+drawrace-api = { path = "../api" }
+drawrace-validator = { path = "../validator" }

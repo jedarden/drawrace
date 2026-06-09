@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use crate::room::RoomRegistry;
 use crate::websocket::{websocket_handler, ConnectionRegistry};
-use crate::physics::RaceExecutor;
+use crate::physics::{RaceExecutor, GlobalPhysicsEngine};
 
 /// Shared application state
 pub struct LiveState {
@@ -27,6 +27,8 @@ pub struct LiveState {
     pub pod_ip: String,
     /// Race executor (runs authoritative simulation for active races)
     pub race_executor: Arc<RaceExecutor>,
+    /// Global physics engine (loaded once at startup)
+    pub physics_engine: Arc<GlobalPhysicsEngine>,
 }
 
 /// Create the axum router
@@ -69,14 +71,26 @@ async fn metrics_handler(State(state): State<Arc<LiveState>>) -> String {
 }
 
 impl LiveState {
-    pub fn new(redis: RedisClient, redis_mgr: ConnectionManager, pod_ip: String) -> Self {
+    pub fn new(
+        redis: RedisClient,
+        redis_mgr: ConnectionManager,
+        pod_ip: String,
+        physics_engine: Arc<GlobalPhysicsEngine>,
+    ) -> Self {
+        let engine = physics_engine.engine();
+        let track_store = physics_engine.track_store();
+
         LiveState {
             rooms: RoomRegistry::new(),
             connections: ConnectionRegistry::new(),
             redis,
             redis_mgr: Arc::new(tokio::sync::Mutex::new(redis_mgr)),
             pod_ip,
-            race_executor: Arc::new(RaceExecutor::new()),
+            race_executor: Arc::new(RaceExecutor::new(
+                engine.clone(),
+                track_store.clone(),
+            )),
+            physics_engine,
         }
     }
 }
