@@ -100,6 +100,20 @@ See [Roadmap & Delivery Plan](#roadmap--delivery-plan) for the phased plan. In s
 
 Total estimated wall-clock for a two-person team: **~10 weeks**.
 
+### Playable Criteria (Smoke-Test Acceptance)
+
+This section defines "the game is playable" as concrete pass/fail conditions. These are the minimum requirements for any build to be considered functional — a smoketest gating further development. All five criteria must pass for a build to exit Phase 1.
+
+| Criterion | Pass Condition | Failure Mode |
+|-----------|----------------|--------------|
+| **1. Static stability** | On the Draw screen, with motor disabled, the car's wheels must not roll backward past `startX` (the initial spawn position) under gravity alone. A settled wheel that stays at `x ≥ startX` validates collision shapes, material properties, and the initial spawn pose. | Car slides or rolls backward immediately → collision shape malformed or spawn placement invalid. |
+| **2. Forward propulsion** | When the motor is enabled (Race screen countdown completes to "GO"), the car must drive in the +x direction on flat, normal-friction terrain. A wheel that accelerates forward validates the motor joint, torque curve, and friction material. | Car spins in place, drives backward, or does not move → motor misconfigured or friction/restitution wrong. |
+| **3. Track traversal** | The car must complete at least one reference track (e.g., `hills-01`) end-to-end without getting stuck on the first nontrivial obstacle (a terrain feature requiring wheel adaptation, such as an icy incline or a rock step). The finish line crossing triggers the `Result` state. | Car wedges, flips, or cannot progress past the first obstacle → geometry decomposition, surface material, or motor insufficient. |
+| **4. Loop integrity** | The full game loop `Draw → Race → Result` must complete without error or console failures. The transition to `Result` requires a valid finish time; the `Draw` state must be re-enterable via Retry. | Crash, freeze, or console error during any phase → state machine bug or missing transition handler. |
+| **5. Result display** | The `Result` screen must render (a) the player's finish time to millisecond precision and (b) a comparison to the 3 bundled ghosts, showing whether the player beat each ghost and by how much. | Missing time, no ghost comparison, or incorrect values → telemetry missing or result state malformed. |
+
+**Testing the criteria.** These are verified manually in dev builds and via the Layer 9 phone-smoke harness (§Testing). A build that fails any criterion is blocked from Phase 2 handoff. The criteria are intentionally coarse — they do not guarantee fun or balance, only that the core systems are wired end-to-end.
+
 ---
 
 ## Gameplay & Physics
