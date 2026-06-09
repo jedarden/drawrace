@@ -1,14 +1,47 @@
+/**
+ * SoundManager — Audio file-based playback (per plan §Graphics 14)
+ *
+ * Replaces Web Audio synthesis with authored audio files.
+ * Format: Opus-in-.webm primary, AAC-in-.mp4 fallback.
+ * Total audio budget: ≤ 120KB across all sounds.
+ */
+
+interface SoundAsset {
+  name: string;
+  paths: string[]; // [primary, fallback]
+}
+
+const SOUND_ASSETS: Record<string, SoundAsset> = {
+  engineRumble: { name: 'Engine Rumble', paths: ['/assets/audio/engine_rumble.webm', '/assets/audio/engine_rumble.mp4'] },
+  bounce: { name: 'Bounce', paths: ['/assets/audio/bounce.webm', '/assets/audio/bounce.mp4'] },
+  whoosh: { name: 'Whoosh', paths: ['/assets/audio/whoosh.webm', '/assets/audio/whoosh.mp4'] },
+  finishFanfare: { name: 'Finish Fanfare', paths: ['/assets/audio/finish_fanfare.webm', '/assets/audio/finish_fanfare.mp4'] },
+  countdown: { name: 'Countdown', paths: ['/assets/audio/countdown.webm', '/assets/audio/countdown.mp4'] },
+  go: { name: 'Go', paths: ['/assets/audio/go.webm', '/assets/audio/go.mp4'] },
+  uiTap: { name: 'UI Tap', paths: ['/assets/audio/ui_tap.webm', '/assets/audio/ui_tap.mp4'] },
+  clear: { name: 'Clear', paths: ['/assets/audio/clear.webm', '/assets/audio/clear.mp4'] },
+  dnf: { name: 'DNF', paths: ['/assets/audio/dnf.webm', '/assets/audio/dnf.mp4'] },
+  strokeClosure: { name: 'Stroke Closure', paths: ['/assets/audio/stroke_closure.webm', '/assets/audio/stroke_closure.mp4'] },
+};
+
+type SoundKey = keyof typeof SOUND_ASSETS;
+
 export class SoundManager {
   private enabled: boolean;
   private context: AudioContext | null = null;
   private reducedMotion: boolean;
 
-  // Motor hum state
-  private motorOsc1: OscillatorNode | null = null;
-  private motorOsc2: OscillatorNode | null = null;
-  private motorGain: GainNode | null = null;
-  private motorBaseFreq = 80;
-  private motorRunning = false;
+  // Audio buffers cache
+  private buffers: Map<SoundKey, AudioBuffer> = new Map();
+
+  // Engine rumble playback (looped, with playback rate modulation)
+  private engineSource: AudioBufferSourceNode | null = null;
+  private engineGain: GainNode | null = null;
+  private engineBasePlaybackRate = 1.0;
+  private engineRunning = false;
+
+  // Track which sounds are loading to avoid duplicate fetches
+  private loadingPromises: Map<SoundKey, Promise<AudioBuffer | null>> = new Map();
 
   constructor() {
     this.enabled = false;
@@ -24,6 +57,12 @@ export class SoundManager {
   saveSettings(enabled: boolean): void {
     this.enabled = enabled;
     localStorage.setItem("drawrace.sound", enabled.toString());
+
+    // Lazy-load sounds on first enable (within user gesture context)
+    if (enabled) {
+      this.getContext(); // Initialize context
+      this.preloadSounds();
+    }
   }
 
   private getContext(): AudioContext | null {
@@ -48,191 +87,195 @@ export class SoundManager {
     return this.context;
   }
 
-  private playTone(frequency: number, duration: number, volume: number = 0.3): void {
+  /**
+   * Load a sound asset with fallback support.
+   * Tries .webm first, falls back to .mp4.
+   */
+  private async loadSound(key: SoundKey): Promise<AudioBuffer | null> {
+    // Return cached buffer if available
+    if (this.buffers.has(key)) {
+      return this.buffers.get(key)!;
+    }
+
+    // Return existing loading promise if in flight
+    if (this.loadingPromises.has(key)) {
+      return this.loadingPromises.get(key)!;
+    }
+
+    const ctx = this.getContext();
+    if (!ctx) return null;
+
+    const asset = SOUND_ASSETS[key];
+    const loadPromise = this.loadSoundWithFallback(ctx, asset.paths);
+
+    this.loadingPromises.set(key, loadPromise);
+
+    try {
+      const buffer = await loadPromise;
+      if (buffer) {
+        this.buffers.set(key, buffer);
+      }
+      this.loadingPromises.delete(key);
+      return buffer;
+    } catch {
+      this.loadingPromises.delete(key);
+      return null;
+    }
+  }
+
+  private async loadSoundWithFallback(ctx: AudioContext, paths: string[]): Promise<AudioBuffer | null> {
+    for (const path of paths) {
+      try {
+        const response = await fetch(path);
+        if (!response.ok) continue;
+
+        const arrayBuffer = await response.arrayBuffer();
+        return await ctx.decodeAudioData(arrayBuffer);
+      } catch {
+        // Try next fallback
+        continue;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Preload all sounds when sound is enabled.
+   * Runs asynchronously without blocking.
+   */
+  private preloadSounds(): void {
+    const keys: SoundKey[] = Object.keys(SOUND_ASSETS) as SoundKey[];
+    keys.forEach(key => {
+      this.loadSound(key).catch(() => {
+        // Silently fail — sound is optional
+      });
+    });
+  }
+
+  /**
+   * Play a one-shot sound.
+   */
+  private async playOneShot(key: SoundKey, volume: number = 1.0): Promise<void> {
     const ctx = this.getContext();
     if (!ctx) return;
 
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
+    const buffer = await this.loadSound(key);
+    if (!buffer) return;
 
-    oscillator.connect(gainNode);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = volume;
+
+    source.connect(gainNode);
     gainNode.connect(ctx.destination);
 
-    oscillator.frequency.value = frequency;
-    oscillator.type = "sine";
-
-    gainNode.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.01);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + duration);
+    source.start();
   }
 
   playCountdown(): void {
-    this.playTone(600, 0.15, 0.3);
+    this.playOneShot('countdown', 0.3);
   }
 
   playGo(): void {
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
-      setTimeout(() => this.playTone(freq, 0.2, 0.3), i * 50);
-    });
+    // Play the go tone
+    this.playOneShot('go', 0.3);
   }
 
   playFinishLine(): void {
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    [523.25, 659.25, 783.99].forEach((freq, i) => {
-      setTimeout(() => this.playTone(freq, 0.4, 0.25), i * 30);
-    });
+    this.playOneShot('finishFanfare', 0.25);
   }
 
   playDnf(): void {
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    this.playTone(400, 0.3, 0.3);
-    setTimeout(() => this.playTone(300, 0.3, 0.3), 150);
+    this.playOneShot('dnf', 0.3);
   }
 
   playStrokeClosure(): void {
-    this.playTone(1200, 0.08, 0.15);
+    this.playOneShot('strokeClosure', 0.15);
   }
 
   playBounce(): void {
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    // Pitch-shifted short thud
-    const pitchShift = 0.85 + Math.random() * 0.3;
-    this.playTone(200 * pitchShift, 0.1, 0.2);
+    // Slight volume variation for natural feel
+    const volume = 0.15 + Math.random() * 0.1;
+    this.playOneShot('bounce', volume);
   }
 
   playWhoosh(): void {
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    const bufferSize = Math.floor(ctx.sampleRate * 0.3);
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-
-    for (let i = 0; i < bufferSize; i++) {
-      const t = i / bufferSize;
-      data[i] = (Math.random() * 2 - 1) * (1 - t) * Math.sin(t * Math.PI);
-    }
-
-    const noise = ctx.createBufferSource();
-    noise.buffer = buffer;
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.frequency.value = 800;
-    filter.Q.value = 0.5;
-
-    const gainNode = ctx.createGain();
-    gainNode.gain.value = 0.15;
-
-    noise.connect(filter);
-    filter.connect(gainNode);
-    gainNode.connect(ctx.destination);
-
-    noise.start();
+    this.playOneShot('whoosh', 0.15);
   }
 
   playUiTap(): void {
-    this.playTone(1000, 0.04, 0.1);
+    this.playOneShot('uiTap', 0.1);
   }
 
   playClear(): void {
+    this.playOneShot('clear', 0.2);
+  }
+
+  /**
+   * Start the engine rumble loop.
+   * Playback rate is modulated by wheel speed.
+   */
+  async startMotorHum(): Promise<void> {
+    if (this.engineRunning) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
-    const bufferSize = ctx.sampleRate * 0.1;
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
+    const buffer = await this.loadSound('engineRumble');
+    if (!buffer) return;
 
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
-    }
-
-    const noise = ctx.createBufferSource();
-    noise.buffer = buffer;
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = "highpass";
-    filter.frequency.value = 1000;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
 
     const gainNode = ctx.createGain();
-    gainNode.gain.value = 0.2;
+    gainNode.gain.setValueAtTime(0, ctx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.3);
 
-    noise.connect(filter);
-    filter.connect(gainNode);
+    source.connect(gainNode);
     gainNode.connect(ctx.destination);
 
-    noise.start();
+    source.start();
+    this.engineSource = source;
+    this.engineGain = gainNode;
+    this.engineBasePlaybackRate = 1.0;
+    this.engineRunning = true;
   }
 
-  startMotorHum(): void {
-    if (this.motorRunning) return;
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.3);
-    gain.connect(ctx.destination);
-
-    const osc1 = ctx.createOscillator();
-    osc1.type = "sawtooth";
-    osc1.frequency.value = this.motorBaseFreq;
-    osc1.connect(gain);
-    osc1.start();
-
-    const osc2 = ctx.createOscillator();
-    osc2.type = "triangle";
-    osc2.frequency.value = this.motorBaseFreq * 1.5;
-    osc2.connect(gain);
-    osc2.start();
-
-    this.motorOsc1 = osc1;
-    this.motorOsc2 = osc2;
-    this.motorGain = gain;
-    this.motorRunning = true;
-  }
-
+  /**
+   * Update engine rumble playback rate based on motor speed.
+   * speedRatio: 0.0 (idle) to 1.0 (max speed)
+   */
   updateMotorSpeed(speedRatio: number): void {
-    if (!this.motorRunning || !this.motorOsc1 || !this.motorOsc2) return;
+    if (!this.engineRunning || !this.engineSource) return;
     const clamped = Math.max(0, Math.min(1, speedRatio));
-    // playbackRate-style modulation: 0.7 at idle, 1.5 at max
+    // Playback rate modulation: 0.7 at idle, 1.5 at max
     const rate = 0.7 + clamped * 0.8;
-    this.motorOsc1.frequency.value = this.motorBaseFreq * rate;
-    this.motorOsc2.frequency.value = this.motorBaseFreq * 1.5 * rate;
+    this.engineSource.playbackRate.value = rate;
   }
 
   stopMotorHum(): void {
-    if (!this.motorRunning) return;
+    if (!this.engineRunning) return;
 
     const ctx = this.getContext();
-    if (ctx && this.motorGain) {
-      this.motorGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+    if (ctx && this.engineGain) {
+      this.engineGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
     }
 
-    const osc1 = this.motorOsc1;
-    const osc2 = this.motorOsc2;
-    this.motorOsc1 = null;
-    this.motorOsc2 = null;
-    this.motorGain = null;
-    this.motorRunning = false;
+    const source = this.engineSource;
+    this.engineSource = null;
+    this.engineGain = null;
+    this.engineRunning = false;
 
-    if (osc1) {
-      setTimeout(() => this.stopOscillatorSafely(osc1), 350);
-    }
-    if (osc2) {
-      setTimeout(() => this.stopOscillatorSafely(osc2), 350);
+    if (source) {
+      setTimeout(() => {
+        try {
+          source.stop();
+        } catch {
+          // Already stopped
+        }
+      }, 350);
     }
   }
 
@@ -246,15 +289,8 @@ export class SoundManager {
       this.context.close().catch(() => {});
       this.context = null;
     }
-  }
-
-  private stopOscillatorSafely(osc: OscillatorNode | null): void {
-    if (!osc) return;
-    try {
-      osc.stop();
-    } catch {
-      // Oscillator may already be stopped
-    }
+    this.buffers.clear();
+    this.loadingPromises.clear();
   }
 }
 
