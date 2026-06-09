@@ -99,12 +99,14 @@ spec:
                   value: "{{workflow.parameters.preview-url}}"
 
           - name: load
-            template: step
+            template: load-test
             dependencies: [e2e]
             when: "'{{workflow.parameters.mode}}' == 'nightly'"
-            arguments:
-              parameters:
-                - {name: cmd, value: "k6 run load/submit.js"}
+
+          - name: chaos
+            template: chaos-test
+            dependencies: [e2e]
+            when: "'{{workflow.parameters.mode}}' == 'nightly'"
 
           - name: device-matrix
             template: device-matrix
@@ -318,3 +320,86 @@ spec:
             path: /workspace/test-results
             archive:
               tar: {}
+
+    # ── Load test template ────────────────────────────────────────────────────
+    # Runs k6 load test against the staging API. Only runs in nightly mode.
+    # See plan.md §Testing 9 for details.
+    - name: load-test
+      activeDeadlineSeconds: 600
+      container:
+        image: grafana/k6:latest
+        command: [k6, run]
+        args:
+          - --env
+          - API=https://api.drawrace.ardenone.com
+          - --env
+          - HMAC_KEY=drawrace-dev-key-2026
+          - /workspace/load/submit.js
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      volumes:
+        - name: workspace
+          emptyDir: {}
+
+    # ── Chaos test template ────────────────────────────────────────────────────
+    # Runs k6 chaos test while killing a drawrace-api pod.
+    # See plan.md §Testing 9 for details.
+    # Uses kubectl-proxy over Tailscale to access iad-acb cluster.
+    - name: chaos-test
+      activeDeadlineSeconds: 600
+      container:
+        image: alpine/k8s-kubectl:v1.29.3
+        command: [sh, -c]
+        args:
+          - |
+            set -euo pipefail
+            # Install k6
+            apk add --no-cache curl
+            curl -fsSL https://github.com/grafana/k6/releases/download/v0.54.0/k6-v0.54.0-linux-amd64.tar.gz | tar xvz -C /tmp
+            mv /tmp/k6-v0.54.0-linux-amd64/k6 /usr/local/bin/
+            k6 version
+            # Set environment
+            export API="https://api.drawrace.ardenone.com"
+            export HMAC_KEY="drawrace-dev-key-2026"
+            export NS="drawrace"
+            # Create minimal kubeconfig for iad-acb kubectl-proxy
+            mkdir -p ~/.kube
+            cat > ~/.kube/config <<EOF
+            apiVersion: v1
+            clusters:
+              - cluster:
+                  server: http://traefik-iad-acb:8001
+                  insecure-skip-tls-verify: true
+                name: iad-acb
+            contexts:
+              - context:
+                  cluster: iad-acb
+                  namespace: drawrace
+                name: iad-acb
+            current-context: iad-acb
+            EOF
+            export KUBECONF="$HOME/.kube/config"
+            # Run chaos test
+            cd /workspace/load
+            bash chaos-test.sh
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      volumes:
+        - name: workspace
+          emptyDir: {}

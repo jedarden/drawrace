@@ -1,0 +1,34 @@
+---
+# ServiceAccount for drawrace chaos tests from iad-ci workflow
+# This SA has permission to delete drawrace-api pods for chaos testing
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: drawrace-chaos
+  namespace: drawrace
+---
+# Role with permissions to delete api pods
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: drawrace-chaos
+  namespace: drawrace
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+---
+# RoleBinding binding the Role to the ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: drawrace-chaos
+  namespace: drawrace
+subjects:
+  - kind: ServiceAccount
+    name: drawrace-chaos
+    namespace: drawrace
+roleRef:
+  kind: Role
+  name: drawrace-chaos
+  apiGroup: rbac.authorization.k8s.io

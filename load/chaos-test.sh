@@ -51,9 +51,9 @@ echo "  API is healthy."
 
 # Find api pods
 echo "[2/6] Finding api pods..."
-PODS=$($K_CMD get pods -n "$NS" -l app=drawrace-api -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
-if [ -z "$PODS" ]; then
-  echo "WARN: No api pods found via kubectl. Skipping pod kill, running load test only."
+PODS=$($K_CMD get pods -n "$NS" -l app=drawrace-api -o jsonpath='{.items[*].metadata.name}' 2>&1)
+if [[ "$PODS" == *"Forbidden"* ]] || [[ "$PODS" == *"Unauthorized"* ]] || [ -z "$PODS" ]; then
+  echo "WARN: Cannot list pods (RBAC/auth error: $PODS). Skipping pod kill, running load test only."
   POD_COUNT=0
 else
   POD_COUNT=$(echo "$PODS" | wc -w)
@@ -82,23 +82,27 @@ sleep 30
 if [ "$POD_COUNT" -gt 0 ]; then
   VICTIM=$(echo "$PODS" | awk '{print $1}')
   echo "[5/6] Killing pod $VICTIM..."
-  $K_CMD delete pod "$VICTIM" -n "$NS" --grace-period=5
-  echo "  Pod killed. Kubernetes will reschedule."
+  DELETE_RESULT=$($K_CMD delete pod "$VICTIM" -n "$NS" --grace-period=5 2>&1)
+  if [[ "$DELETE_RESULT" == *"Forbidden"* ]] || [[ "$DELETE_RESULT" == *"Unauthorized"* ]]; then
+    echo "  WARN: Cannot delete pod (RBAC/auth error: $DELETE_RESULT). Chaos test will run without pod kill."
+  else
+    echo "  Pod killed. Kubernetes will reschedule."
 
-  # Monitor recovery
-  echo "  Waiting for API to recover..."
-  RECOVERED=false
-  for i in $(seq 1 30); do
-    if curl -sf "${API}/v1/health" >/dev/null 2>&1; then
-      RECOVERED=true
-      echo "  API recovered after ${i}s."
-      break
+    # Monitor recovery
+    echo "  Waiting for API to recover..."
+    RECOVERED=false
+    for i in $(seq 1 30); do
+      if curl -sf "${API}/v1/health" >/dev/null 2>&1; then
+        RECOVERED=true
+        echo "  API recovered after ${i}s."
+        break
+      fi
+      sleep 2
+    done
+
+    if [ "$RECOVERED" = false ]; then
+      echo "  WARN: API did not recover within 60s."
     fi
-    sleep 2
-  done
-
-  if [ "$RECOVERED" = false ]; then
-    echo "  WARN: API did not recover within 60s."
   fi
 else
   echo "[5/6] Skipping pod kill (no pods found)."
