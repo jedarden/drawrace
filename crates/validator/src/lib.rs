@@ -5,6 +5,7 @@ pub mod wasm_abi;
 pub mod resim;
 pub mod champion;
 pub mod track;
+pub mod seed_loader;
 
 #[cfg(test)]
 mod tests {

@@ -3,6 +3,7 @@ mod wasm_abi;
 mod wasm_loader;
 mod champion;
 mod track;
+mod seed_loader;
 
 use anyhow::Context;
 use aws_config::BehaviorVersion;
@@ -86,6 +87,12 @@ async fn main() -> anyhow::Result<()> {
         champion_validator: champion::ChampionValidator::load().ok(),
         track_store,
     });
+
+    // Load seed pool if the ghosts table is empty (new deployment)
+    let seeds_dir = std::path::PathBuf::from("/app/seeds");
+    if let Err(e) = seed_loader::load_seed_pool(&state.pool, &state.s3, &state.s3_bucket, &seeds_dir).await {
+        tracing::error!(error = %e, "Failed to load seed pool, continuing anyway");
+    }
 
     // Port 8080: /internal/version — used by API pod for readiness-cache poll,
     // restricted by NetworkPolicy to pods labeled app=drawrace-api.

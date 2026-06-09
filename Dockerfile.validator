@@ -48,6 +48,9 @@ COPY --from=builder /build/packages/engine-core/dist /app/packages/engine-core/d
 # Copy track JSON files for validator re-simulation
 COPY --from=builder /build/apps/web/public/tracks /app/tracks
 
+# Copy seed ghost blobs for empty DB initialization
+COPY --from=builder /build/seeds /app/seeds
+
 # Set environment variable so validator can find WASM at runtime
 ENV ENGINE_CORE_WASM_PATH=/app/packages/engine-core/dist/engine-core.wasm.json
 
