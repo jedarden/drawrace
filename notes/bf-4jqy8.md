@@ -1,49 +1,61 @@
-# bf-4jqy8: Layer 7 Perf Budget CI Gate
-
-## Date
-2026-06-08
+# Layer 7 Perf Budget CI Gate Verification
 
 ## Task
-Implement Layer 7 perf budget CI gate: p95 ≤20ms frame time via pnpm test:perf
+Implement/perf budget CI gate: p95 ≤20ms frame time via pnpm test:perf
 
-## Status: COMPLETE
+## Status: ✅ COMPLETE (Already Implemented)
 
-All requirements were already implemented in previous commits:
-- `469ef6b` - Original perf budget tests with CDP throttling
-- `b444931` - CI gate implementation
-- `7958714` - Warmup phase for steady-state measurement
+The perf budget CI gate was already fully implemented. Verified all components:
 
-## Implementation Summary
+## Implementation Details
 
-### Perf Test (`e2e/perf.spec.ts`)
-- Uses CDP `Emulation.setCPUThrottlingRate` at 6x CPU throttle
-- Enforces median ≤12ms, p95 ≤20ms, steady-state max ≤50ms
-- Requires minimum 300 frames for statistical validity
-- Outputs metrics JSON for Prometheus collection
+### 1. Test Script (`e2e/perf.spec.ts`)
+- Uses Chrome DevTools Protocol (CDP) for CPU throttling at 6x rate
+- Enforces budgets:
+  - **p95 ≤ 20ms** frame time
+  - **median ≤ 12ms** frame time
+  - **max frame ≤ 50ms** in steady state (after warmup)
+- Includes warmup phase (120 frames / 2 seconds) to exclude JIT compilation spikes
+- Writes metrics to `perf-results.json` for Prometheus collection
+- Runs against `/perf-test.html` fixture
 
-### Perf Test Fixture (`apps/web/perf-test.html`)
-- 3 ghost simulations matching real race load
-- 120-frame warmup phase (2 seconds at 60fps) to exclude JIT spikes
-- Full particle system and rendering
-- Fixed 390x844 mobile viewport
+### 2. Test Fixture (`apps/web/perf-test.html`)
+- Full race simulation with 4 physics sims (1 player + 3 ghosts)
+- Particle system at "full" level
+- Canvas rendering with 390x844 mobile viewport
+- Measures 300-600 frames (5-10 seconds at 60fps)
+- Computes: median, p95, max, steady-state max, average
+- Trims top 2 outliers for steady-state max (GC pauses aren't frame budget issues)
 
-### CI Integration (`k8s/drawrace-ci-workflowtemplate.yml`)
-- Perf step runs `pnpm test:perf`
-- Depends on `build` step
-- Contributes metrics to `push-metrics` step
-- Workflow synced to iad-ci cluster
+### 3. Playwright Config (`playwright.config.ts`)
+- `perf` project configured:
+  - Desktop Chrome browser
+  - Mobile viewport (390x844)
+  - Matches `perf.spec.ts` test pattern
 
-### Configuration
-- `package.json`: `"test:perf": "playwright test e2e/perf.spec.ts --project perf"`
-- `playwright.config.ts`: `perf` project with mobile viewport
+### 4. CI Integration (`k8s/drawrace-ci-workflowtemplate.yml`)
+- `perf` step in CI DAG:
+  - Depends on `build` step
+  - Runs via `pnpm test:perf`
+  - Uses `ci-snap:2026-04-21` Docker image
+  - Timeout: 10 minutes
+  - Resources: 500m-2 CPU, 512Mi-2Gi RAM
+- Output metrics collected by `push-metrics` step for Prometheus
 
 ## Verification
 
+### Local Test Run
 ```bash
-$ pnpm test:perf
-Running 1 test using 1 worker
-✓ Layer 7: Performance Budget Tests › race frame times within budget at 6x CPU throttle
-  1 passed (31.3s)
+npx pnpm@10.33.1 test:perf
 ```
 
-All requirements met. Implementation complete and passing.
+**Result:** ✅ PASSED (26.0s)
+
+```
+[1/1] [perf] › e2e/perf.spec.ts:12:3 › Layer 7: Performance Budget Tests › race frame times within budget at 6x CPU throttle
+  1 passed (26.0s)
+```
+
+## Conclusion
+
+The Layer 7 perf budget CI gate is fully implemented and wired into the drawrace-ci WorkflowTemplate. The test passes locally, confirming the implementation is correct and meeting the specified performance budgets.
