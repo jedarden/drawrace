@@ -18,7 +18,7 @@ metadata:
   labels:
     app: drawrace-api
 spec:
-  replicas: 2
+  replicas: 2  # managed by HPA
   selector:
     matchLabels:
       app: drawrace-api
@@ -131,3 +131,23 @@ spec:
       name: healthz
   selector:
     app: drawrace-validator
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: drawrace-api-hpa
+  namespace: drawrace
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: drawrace-api
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
