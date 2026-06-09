@@ -111,7 +111,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
     // Clamp max wheel radius same as initial wheel setup
     const maxR = Math.max(...physVerts.map((v) => Math.hypot(v.x, v.y)));
     const MIN_R = 0.3;
-    const MAX_R = 1.0;
+    const MAX_R = 0.72;
     const scale = maxR < MIN_R ? MIN_R / maxR : maxR > MAX_R ? MAX_R / maxR : 1;
     const scaledVerts = physVerts.map((v) => ({ x: v.x * scale, y: v.y * scale }));
     sim.swapWheel(scaledVerts);
@@ -141,7 +141,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
         const rawVerts = wheelDraw.vertices.map((v) => ({ x: v.x / ppm, y: v.y / ppm }));
         const maxR = Math.max(...rawVerts.map((v) => Math.hypot(v.x, v.y)));
         const MIN_R = 0.3;
-        const MAX_R = 1.0;
+        const MAX_R = 0.72;
         const scale = maxR < MIN_R ? MIN_R / maxR : maxR > MAX_R ? MAX_R / maxR : 1;
         const playerVerts = rawVerts.map((v) => ({ x: v.x * scale, y: v.y * scale }));
         const sim = new RaceSim(track, playerVerts, seed);
