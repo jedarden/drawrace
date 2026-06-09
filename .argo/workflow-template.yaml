@@ -103,7 +103,7 @@ spec:
       outputs:
         artifacts:
           - name: src
-            from: "{{steps.checkout.inputs.artifacts.repo.path}}"
+            from: "{{inputs.artifacts.repo.path}}"
         parameters:
           - name: git-sha
             valueFrom:
