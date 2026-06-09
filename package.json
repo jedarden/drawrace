@@ -14,6 +14,7 @@
     "test:snapshot": "playwright test e2e/snapshot.spec.ts --project chromium",
     "test:snapshot:update": "SNAPSHOT_UPDATE=1 playwright test e2e/snapshot.spec.ts --project chromium",
     "test:perf": "playwright test e2e/perf.spec.ts --project perf",
+    "test:contract": "cargo test -p drawrace-validator",
     "test:devices": "playwright test --config=playwright.browserstack.config.ts",
     "test:snap": "docker run --rm -v ${PWD}:/work -w /work -e CI=true ghcr.io/drawrace/ci-snap:2026-04-24 sh -c 'pnpm install && pnpm test:snapshot'",
     "test:snap:update": "docker run --rm -v ${PWD}:/work -w /work -e CI=true -e SNAPSHOT_UPDATE=1 ghcr.io/drawrace/ci-snap:2026-04-24 sh -c 'pnpm install && pnpm test:snapshot'",
@@ -41,7 +42,8 @@
     "tsx": "^4.19.0",
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.29.1",
-    "vitest": "^3.1.1"
+    "vitest": "^3.1.1",
+    "@vitest/coverage-v8": "^3.1.1"
   },
   "size-limit": [
     {
