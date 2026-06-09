@@ -1590,6 +1590,7 @@ dependencies = [
  "metrics-exporter-prometheus 0.15.3",
  "prometheus",
  "redis 0.25.5",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",

@@ -22,5 +22,6 @@ tower = "0.5"
 http = "1.0"
 anyhow = "1.0"
 wasmtime = "22.0"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 drawrace-api = { path = "../api" }
 drawrace-validator = { path = "../validator" }
