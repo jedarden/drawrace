@@ -680,6 +680,25 @@ export function createRenderer(
     }
 
     ctx.restore();
+
+    // Rotation marker: draw a radial spoke from center to edge
+    // This makes circular wheels' rotation visible
+    const wheelRadius = REAR_WHEEL_RADIUS;
+    const spokeLen = wheelRadius * PPM * 0.75; // 75% of wheel radius
+    const spokeAngle = body.angle;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(sx, sy);
+    ctx.rotate(spokeAngle);
+    ctx.strokeStyle = "rgba(43, 33, 24, 0.5)";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(spokeLen, 0);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawRearWheel(body: SimBody, path: Path2D, cosmeticPath: Path2D | null, fillStyle: string, alpha: number) {
