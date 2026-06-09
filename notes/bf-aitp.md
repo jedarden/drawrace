@@ -1,42 +1,41 @@
 # bead bf-aitp: Ghost backfill API client and bucket lookup
 
-## Task Status: Already Completed
+## Summary
 
-The work described in this bead was already completed in commit `7b5dba1` (feat(live): wire ghost backfill API client and bucket lookup).
+The work described in this bead was already completed in commit `7b5dba1` (feat(live): wire ghost backfill API client and bucket lookup). This bead verifies and documents the implementation.
 
-## Implementation Summary
+## Implementation Details
 
 ### 1. Ghost Backfill API Client (`crates/live/src/ghost.rs`)
 
-The `GhostBackfill` struct now implements full HTTP client functionality:
+The `GhostBackfill::fetch_ghosts()` method implements full HTTP client functionality:
 
-- **HTTP Client**: Uses `reqwest` with 5s timeout, configurable via `DRAWRACE_API_URL` env var
-- **Matchmake API Call**: `fetch_ghosts()` calls `/v1/matchmake/{track_id}?player_uuid=...`
-- **Ghost Blob Download**: Fetches full replay data from presigned S3 URLs
-- **Fallback Handling**: Generates placeholder ghosts when API is unavailable
-
-Key types:
-- `MatchmakeResponse`: API response with track_id, player_bucket, target_bucket, ghosts list
-- `ApiGhost`: Individual ghost entry (ghost_id, time_ms, name, url)
-- `GhostBlob`: S3 blob format (track_id, time_ms, wheel, swaps)
-- `GhostReplay`: Simplified replay format for live playback
-- `GhostPlayer`: Runtime ghost player with replay data
+- **API Endpoint**: `GET /v1/matchmake/{track_id}?player_uuid=...`
+- **Ghost Retrieval**: Calls matchmake API to get list of ghosts with S3 presigned URLs
+- **Blob Download**: Fetches full replay data from S3 for each ghost
+- **Fallback**: Generates placeholder ghosts when API unavailable or insufficient ghosts
+- **Configurable**: Uses `DRAWRACE_API_URL` env var (defaults to `http://127.0.0.1:3000`)
 
 ### 2. Bucket Lookup (`crates/live/src/websocket.rs`)
 
-The `get_player_bucket()` function queries the matchmake API for player's bucket:
+The `get_player_bucket()` function queries the matchmake API for player's skill bucket:
 
-- Queries `/v1/matchmake/{track_id}?player_uuid=...`
-- Returns `player_bucket` from `BucketLookupResponse`
-- Falls back to "novice" on any error (HTTP failure, parse error, timeout)
-- 2s timeout for API calls
-- Proper error logging at WARN level
+- **API Endpoint**: `GET /v1/matchmake/{track_id}?player_uuid=...`
+- **Response**: Extracts `player_bucket` from `BucketLookupResponse`
+- **Fallback**: Returns "novice" on HTTP errors, parse errors, or timeouts
+- **Timeout**: 2s timeout for API calls
+- **Usage**: Called during `Hello` message processing to assign bucket before room creation
 
-Called from `handle_client_message` during `Hello` message processing to assign the correct bucket before room creation.
-
-## Dependencies
+### Dependencies
 
 - `reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }` added in commit `a76837f`
+
+## Retrospective
+
+- **What worked:** The existing implementation correctly calls the drawrace-api matchmake endpoint for both ghost fetching and bucket lookup. Error handling is robust with sensible fallbacks.
+- **What didn't:** N/A - implementation was already complete.
+- **Surprise:** The bead description mentioned "two TODOs" but no TODOs were found in the code - they had already been implemented in prior commits.
+- **Reusable pattern:** The pattern of using placeholder fallbacks when external APIs are unavailable makes the system resilient to API failures while still providing core functionality.
 
 ## Plan Alignment
 
@@ -44,11 +43,7 @@ Per plan §Multiplayer 13 §6:
 > "The matchmaker must return a race_url after a timeout and fill empty slots with ghosts from the same bucket."
 
 The implementation provides:
-- Ghost fetching from matchmake API
-- Bucket-aware ghost assignment (ghosts come from the same bucket as the player)
-- Fallback placeholder generation when unavailable
+- Ghost fetching from matchmake API with S3 blob download
+- Bucket-aware ghost assignment (ghosts come from player's bucket)
+- Fallback placeholder generation when API unavailable
 - Proper error handling and logging
-
-## Verification
-
-No code changes required. The implementation is complete and ready for testing with a live drawrace-api instance.
