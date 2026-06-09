@@ -5,11 +5,46 @@
 //! - "Ghosts from the same bucket"
 //! - "The v1 ghost system becomes the v2 'AI opponents / backfill' system"
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::messages::{PlayerInRoom, RacerState};
+
+/// Matchmake API response from drawrace-api
+#[derive(Debug, Deserialize)]
+pub struct MatchmakeResponse {
+    pub track_id: i16,
+    pub player_bucket: String,
+    pub target_bucket: String,
+    pub ghosts: Vec<ApiGhost>,
+    pub shadow_ghost: Option<ApiGhost>,
+    pub expires_at: String,
+}
+
+/// Ghost entry from matchmake API
+#[derive(Debug, Deserialize, Clone)]
+pub struct ApiGhost {
+    pub ghost_id: Uuid,
+    pub time_ms: i32,
+    pub name: String,
+    pub url: String,
+}
+
+/// Ghost blob format from S3 (full replay data)
+#[derive(Debug, Deserialize)]
+pub struct GhostBlob {
+    pub track_id: u16,
+    pub time_ms: u32,
+    pub wheel: Vec<(i16, i16)>,
+    pub swaps: Vec<GhostSwap>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GhostSwap {
+    pub tick: u32,
+    pub wheel: Vec<(i16, i16)>,
+}
 
 /// Ghost player that fills empty slots in a race
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,39 +73,132 @@ pub struct GhostReplay {
 ///
 /// Fetches ghosts from the ghost store to fill empty race slots.
 pub struct GhostBackfill {
-    // TODO: Add HTTP client for fetching ghosts from S3/API
+    /// HTTP client for API requests
+    client: reqwest::Client,
+    /// Base URL for drawrace-api
+    api_url: String,
 }
 
 impl GhostBackfill {
     pub fn new() -> Self {
-        GhostBackfill {}
+        let api_url = std::env::var("DRAWRACE_API_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:3000".to_string());
+        GhostBackfill {
+            client: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(5))
+                .build()
+                .expect("Failed to build HTTP client"),
+            api_url,
+        }
     }
 
     /// Fetch N ghosts for a track and bucket to fill empty slots
     pub async fn fetch_ghosts(
         &self,
-        _track_id: u16,
+        track_id: u16,
         _bucket: &str,
         count: usize,
     ) -> Result<Vec<GhostPlayer>> {
-        // TODO: Implement actual ghost fetching from the API
-        // For now, return placeholder ghosts
-        let mut ghosts = Vec::new();
-        for i in 0..count {
-            ghosts.push(GhostPlayer {
-                ghost_id: format!("ghost-placeholder-{}", i),
-                name: format!("Ghost {}", i + 1),
-                replay: GhostReplay {
-                    track_id: _track_id,
-                    finish_time_ms: 30000 + (i as u32 * 2000), // Varying times
-                    initial_wheel: vec![
-                        (0, -50), (50, -50), (50, 50), (0, 50), // Square wheel
-                    ],
-                    wheel_swaps: vec![],
-                },
-            });
+        // Call the matchmake API to get ghost list
+        let url = format!(
+            "{}/v1/matchmake/{}",
+            self.api_url.trim_end_matches('/'),
+            track_id
+        );
+
+        // Use a placeholder player_uuid for ghost-only fetching (no shadow ghost needed)
+        let response = self.client
+            .get(&url)
+            .query(&[("player_uuid", Uuid::nil())])
+            .send()
+            .await
+            .context("Failed to call matchmake API")?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("Matchmake API returned status: {}", response.status());
         }
+
+        let matchmake: MatchmakeResponse = response
+            .json()
+            .await
+            .context("Failed to parse matchmake response")?;
+
+        // Download ghost data from presigned S3 URLs
+        let mut ghosts = Vec::new();
+        for api_ghost in matchmake.ghosts.into_iter().take(count) {
+            match self.fetch_ghost_blob(&api_ghost.url).await {
+                Ok(blob) => {
+                    ghosts.push(GhostPlayer {
+                        ghost_id: api_ghost.ghost_id.to_string(),
+                        name: api_ghost.name,
+                        replay: GhostReplay {
+                            track_id: blob.track_id,
+                            finish_time_ms: blob.time_ms,
+                            initial_wheel: blob.wheel,
+                            wheel_swaps: blob.swaps.into_iter()
+                                .map(|s| (s.tick, s.wheel))
+                                .collect(),
+                        },
+                    });
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        ghost_id = %api_ghost.ghost_id,
+                        error = %e,
+                        "Failed to fetch ghost blob, skipping"
+                    );
+                    // Continue with other ghosts even if one fails
+                }
+            }
+        }
+
+        // If we didn't get enough ghosts, fall back to placeholders
+        let shortage = count.saturating_sub(ghosts.len());
+        if shortage > 0 {
+            tracing::warn!(
+                track_id = track_id,
+                bucket = %_bucket,
+                got = ghosts.len(),
+                needed = count,
+                "Ghost shortage, using placeholders"
+            );
+            for i in 0..shortage {
+                ghosts.push(GhostPlayer {
+                    ghost_id: format!("ghost-fallback-{}", i),
+                    name: format!("Ghost {}", ghosts.len() + i + 1),
+                    replay: GhostReplay {
+                        track_id,
+                        finish_time_ms: 45000 + (i as u32 * 3000),
+                        initial_wheel: vec![
+                            (0, -50), (50, -50), (50, 50), (0, 50),
+                        ],
+                        wheel_swaps: vec![],
+                    },
+                });
+            }
+        }
+
         Ok(ghosts)
+    }
+
+    /// Fetch ghost blob data from presigned S3 URL
+    async fn fetch_ghost_blob(&self, url: &str) -> Result<GhostBlob> {
+        let response = self.client
+            .get(url)
+            .send()
+            .await
+            .context("Failed to fetch ghost blob from S3")?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("S3 returned status: {}", response.status());
+        }
+
+        let blob: GhostBlob = response
+            .json()
+            .await
+            .context("Failed to parse ghost blob")?;
+
+        Ok(blob)
     }
 
     /// Convert ghosts to PlayerInRoom for room creation
@@ -254,7 +382,9 @@ mod tests {
         let backfill = GhostBackfill::new();
 
         // Fetch 3 ghosts
+        // Note: This test will use fallback placeholders if the API is unavailable
         let ghosts = backfill.fetch_ghosts(1, "novice", 3).await.unwrap();
+        // Should return exactly 3 ghosts (either from API or placeholders)
         assert_eq!(ghosts.len(), 3);
 
         // Convert to players

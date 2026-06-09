@@ -14,12 +14,19 @@ use axum::{
     response::IntoResponse,
 };
 use futures_util::{SinkExt, StreamExt};
+use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::app::LiveState;
 use crate::messages::{ClientMessage, ServerMessage, PlayerInRoom};
+
+/// Matchmake API response for bucket lookup
+#[derive(Deserialize)]
+struct BucketLookupResponse {
+    pub player_bucket: String,
+}
 
 /// Active connection tracking
 #[derive(Debug, Clone)]
@@ -99,6 +106,62 @@ pub async fn websocket_handler(
     State(state): State<Arc<LiveState>>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
+}
+
+/// Query the matchmake API for the player's bucket
+async fn get_player_bucket(player_uuid: Uuid, track_id: u16) -> String {
+    let api_url = std::env::var("DRAWRACE_API_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:3000".to_string());
+
+    let url = format!(
+        "{}/v1/matchmake/{}",
+        api_url.trim_end_matches('/'),
+        track_id
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build();
+
+    let client = match client {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to build HTTP client, using default bucket");
+            return "novice".to_string();
+        }
+    };
+
+    match client
+        .get(&url)
+        .query(&[("player_uuid", player_uuid)])
+        .send()
+        .await
+    {
+        Ok(response) if response.status().is_success() => {
+            match response.json::<BucketLookupResponse>().await {
+                Ok(bucket_resp) => {
+                    tracing::debug!(
+                        player_uuid = %player_uuid,
+                        bucket = %bucket_resp.player_bucket,
+                        "Resolved player bucket"
+                    );
+                    bucket_resp.player_bucket
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to parse bucket response, using default");
+                    "novice".to_string()
+                }
+            }
+        }
+        Ok(response) => {
+            tracing::warn!(status = %response.status(), "Matchmake API error, using default bucket");
+            "novice".to_string()
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Matchmake API unavailable, using default bucket");
+            "novice".to_string()
+        }
+    }
 }
 
 /// Handle a WebSocket connection
@@ -194,11 +257,11 @@ async fn handle_client_message(
         ClientMessage::Hello { player_uuid: uuid, name, track_id } => {
             *player_uuid = Some(uuid);
 
-            // Determine bucket (TODO: query from leaderboard API)
-            let bucket = "novice";
+            // Determine bucket from leaderboard API
+            let bucket = get_player_bucket(uuid, track_id).await;
 
             // Find or create room
-            let rid = find_or_create_room(state, track_id, bucket, uuid, name.clone()).await?;
+            let rid = find_or_create_room(state, track_id, &bucket, uuid, name.clone()).await?;
             *room_id = Some(rid);
 
             // Register connection
