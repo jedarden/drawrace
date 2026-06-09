@@ -132,3 +132,85 @@ spec:
             summary: "DrawRace live has over 500 active rooms"
             description: >
               {{ $value }} rooms are currently active. Monitor performance.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: drawrace-validator
+  namespace: drawrace
+  labels:
+    app: drawrace-validator
+spec:
+  selector:
+    matchLabels:
+      app: drawrace-validator
+  endpoints:
+    - port: internal
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: drawrace-validator-alerts
+  namespace: drawrace
+  labels:
+    app: drawrace-validator
+spec:
+  groups:
+    - name: replay-mismatch
+      rules:
+        - alert: DrawRaceReplayMismatchHigh
+          expr: |
+            sum(rate(drawrace_validator_resim_mismatch_total[1h]))
+            / sum(rate(drawrace_validator_submissions_total[1h])) > 0.01
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DrawRace replay mismatch rate above 1%"
+            description: >
+              Physics re-simulation mismatch rate is {{ $value | printf "%.3f" }}%
+              over the last hour. This may indicate physics drift between
+              client and server versions.
+
+        - alert: DrawRaceReplayMismatchCritical
+          expr: |
+            sum(rate(drawrace_validator_resim_mismatch_total[5m]))
+            / sum(rate(drawrace_validator_submissions_total[5m])) > 0.02
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "DrawRace replay mismatch rate CRITICAL (>2%)"
+            description: >
+              Physics re-simulation mismatch rate is {{ $value | printf "%.3f" }}%
+              over the last 5 minutes. This indicates serious physics drift
+              or a server-side bug. Investigate immediately.
+
+        - alert: DrawRaceHighRejectionRate
+          expr: |
+            sum(rate(drawrace_validator_rejected_total[1h]))
+            / sum(rate(drawrace_validator_submissions_total[1h])) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DrawRace rejection rate above 5%"
+            description: >
+              Overall rejection rate is {{ $value | printf "%.1f" }}%
+              over the last hour. Check validator logs and rejection reasons.
+
+        - alert: DrawRaceQuarantineSpike
+          expr: |
+            sum(rate(drawrace_validator_quarantined_total[1h]))
+            / sum(rate(drawrace_validator_submissions_total[1h])) > 0.001
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DrawRace quarantine rate elevated (>0.1%)"
+            description: >
+              Champion quarantine rate is {{ $value | printf "%.3f" }}%
+              over the last hour. This may indicate new physics exploits
+              or outdated champion reference times.

@@ -4,6 +4,10 @@ mod wasm_loader;
 mod champion;
 mod track;
 mod seed_loader;
+mod metrics;
+
+// Import the external metrics crate with an alias to avoid shadowing our local metrics module
+extern crate metrics as global_metrics;
 
 use anyhow::Context;
 use aws_config::BehaviorVersion;
@@ -32,6 +36,11 @@ async fn main() -> anyhow::Result<()> {
                 .add_directive(tracing::Level::INFO.into()),
         )
         .init();
+
+    // Install Prometheus metrics exporter
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+    let _metrics_handle = recorder.handle();
+    global_metrics::set_global_recorder(recorder).expect("failed to install metrics recorder");
 
     let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?;
     let redis_url = std::env::var("REDIS_URL").context("REDIS_URL must be set")?;
@@ -96,10 +105,12 @@ async fn main() -> anyhow::Result<()> {
 
     // Port 8080: /internal/version — used by API pod for readiness-cache poll,
     // restricted by NetworkPolicy to pods labeled app=drawrace-api.
+    // Also /metrics for Prometheus scraping.
     let internal_state = state.clone();
     tokio::spawn(async move {
         let app = axum::Router::new()
             .route("/internal/version", axum::routing::get(version_handler))
+            .route("/metrics", axum::routing::get(metrics_handler))
             .with_state(internal_state);
         let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
             .await
@@ -143,6 +154,14 @@ async fn healthz_handler() -> axum::Json<serde_json::Value> {
     axum::Json(json!({"ok": true}))
 }
 
+async fn metrics_handler() -> String {
+    // Export Prometheus metrics for scraping
+    metrics_exporter_prometheus::PrometheusBuilder::new()
+        .build_recorder()
+        .handle()
+        .render()
+}
+
 async fn version_handler() -> axum::Json<serde_json::Value> {
     // Load the WASM to get the actual physics_version and content_hash
     let (physics_version, wasm_sha256) = match wasm_loader::EngineCoreWasm::load() {
@@ -169,6 +188,9 @@ async fn process_one_submission(state: &ValidatorState) -> anyhow::Result<Option
         .arg(5i64)
         .query_async(&mut *conn)
         .await?;
+
+    // Track total submissions
+    crate::metrics::inc_submissions_total();
 
     let submission_id =
         Uuid::parse_str(&submission_id_str).context("Invalid submission ID in queue")?;
@@ -515,6 +537,9 @@ async fn update_submission_verdict(
             .await?;
 
             tx.commit().await?;
+
+            // Track metrics
+            crate::metrics::inc_accepted();
         }
         "rejected" => {
             sqlx::query(
@@ -526,6 +551,16 @@ async fn update_submission_verdict(
             .bind(submission_id)
             .execute(pool)
             .await?;
+
+            // Track metrics
+            crate::metrics::inc_rejected();
+            if let Some(reason) = &verdict.reject_reason {
+                crate::metrics::inc_rejected_reason(reason);
+                // Track resim mismatches specifically
+                if reason.contains("tick") || reason.contains("finish") || reason.contains("resim") {
+                    crate::metrics::inc_resim_mismatch();
+                }
+            }
         }
         "quarantined" => {
             // Quarantined submissions are stored for human review.
@@ -540,6 +575,10 @@ async fn update_submission_verdict(
             .bind(submission_id)
             .execute(pool)
             .await?;
+
+            // Track metrics
+            crate::metrics::inc_quarantined();
+
             tracing::warn!(
                 submission_id = %submission_id,
                 reason = %verdict.reject_reason.as_deref().unwrap_or("unknown"),

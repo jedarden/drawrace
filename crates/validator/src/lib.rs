@@ -6,6 +6,7 @@ pub mod resim;
 pub mod champion;
 pub mod track;
 pub mod seed_loader;
+pub mod metrics;
 
 #[cfg(test)]
 mod tests {

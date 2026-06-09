@@ -1614,6 +1614,8 @@ dependencies = [
  "chrono",
  "deadpool-redis",
  "drawrace-api",
+ "metrics 0.24.3",
+ "metrics-exporter-prometheus 0.16.2",
  "redis 0.27.6",
  "serde",
  "serde_json",

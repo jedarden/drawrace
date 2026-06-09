@@ -82,3 +82,24 @@ spec:
     - ports:
         - protocol: TCP
           port: 8081
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: drawrace-allow-validator-metrics
+  namespace: drawrace
+spec:
+  podSelector:
+    matchLabels:
+      app: drawrace-validator
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow Prometheus to scrape metrics from port 8080
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8080

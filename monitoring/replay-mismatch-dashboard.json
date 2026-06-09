@@ -1,0 +1,350 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Physics re-simulation rejection monitoring for DrawRace. Alerts on replay-mismatch rate exceeding threshold to detect physics drift.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "panels": [],
+      "title": "Physics Re-simulation Health",
+      "type": "row"
+    },
+    {
+      "title": "Overall Rejection Rate (1h)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(rate(drawrace_validator_rejected_total[1h])) / sum(rate(drawrace_validator_submissions_total[1h]))",
+          "legendFormat": "rejection rate",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "orange", "value": 0.025 },
+              { "color": "red", "value": 0.05 }
+            ]
+          },
+          "mappings": []
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "id": 1
+    },
+    {
+      "title": "Resim Mismatch Rate (1h)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(rate(drawrace_validator_resim_mismatch_total[1h])) / sum(rate(drawrace_validator_submissions_total[1h]))",
+          "legendFormat": "resim mismatch rate",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.005 },
+              { "color": "orange", "value": 0.01 },
+              { "color": "red", "value": 0.02 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "id": 2
+    },
+    {
+      "title": "Quarantine Rate (1h)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(rate(drawrace_validator_quarantined_total[1h])) / sum(rate(drawrace_validator_submissions_total[1h]))",
+          "legendFormat": "quarantine rate",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.001 },
+              { "color": "red", "value": 0.005 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "id": 3
+    },
+    {
+      "title": "Rejection Rate Over Time (with alert threshold)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "targets": [
+        {
+          "expr": "sum(rate(drawrace_validator_rejected_total[5m])) / sum(rate(drawrace_validator_submissions_total[5m]))",
+          "legendFormat": "total rejection rate",
+          "refId": "A"
+        },
+        {
+          "expr": "0.01",
+          "legendFormat": "1% alert threshold",
+          "refId": "B"
+        },
+        {
+          "expr": "0.05",
+          "legendFormat": "5% critical threshold",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 3
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      },
+      "id": 4
+    },
+    {
+      "title": "Resim Mismatch Rate Over Time (with alert threshold)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "targets": [
+        {
+          "expr": "sum(rate(drawrace_validator_resim_mismatch_total[5m])) / sum(rate(drawrace_validator_submissions_total[5m]))",
+          "legendFormat": "resim mismatch rate",
+          "refId": "A"
+        },
+        {
+          "expr": "0.005",
+          "legendFormat": "0.5% alert threshold",
+          "refId": "B"
+        },
+        {
+          "expr": "0.01",
+          "legendFormat": "1% critical threshold",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 4
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      },
+      "id": 5
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "id": 200,
+      "panels": [],
+      "title": "Rejection Breakdown",
+      "type": "row"
+    },
+    {
+      "title": "Rejections by Reason",
+      "type": "piechart",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 18 },
+      "targets": [
+        {
+          "expr": "sum by (reason) (drawrace_validator_rejected_by_reason_total)",
+          "legendFormat": "{{reason}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right" },
+        "pieType": "pie",
+        "tooltip": { "mode": "single" }
+      },
+      "id": 6
+    },
+    {
+      "title": "Rejections by Reason (Time Series)",
+      "type": "timeseries",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 18 },
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(drawrace_validator_rejected_by_reason_total[5m]))",
+          "legendFormat": "{{reason}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      },
+      "id": 7
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 28 },
+      "id": 300,
+      "panels": [],
+      "title": "Tick Difference Analysis",
+      "type": "row"
+    },
+    {
+      "title": "Tick Difference Distribution",
+      "type": "bargauge",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 29 },
+      "targets": [
+        {
+          "expr": "sum by (diff_bucket) (drawrace_validator_resim_tick_diff)",
+          "legendFormat": "{{diff_bucket}} ticks diff",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true
+      },
+      "id": 8
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 400,
+      "panels": [],
+      "title": "Volume Metrics",
+      "type": "row"
+    },
+    {
+      "title": "Submission Throughput",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 40 },
+      "targets": [
+        {
+          "expr": "sum(rate(drawrace_validator_submissions_total[5m]))",
+          "legendFormat": "submissions/sec",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "pps" }
+      },
+      "id": 9
+    },
+    {
+      "title": "Accepted vs Rejected",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 40 },
+      "targets": [
+        {
+          "expr": "sum(rate(drawrace_validator_accepted_total[5m]))",
+          "legendFormat": "accepted",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(drawrace_validator_rejected_total[5m]))",
+          "legendFormat": "rejected",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(drawrace_validator_quarantined_total[5m]))",
+          "legendFormat": "quarantined",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "pps" }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      },
+      "id": 10
+    },
+    {
+      "title": "Cumulative Submissions",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 40 },
+      "targets": [
+        {
+          "expr": "sum(drawrace_validator_submissions_total)",
+          "legendFormat": "total",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "id": 11
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": ["drawrace", "physics", "validator"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "DrawRace Replay-Mismatch Dashboard",
+  "uid": "drawrace-replay-mismatch",
+  "version": 1
+}

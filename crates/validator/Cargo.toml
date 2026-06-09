@@ -22,6 +22,8 @@ wasmtime = "30"
 wasm-encoder = "0.219"
 wasmparser = "0.219"
 wat = "1"
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
 
 # Shared blob parsing
 drawrace-api = { path = "../api" }
