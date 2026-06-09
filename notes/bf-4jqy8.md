@@ -42,6 +42,13 @@ The perf budget CI gate was already fully implemented. Verified all components:
   - Resources: 500m-2 CPU, 512Mi-2Gi RAM
 - Output metrics collected by `push-metrics` step for Prometheus
 
+### 5. ArgoCD Sync Status
+- Local file: `/home/coding/drawrace/k8s/drawrace-ci-workflowtemplate.yml`
+- Declarative config: `/home/coding/jedarden/declarative-config/k8s/iad-ci/argo-workflows/drawrace-ci-workflowtemplate.yml`
+- Both files are identical and contain the modern DAG-based CI with `perf` step
+- ArgoCD app `argo-workflows` shows OutOfSync - new version pending sync
+- Deployed WorkflowTemplate is 13 days old but still has `perf-budget` step running `pnpm test:perf`
+
 ## Verification
 
 ### Local Test Run
@@ -49,13 +56,13 @@ The perf budget CI gate was already fully implemented. Verified all components:
 npx pnpm@10.33.1 test:perf
 ```
 
-**Result:** ✅ PASSED (26.0s)
+**Result:** ✅ PASSED (22.2s)
 
 ```
 [1/1] [perf] › e2e/perf.spec.ts:12:3 › Layer 7: Performance Budget Tests › race frame times within budget at 6x CPU throttle
-  1 passed (26.0s)
+  1 passed (22.2s)
 ```
 
 ## Conclusion
 
-The Layer 7 perf budget CI gate is fully implemented and wired into the drawrace-ci WorkflowTemplate. The test passes locally, confirming the implementation is correct and meeting the specified performance budgets.
+The Layer 7 perf budget CI gate is fully implemented and wired into the drawrace-ci WorkflowTemplate. The test passes locally, confirming the implementation is correct and meeting the specified performance budgets. The deployed WorkflowTemplate is outdated and awaiting ArgoCD sync, but even the old version contains a perf-budget step that runs the same `pnpm test:perf` command.
