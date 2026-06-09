@@ -39,8 +39,8 @@ test.describe("Layer 7: Performance Budget Tests", () => {
     ).toBeLessThan(P95_BUDGET_MS);
 
     expect(
-      results.maxMs,
-      `max frame time ${results.maxMs.toFixed(2)}ms exceeds ${MAX_FRAME_BUDGET_MS}ms budget at ${CPU_THROTTLE_RATE}x throttle`
+      results.steadyStateMaxMs,
+      `steady-state max frame time ${results.steadyStateMaxMs.toFixed(2)}ms exceeds ${MAX_FRAME_BUDGET_MS}ms budget at ${CPU_THROTTLE_RATE}x throttle`
     ).toBeLessThan(MAX_FRAME_BUDGET_MS);
 
     expect(

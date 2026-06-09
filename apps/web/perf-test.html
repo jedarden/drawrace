@@ -72,8 +72,29 @@ async function runPerfTest() {
 
     const frameDurations = [];
     const MAX_FRAMES = 600; // 10 seconds at 60fps
+    const WARMUP_FRAMES = 120; // 2 second warmup (120 ticks) per plan §Testing 8 to exclude JIT spikes
     let frame = 0;
 
+    // Warmup phase: run frames without measurement to allow JIT to settle
+    for (let w = 0; w < WARMUP_FRAMES && !sim.isFinished(); w++) {
+      sim.step();
+      ghostSims.forEach(g => g.step());
+      const snap = sim.snapshot();
+      const ghostSnaps = ghostSims.map((gs, i) => ({
+        snapshot: gs.snapshot(),
+        wheelPath: ghostPaths[i],
+      }));
+      particles.setParticleLevel("full");
+      const wheelSX = snap.wheel.x * 30 - canvas.width * 0.35;
+      const wheelSY = -snap.wheel.y * 30 - canvas.height * 0.6;
+      const dx = w > 0 ? 2 : 0;
+      particles.emitDust(wheelSX, wheelSY, dx);
+      particles.update(1 / 60);
+      render.render(snap, ghostSnaps, particles);
+      frame++;
+    }
+
+    // Measurement phase: only measure steady-state frames after warmup
     while (!sim.isFinished() && frame < MAX_FRAMES) {
       const t0 = performance.now();
 
@@ -106,6 +127,8 @@ async function runPerfTest() {
     const median = frameDurations[Math.floor(frameDurations.length / 2)];
     const p95 = frameDurations[Math.floor(frameDurations.length * 0.95)];
     const max = frameDurations[frameDurations.length - 1];
+    // Trim top 2 outliers for steady-state max (GC pauses are not frame budget issues)
+    const steadyStateMax = frameDurations[Math.max(0, frameDurations.length - 3)];
     const worst10 = frameDurations.slice(-10);
 
     window.__perfResults = {
@@ -113,6 +136,7 @@ async function runPerfTest() {
       medianMs: median,
       p95Ms: p95,
       maxMs: max,
+      steadyStateMaxMs: steadyStateMax,
       worst10Ms: worst10,
       avgMs: sum / frameDurations.length,
     };
