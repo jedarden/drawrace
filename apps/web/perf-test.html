@@ -105,12 +105,14 @@ async function runPerfTest() {
     const sum = frameDurations.reduce((s, d) => s + d, 0);
     const median = frameDurations[Math.floor(frameDurations.length / 2)];
     const p95 = frameDurations[Math.floor(frameDurations.length * 0.95)];
+    const max = frameDurations[frameDurations.length - 1];
     const worst10 = frameDurations.slice(-10);
 
     window.__perfResults = {
       totalFrames: frame,
       medianMs: median,
       p95Ms: p95,
+      maxMs: max,
       worst10Ms: worst10,
       avgMs: sum / frameDurations.length,
     };

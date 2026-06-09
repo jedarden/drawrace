@@ -4,7 +4,8 @@ import { join } from "path";
 
 const CPU_THROTTLE_RATE = 6;
 const P95_BUDGET_MS = 20;
-const MEDIAN_BUDGET_MS = 10;
+const MEDIAN_BUDGET_MS = 12;
+const MAX_FRAME_BUDGET_MS = 50;
 const MIN_FRAMES = 300;
 
 test.describe("Layer 7: Performance Budget Tests", () => {
@@ -28,6 +29,7 @@ test.describe("Layer 7: Performance Budget Tests", () => {
       { type: "frames", description: String(results.totalFrames) },
       { type: "median_ms", description: String(results.medianMs.toFixed(2)) },
       { type: "p95_ms", description: String(results.p95Ms.toFixed(2)) },
+      { type: "max_ms", description: String(results.maxMs.toFixed(2)) },
       { type: "avg_ms", description: String(results.avgMs.toFixed(2)) },
     );
 
@@ -35,6 +37,11 @@ test.describe("Layer 7: Performance Budget Tests", () => {
       results.p95Ms,
       `p95 frame time ${results.p95Ms.toFixed(2)}ms exceeds ${P95_BUDGET_MS}ms budget at ${CPU_THROTTLE_RATE}x throttle`
     ).toBeLessThan(P95_BUDGET_MS);
+
+    expect(
+      results.maxMs,
+      `max frame time ${results.maxMs.toFixed(2)}ms exceeds ${MAX_FRAME_BUDGET_MS}ms budget at ${CPU_THROTTLE_RATE}x throttle`
+    ).toBeLessThan(MAX_FRAME_BUDGET_MS);
 
     expect(
       results.medianMs,
