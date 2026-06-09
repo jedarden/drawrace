@@ -45,7 +45,8 @@
   ],
   "surfaces": [
     {"x_range": [0, 8],   "type": "normal"},
-    {"x_range": [8, 22],  "type": "water"},
+    {"x_range": [8, 14],  "type": "water"},
+    {"x_range": [14, 22], "type": "normal"},
     {"x_range": [22, 30], "type": "rock"},
     {"x_range": [30, 38], "type": "ice"},
     {"x_range": [38, 48], "type": "snow"}
