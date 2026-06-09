@@ -25,6 +25,12 @@ spec:
       steps:
         - - name: checkout
             template: checkout
+        - - name: perf-budget
+            template: perf-budget
+            arguments:
+              artifacts:
+                - name: src
+                  from: "{{steps.checkout.outputs.artifacts.src}}"
         - - name: replay-verify
             template: replay-verify
             arguments:
@@ -130,6 +136,34 @@ spec:
           requests:
             memory: "512Mi"
             cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+
+    - name: perf-budget
+      inputs:
+        artifacts:
+          - name: src
+            path: /src
+      container:
+        image: node:20-alpine
+        command: [sh, -c]
+        args:
+          - |
+            set -ex
+            apk add --no-cache git
+            npm install -g pnpm@10
+            cd /src
+            pnpm install --frozen-lockfile
+            pnpm --filter @drawrace/engine-core build
+            pnpm test:perf
+        env:
+          - name: CI
+            value: "true"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
           limits:
             memory: "2Gi"
             cpu: "2000m"
