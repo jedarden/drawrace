@@ -243,7 +243,7 @@ spec:
               bash e2e/phone-smoke/run.sh --skip-build
         env:
           - name: ADB_SERVER_SOCKET
-            value: "tcp:adb-relay.tailnet:5037"
+            value: "tcp:adb-relay:5037"
         resources:
           requests:
             cpu: 200m
