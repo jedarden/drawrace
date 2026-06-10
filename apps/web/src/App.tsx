@@ -107,11 +107,21 @@ export function App() {
   const [dailyChallengeDate, setDailyChallengeDate] = useState<string | null>(null);
   const [dailyGhosts, setDailyGhosts] = useState<GhostData[]>([]);
 
+  // Track moderation state
+  const [showModeration, setShowModeration] = useState(false);
+
   // Initialize haptics and check landing screen
   useEffect(() => {
     getHaptics();
     const dismissed = localStorage.getItem(LANDING_DISMISSED_KEY) === "true";
     setShowLanding(!dismissed);
+
+    // Check for moderation mode via URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('moderate') === 'true') {
+      setShowModeration(true);
+      setShowLanding(false);
+    }
   }, []);
 
   // Global crash reporter — captures unhandled errors and submits to /v1/crash
@@ -413,6 +423,9 @@ export function App() {
           trackId={track.numeric_id}
           onClose={() => setShowLeaderboard(false)}
         />
+      )}
+      {showModeration && (
+        <TrackModeration onClose={() => setShowModeration(false)} />
       )}
     </div>
   );
