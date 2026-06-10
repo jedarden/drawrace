@@ -95,12 +95,12 @@ echo "=== Launching Chrome on phone ==="
 adb shell am force-stop com.android.chrome 2>/dev/null || true
 sleep 1
 adb shell am start -a android.intent.action.VIEW \
-    -d "about:blank" \
+    -d "$URL" \
     com.android.chrome
 
-# Give Chrome time to open so we can clear cache via CDP
-echo "    Waiting for Chrome to open..."
-sleep 8
+# Give Chrome time to open and start loading
+echo "    Waiting for page to load..."
+sleep 5
 
 # 6. Run the CDP driver
 echo "=== Running phone-smoke driver (scenario: $SCENARIO) ==="
