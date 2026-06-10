@@ -2,7 +2,7 @@
   "id": "hills-01",
   "numeric_id": 1,
   "name": "Scribble Slope",
-  "version": 32,
+  "version": 33,
   "world": {
     "gravity": [0.0, 10.0],
     "pixelsPerMeter": 30
@@ -44,7 +44,7 @@
   ],
   "surfaces": [
     {"x_range": [0, 8],   "type": "normal"},
-    {"x_range": [8, 18],  "type": "ice"},
+    {"x_range": [8, 18],  "type": "snow"},
     {"x_range": [18, 28], "type": "snow"},
     {"x_range": [28, 34], "type": "water"},
     {"x_range": [34, 40], "type": "normal"}

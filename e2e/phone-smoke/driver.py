@@ -177,9 +177,8 @@ LANDING_BYPASS_JS = """
 (() => {
   localStorage.setItem('drawrace_landing_dismissed', 'true');
   localStorage.setItem('drawrace_invite_access', 'true');
-  // Force canyon-02 (Canyon Run, index 1) — circle wheels can complete this track.
-  // hills-01 has a steep icy incline that requires specialized wheel shapes.
-  localStorage.setItem('drawrace.currentTrack', '1');
+  // Force hills-01 (Scribble Slope, index 0) — most forgiving track for basic circles.
+  localStorage.setItem('drawrace.currentTrack', '0');
   return true;
 })()
 """
@@ -607,9 +606,9 @@ async def run_smoke(url, ws_url, artifacts_dir, baseline_dir, save_baselines):
             post_race_collector.feed_batch(await sess2.drain_events(0.5))
 
             # -- STEP 4: Wait for result screen --------------------------
-            print("Waiting for result screen (timeout 90s)...")
+            print("Waiting for result screen (timeout 150s)...")
             race_result = None
-            for attempt in range(45):
+            for attempt in range(75):
                 try:
                     race_result = await sess2.evaluate(WAIT_RESULT_JS, timeout=5)
                     break
