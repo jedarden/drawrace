@@ -1,4 +1,4 @@
-const CACHE_NAME = "drawrace-v1";
+const CACHE_NAME = "drawrace-v2";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
