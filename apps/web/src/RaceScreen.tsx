@@ -3,12 +3,14 @@ import { RaceSim } from "@drawrace/engine-core";
 import type { DrawResult, TrackDef, WheelSwap, DrawConstraints } from "@drawrace/engine-core";
 import { createRenderer, createGhostWheelPath, preloadAssets } from "./Renderer.js";
 import { ParticleSystem } from "./Particles.js";
+import { TrailSystem } from "./Trails.js";
 import { getPerformanceManager } from "./PerformanceManager.js";
 import { getHaptics } from "./Haptics.js";
 import { getSoundManager } from "./Sound.js";
 import { DrawOverlay } from "./DrawOverlay.js";
 import { PauseMenu } from "./PauseMenu.js";
 import { MAX_SWAPS } from "./cooldown-machine.js";
+import { getSelectedTrail, addDistance, type TrailConfig } from "./progression.js";
 
 interface GhostDef {
   id: string;
@@ -51,6 +53,7 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
   const rafRef = useRef<number>(0);
   const finishedCalledRef = useRef(false);
   const particlesRef = useRef<ParticleSystem | null>(null);
+  const trailSystemRef = useRef<TrailSystem | null>(null);
   const confettiTriggeredRef = useRef(false);
   const prevWheelPosRef = useRef({ x: 0, y: 0 });
   const pausedRef = useRef(false);
@@ -167,8 +170,14 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
         const particles = new ParticleSystem();
         particlesRef.current = particles;
 
+        // Initialize trail system with player's selected trail
+        const trailSystem = new TrailSystem();
+        trailSystemRef.current = trailSystem;
+        const trailConfig: TrailConfig = getSelectedTrail();
+
         const physDraw = { ...wheelDraw, vertices: playerVerts };
         const renderer = createRenderer(canvas, track, physDraw);
+        renderer.setTrailSystem(trailSystem, trailConfig);
         const ghostWheelPaths = capturedGhosts.map((g) => createGhostWheelPath(g.wheelVertices));
         ghostWheelPathsRef.current = ghostWheelPaths;
         const perf = getPerformanceManager();
@@ -389,6 +398,10 @@ export function RaceScreen({ track, wheelDraw, ghosts, onFinished, onRestart, on
                 if (!verification.passed) {
                   console.warn("[RaceScreen] Zone visibility rule FAILED:", verification.violations);
                 }
+
+                // Track distance for progression unlocks
+                const raceDistance = track.finish.pos[0];
+                addDistance(raceDistance);
 
                 onFinished(snap.elapsedMs, swapLog, snap.stuck);
               }

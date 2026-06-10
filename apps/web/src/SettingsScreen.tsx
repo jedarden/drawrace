@@ -9,6 +9,13 @@ import {
 } from "./recovery-phrase.js";
 import { claimName, fetchPlayerName } from "./api.js";
 import type { DrawConstraints } from "@drawrace/engine-core";
+import {
+  getProgression,
+  setSelectedTrail,
+  getUnlockedTrails,
+  getNextTrailUnlock,
+  TRAILS,
+} from "./progression.js";
 
 interface SettingsScreenProps {
   onClose: () => void;
@@ -49,6 +56,16 @@ export function SettingsScreen({ onClose, onShowLanding, constraints, onConstrai
   const [restoreInput, setRestoreInput] = useState("");
   const [localConstraints, setLocalConstraints] = useState<DrawConstraints>(constraints ?? {});
 
+  // Progression state for wheel trails
+  const [totalDistance, setTotalDistance] = useState(0);
+  const [unlockedTrails, setUnlockedTrails] = useState(TRAILS);
+  const [selectedTrailId, setSelectedTrailIdState] = useState("none");
+  const [nextUnlock, setNextUnlock] = useState<{
+    currentTrail: typeof TRAILS[0];
+    nextTrail: typeof TRAILS[0] | null;
+    progressFraction: number;
+  } | null>(null);
+
   useEffect(() => {
     const storedName = localStorage.getItem("drawrace.displayName");
     if (storedName) setDisplayName(storedName);
@@ -64,6 +81,13 @@ export function SettingsScreen({ onClose, onShowLanding, constraints, onConstrai
         // Ignore invalid stored constraints
       }
     }
+
+    // Load progression data for wheel trails
+    const progression = getProgression();
+    setTotalDistance(progression.totalDistanceMeters);
+    setSelectedTrailIdState(progression.selectedTrailId);
+    setUnlockedTrails(getUnlockedTrails());
+    setNextUnlock(getNextTrailUnlock());
   }, [onConstraintsChange]);
 
   const handleSoundToggle = useCallback(() => {
@@ -191,6 +215,13 @@ export function SettingsScreen({ onClose, onShowLanding, constraints, onConstrai
     haptics.uiTap();
   }, [localConstraints, onConstraintsChange, haptics]);
 
+  const handleTrailSelect = useCallback((trailId: string) => {
+    if (setSelectedTrail(trailId)) {
+      setSelectedTrailIdState(trailId);
+      haptics.uiTap();
+    }
+  }, [haptics]);
+
   return (
     <div
       role="dialog"
@@ -257,6 +288,99 @@ export function SettingsScreen({ onClose, onShowLanding, constraints, onConstrai
             enabled={reducedMotion}
             onToggle={handleReducedMotionToggle}
           />
+
+          {/* Wheel Trails - Post-v1 Progression System */}
+          <div style={{ paddingTop: 8, paddingBottom: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#6E5F48", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Wheel Trails
+            </div>
+            <div
+              style={{
+                padding: "12px 16px",
+                backgroundColor: "rgba(43, 33, 24, 0.05)",
+                borderRadius: 8,
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ fontSize: 14, color: "#2B2118", marginBottom: 4 }}>
+                <strong>Total Distance:</strong> {(totalDistance / 1000).toFixed(1)} km
+              </div>
+              {nextUnlock && nextUnlock.nextTrail && (
+                <div style={{ fontSize: 13, color: "#6E5F48", marginTop: 4 }}>
+                  Next unlock: <strong>{nextUnlock.nextTrail.name}</strong> at {(nextUnlock.nextTrail.unlockDistanceMeters / 1000).toFixed(1)} km
+                  <div style={{ marginTop: 4, height: 4, backgroundColor: "rgba(43,33,24,0.2)", borderRadius: 2, overflow: "hidden" }}>
+                    <div
+                      style={{
+                        width: `${nextUnlock.progressFraction * 100}%`,
+                        height: "100%",
+                        backgroundColor: "#D94F3A",
+                        transition: "width 0.3s ease",
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Trail selection buttons */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {TRAILS.map((trail) => {
+                const isUnlocked = trail.unlockDistanceMeters <= totalDistance;
+                const isSelected = trail.id === selectedTrailId;
+
+                return (
+                  <button
+                    key={trail.id}
+                    onClick={() => isUnlocked && handleTrailSelect(trail.id)}
+                    disabled={!isUnlocked}
+                    aria-label={`Select ${trail.name} trail${!isUnlocked ? ` (unlocked at ${(trail.unlockDistanceMeters / 1000).toFixed(1)} km)` : ""}`}
+                    aria-pressed={isSelected}
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      fontSize: 14,
+                      fontWeight: isSelected ? 600 : 400,
+                      fontFamily: "inherit",
+                      backgroundColor: isSelected
+                        ? "#D94F3A"
+                        : isUnlocked
+                          ? "#FBF4E3"
+                          : "rgba(43, 33, 24, 0.05)",
+                      color: isUnlocked ? "#2B2118" : "#6E5F48",
+                      border: isSelected
+                        ? "2px solid #2B2118"
+                        : isUnlocked
+                          ? "1px solid rgba(43, 33, 24, 0.3)"
+                          : "1px dashed rgba(43, 33, 24, 0.2)",
+                      borderRadius: 8,
+                      cursor: isUnlocked ? "pointer" : "not-allowed",
+                      opacity: isUnlocked ? 1 : 0.6,
+                      textAlign: "left",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {isSelected && <span style={{ fontSize: 16 }}>✓</span>}
+                        {trail.name}
+                      </span>
+                      {!isUnlocked && (
+                        <span style={{ fontSize: 12, color: "#6E5F48" }}>
+                          🔒 {(trail.unlockDistanceMeters / 1000).toFixed(1)} km
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, marginTop: 2, opacity: 0.8 }}>
+                      {trail.description}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Wheel Constraint Modes - Post-v1 Progression Hooks */}
           <div style={{ paddingTop: 8, paddingBottom: 8 }}>

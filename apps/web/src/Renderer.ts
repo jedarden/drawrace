@@ -2,6 +2,8 @@ import type { RaceSnapshot, TrackDef, SimBody } from "@drawrace/engine-core";
 import type { DrawResult } from "@drawrace/engine-core";
 import { parseSurfaces, type SurfaceSegment } from "@drawrace/engine-core";
 import type { ParticleSystem } from "./Particles.js";
+import type { TrailSystem } from "./Trails.js";
+import type { TrailConfig } from "./progression.js";
 
 const SURFACE_COLORS: Record<string, string> = {
   normal: "#E5D3B0",
@@ -286,6 +288,15 @@ export function createRenderer(
 
   // Ink-flash pool
   const inkFlashes: InkFlash[] = [];
+
+  // Trail system (will be injected via setTrailSystem)
+  let trailSystem: TrailSystem | null = null;
+  let trailConfig: TrailConfig | null = null;
+
+  // Track previous wheel position for speed calculation
+  let prevWheelX = 0;
+  let prevWheelY = 0;
+  let firstFrame = true;
 
   // Zone boundary x-coordinates (skip first zone start = track start)
   const zoneBoundaries: number[] = [];
@@ -900,6 +911,12 @@ export function createRenderer(
       // Dust particles behind player (layer 5, behind wheel)
       particles.renderDust(ctx);
 
+      // Wheel trails (layer 4.5, behind wheels but in front of ghosts)
+      if (trailSystem && trailConfig) {
+        trailSystem.update();
+        trailSystem.render(ctx);
+      }
+
       // Ghosts (layer 4)
       for (const ghost of ghosts) {
         const swapProgress = ghost.swapProgress ?? 1;
@@ -944,6 +961,28 @@ export function createRenderer(
       }
 
       // Player (layer 5)
+      // Emit trail particles from both wheels before drawing
+      if (trailSystem && trailConfig) {
+        // Calculate wheel screen positions
+        const rearWheelScreen = worldToScreen(snapshot.rearWheel.x, snapshot.rearWheel.y - REAR_WHEEL_RADIUS);
+        const frontWheelScreen = worldToScreen(snapshot.wheel.x, snapshot.wheel.y - REAR_WHEEL_RADIUS);
+
+        // Calculate wheel speed from position delta (pixels/frame * 60 = pixels/sec)
+        let wheelSpeed = 0;
+        if (!firstFrame) {
+          const dx = snapshot.wheel.x - prevWheelX;
+          const dy = snapshot.wheel.y - prevWheelY;
+          wheelSpeed = Math.hypot(dx, dy) * 60; // pixels per second
+        }
+        prevWheelX = snapshot.wheel.x;
+        prevWheelY = snapshot.wheel.y;
+        firstFrame = false;
+
+        // Emit trails from both wheels
+        trailSystem.emitTrail(rearWheelScreen.sx, rearWheelScreen.sy, wheelSpeed, trailConfig);
+        trailSystem.emitTrail(frontWheelScreen.sx, frontWheelScreen.sy, wheelSpeed, trailConfig);
+      }
+
       drawRearWheel(snapshot.rearWheel, wheelPath, wobblePath, "#D94F3A", 1);
       drawWheel(snapshot.wheel, wheelPath, wobblePath, "#D94F3A", 1);
       drawChassis(snapshot.chassis, 1);
@@ -994,6 +1033,16 @@ export function createRenderer(
 
     getZoneVisibilityData() {
       return new Map(zoneVisibilityTicks);
+    },
+
+    setTrailSystem(system: TrailSystem, config: TrailConfig) {
+      trailSystem = system;
+      trailConfig = config;
+    },
+
+    clearTrailSystem() {
+      trailSystem = null;
+      trailConfig = null;
     },
 
     verifyZoneVisibilityRule(chassisX: number) {
