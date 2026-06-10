@@ -116,15 +116,21 @@ class CDPSession:
 async def find_tab(ws_url=None):
     if ws_url:
         return ws_url
-    import urllib.request
-    tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=5).read())
-    for tab in tabs:
-        u = tab.get("url", "")
-        if "5180" in u or "drawrace" in u.lower():
-            return tab["webSocketDebuggerUrl"]
-    for tab in tabs:
-        if tab.get("type") == "page":
-            return tab["webSocketDebuggerUrl"]
+    import urllib.request, time
+    # Retry for up to 20s — Chrome may take time to expose its devtools socket.
+    for attempt in range(20):
+        try:
+            tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=5).read())
+            for tab in tabs:
+                u = tab.get("url", "")
+                if "5180" in u or "drawrace" in u.lower():
+                    return tab["webSocketDebuggerUrl"]
+            for tab in tabs:
+                if tab.get("type") == "page":
+                    return tab["webSocketDebuggerUrl"]
+        except Exception:
+            pass
+        time.sleep(1)
     return None
 
 
