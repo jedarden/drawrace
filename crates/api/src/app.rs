@@ -152,6 +152,30 @@ pub fn app(state: Arc<AppState>) -> Router {
             "/v1/leaderboard/daily/{date}/context",
             axum::routing::get(crate::handlers::daily_challenge::get_daily_context),
         )
+        .route(
+            "/v1/tracks",
+            axum::routing::post(crate::handlers::tracks::post_track),
+        )
+        .route(
+            "/v1/tracks/pending",
+            axum::routing::get(crate::handlers::tracks::get_pending_tracks),
+        )
+        .route(
+            "/v1/tracks/published",
+            axum::routing::get(crate::handlers::tracks::get_published_tracks),
+        )
+        .route(
+            "/v1/tracks/{track_id}",
+            axum::routing::get(crate::handlers::tracks::get_track),
+        )
+        .route(
+            "/v1/tracks/{track_id}/publish",
+            axum::routing::post(crate::handlers::tracks::publish_track),
+        )
+        .route(
+            "/v1/tracks/{track_id}/reject",
+            axum::routing::post(crate::handlers::tracks::reject_track),
+        )
         .layer(axum::middleware::from_fn(metrics_middleware))
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())

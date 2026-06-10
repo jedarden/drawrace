@@ -343,6 +343,27 @@ export async function submitCrashReport(payload: CrashReportPayload): Promise<bo
   }
 }
 
+export async function submitTrack(trackData: any): Promise<boolean> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return false;
+
+  const playerUuid = getPlayerUuid();
+
+  try {
+    const resp = await fetch(`${apiUrl}/v1/tracks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-DrawRace-Player": playerUuid,
+      },
+      body: JSON.stringify(trackData),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function redeemInvite(code: string): Promise<boolean> {
   const apiUrl = getApiUrl();
   if (!apiUrl) return false;

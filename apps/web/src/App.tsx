@@ -7,13 +7,15 @@ import { SettingsScreen } from "./SettingsScreen.js";
 import { LandingScreen } from "./LandingScreen.js";
 import { LeaderboardScreen } from "./LeaderboardScreen.js";
 import { DailyChallengeScreen } from "./DailyChallengeScreen.js";
-import { fetchGhosts, submitCrashReport, type GhostData } from "./api.js";
+import { TrackEditor } from "./TrackEditor.js";
+import { TrackModeration } from "./TrackModeration.js";
+import { fetchGhosts, submitCrashReport, submitTrack, type GhostData } from "./api.js";
 import { getHaptics } from "./Haptics.js";
 import { getPlayerUuid } from "./player-identity.js";
 import type { DrawResult, WheelSwap, DrawConstraints, ChallengeModifiers } from "@drawrace/engine-core";
 import { parseSurfaces, validateZones, hashSeed } from "@drawrace/engine-core";
 
-type Screen = "draw" | "race" | "result" | "daily" | "daily_draw" | "daily_race" | "daily_result";
+type Screen = "draw" | "race" | "result" | "daily" | "daily_draw" | "daily_race" | "daily_result" | "track_editor" | "track_moderation";
 
 const LANDING_DISMISSED_KEY = "drawrace_landing_dismissed";
 const CONSTRAINTS_KEY = "drawrace.constraints";
@@ -268,6 +270,25 @@ export function App() {
     setSwapLog([]);
   }, []);
 
+  const handleOpenTrackEditor = useCallback(() => {
+    setScreen("track_editor");
+    setShowLanding(false);
+  }, []);
+
+  const handleTrackEditorSave = useCallback(async (trackData: any) => {
+    try {
+      await submitTrack(trackData);
+      setShowLanding(true);
+    } catch (e) {
+      console.error("Failed to save track:", e);
+      alert("Failed to save track. Please try again.");
+    }
+  }, []);
+
+  const handleTrackEditorCancel = useCallback(() => {
+    setShowLanding(true);
+  }, []);
+
   const currentTrackInfo = TRACKS[currentTrackIndex];
 
   if (!track) {
@@ -295,7 +316,7 @@ export function App() {
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }} role="application" aria-label="DrawRace Game">
-      <LandingScreen onStart={handleLandingStart} dismissed={!showLanding} />
+      <LandingScreen onStart={handleLandingStart} onOpenTrackEditor={handleOpenTrackEditor} dismissed={!showLanding} />
       {screen === "draw" && (
         <DrawScreen
           onComplete={handleDrawComplete}
@@ -375,6 +396,9 @@ export function App() {
           isDailyChallenge={true}
           dailyChallengeDate={dailyChallengeDate}
         />
+      )}
+      {screen === "track_editor" && (
+        <TrackEditor onSave={handleTrackEditorSave} onCancel={handleTrackEditorCancel} />
       )}
       {settingsOpen && (
         <SettingsScreen

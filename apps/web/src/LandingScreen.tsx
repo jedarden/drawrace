@@ -5,12 +5,13 @@ import { DemoWheel } from "./DemoWheel.js";
 
 interface LandingScreenProps {
   onStart: () => void;
+  onOpenTrackEditor?: () => void;
   dismissed: boolean;
 }
 
 type FeedbackState = "idle" | "submitting" | "sent" | "error";
 
-export function LandingScreen({ onStart, dismissed }: LandingScreenProps) {
+export function LandingScreen({ onStart, onOpenTrackEditor, dismissed }: LandingScreenProps) {
   const [feedbackCategory, setFeedbackCategory] = useState<"bug" | "feature" | "other">("bug");
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackState, setFeedbackState] = useState<FeedbackState>("idle");
@@ -200,6 +201,40 @@ export function LandingScreen({ onStart, dismissed }: LandingScreenProps) {
         >
           Start Racing
         </button>
+
+        {onOpenTrackEditor && (
+          <button
+            onClick={onOpenTrackEditor}
+            style={{
+              width: "100%",
+              padding: "12px 24px",
+              fontSize: 18,
+              fontFamily: "inherit",
+              backgroundColor: "#D94F3A",
+              color: "#F4EAD5",
+              border: "none",
+              borderRadius: 12,
+              cursor: "pointer",
+              marginTop: 12,
+              opacity: 1,
+              transition: "transform 0.1s, backgroundColor 0.1s",
+            }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.transform = "scale(0.97)";
+              e.currentTarget.style.backgroundColor = "#B84330";
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+              e.currentTarget.style.backgroundColor = "#D94F3A";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+              e.currentTarget.style.backgroundColor = "#D94F3A";
+            }}
+          >
+            Create Track
+          </button>
+        )}
 
         <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid rgba(43,33,24,0.15)" }}>
           <h2 style={{ fontSize: 20, margin: "0 0 12px 0" }}>Send Feedback</h2>
