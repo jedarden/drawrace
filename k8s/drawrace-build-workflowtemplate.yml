@@ -29,6 +29,15 @@ spec:
         items:
           - key: .dockerconfigjson
             path: config.json
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: sata
+        resources:
+          requests:
+            storage: 5Gi
   templates:
     # ── Top-level DAG ────────────────────────────────────────────────────────
     # DAG form (not steps:) so that pages-publish is auto-skipped when
@@ -232,14 +241,6 @@ spec:
           limits:
             cpu: 500m
             memory: 512Mi
-      volumeClaimTemplates:
-        - metadata:
-            name: workspace
-          spec:
-            accessModes: [ReadWriteOnce]
-            resources:
-              requests:
-                storage: 4Gi
       outputs:
         artifacts:
           - name: workspace
