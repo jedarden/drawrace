@@ -16,6 +16,8 @@ spec:
       labels:
         app: drawrace-live
     spec:
+      imagePullSecrets:
+        - name: docker-hub-registry
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
