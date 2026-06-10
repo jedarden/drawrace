@@ -217,18 +217,15 @@ spec:
           emptyDir: {}
 
     # ── Phone-smoke template ────────────────────────────────────────────────
-    # Serialized via mutex so concurrent PRs queue rather than fight over the
-    # single Pixel 6.  ADB_SERVER_SOCKET points at the adb-relay service which
-    # bridges the CI pod to the persistent ADB server on the coding host.
+    # ADB_SERVER_SOCKET points at the adb-relay service which bridges the CI pod
+    # to the persistent ADB server on the Hetzner host. NOTE: Argo v4.0.3 removed
+    # synchronization.mutex; concurrent PRs may race. Re-add mutex if upgrading
+    # to Argo v3.4.x or implement ConfigMap-based locking.
     - name: phone-smoke
       inputs:
         parameters:
           - name: preview-url
       activeDeadlineSeconds: 300
-      # Serialize access to the Pixel 6 — concurrent PRs queue behind this mutex
-      synchronization:
-        mutex:
-          name: drawrace-phone
       container:
         image: ghcr.io/drawrace/ci-phone:2026-04-21
         command: [bash, -lc]
