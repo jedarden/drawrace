@@ -93,16 +93,13 @@ adb forward tcp:$CDP_PORT localabstract:chrome_devtools_remote
 # 5. Launch Chrome to the preview URL
 echo "=== Launching Chrome on phone ==="
 adb shell am force-stop com.android.chrome 2>/dev/null || true
-# Clear Chrome's cached data (service workers, Cache API) so stale track
-# files don't survive across deployments.
-adb shell pm clear com.android.chrome 2>/dev/null || true
-sleep 2
+sleep 1
 adb shell am start -a android.intent.action.VIEW \
-    -d "$URL" \
+    -d "about:blank" \
     com.android.chrome
 
-# Give Chrome time to open and start loading
-echo "    Waiting for page to load..."
+# Give Chrome time to open so we can clear cache via CDP
+echo "    Waiting for Chrome to open..."
 sleep 8
 
 # 6. Run the CDP driver

@@ -498,6 +498,12 @@ async def run_smoke(url, ws_url, artifacts_dir, baseline_dir, save_baselines):
         await sess.call("Console.enable")
         await sess.call("Page.enable")
 
+        # -- STEP 0: Clear browser cache so stale track files aren't served --
+        await sess.call("Network.enable")
+        await sess.call("Network.clearBrowserCache")
+        await sess.call("Network.clearBrowserCookies")
+        print("Browser cache cleared")
+
         # -- STEP 1: Navigate + bypass landing ----------------------------
         # Pre-inject localStorage bypass so the landing/invite gate never
         # appears, even on the very first page load.
