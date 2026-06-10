@@ -149,14 +149,11 @@ export function closeLoop(
 
 export function simplifyStroke(pts: Point[]): Point[] {
   const bbox = computeBBox(pts);
-  let tol = Math.max(0.5, Math.min(5.0, 0.008 * bbox.diagonal));
+  // Low coefficient (0.003) keeps circles at ~32 vertices before the MAX cap,
+  // yielding much smoother rolling polygon wheels vs the legacy 0.008/16-vertex
+  // result that caused stuck-DNF on terrain step transitions.
+  const tol = Math.max(0.2, Math.min(5.0, 0.003 * bbox.diagonal));
   let simplified = simplify(pts, tol, true);
-
-  for (let i = 0; i < 3; i++) {
-    if (simplified.length <= MAX_VERTICES) break;
-    tol *= 2;
-    simplified = simplify(pts, tol, true);
-  }
 
   if (simplified.length > MAX_VERTICES) {
     simplified = simplified.slice(0, MAX_VERTICES);
