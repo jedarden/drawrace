@@ -178,6 +178,7 @@ function captureWheelPositionAtTick(
   const chassisBody = world.createBody({
     position: Vec2(startX, chassisSpawnY),
     type: "dynamic",
+    angularDamping: 5,
   });
   chassisBody.createFixture(Box(1.2, 0.4), {
     density: 1.0,

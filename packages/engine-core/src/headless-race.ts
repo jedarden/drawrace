@@ -59,6 +59,7 @@ const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
+const CHASSIS_ANGULAR_DAMPING = 5;  // Prevents chassis from flipping under high motor torque with irregular wheel shapes
 
 export function createHeadlessRace(
   input: HeadlessRaceInput
@@ -165,6 +166,7 @@ export function createHeadlessRace(
   const chassisBody = world.createBody({
     position: Vec2(startX, chassisSpawnY),
     type: "dynamic",
+    angularDamping: CHASSIS_ANGULAR_DAMPING,
   });
   chassisBody.createFixture(Box(1.2, 0.4), {
     density: CHASSIS_DENSITY,

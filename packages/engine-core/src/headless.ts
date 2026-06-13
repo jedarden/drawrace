@@ -27,6 +27,7 @@ const MAX_TICKS = 60 * 180; // 3-minute DNF ceiling
 const CHASSIS_DENSITY = 1.0;
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
+const CHASSIS_ANGULAR_DAMPING = 5;  // Prevents chassis from flipping under high motor torque with irregular wheel shapes
 const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 
@@ -131,7 +132,7 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
   let wheelBody = buildWheelBody(world, initialPoly, startX, wheelSpawnY);
 
   const chassisSpawnY = wheelSpawnY - 1.5;
-  const chassisBody = world.createBody({ position: Vec2(startX, chassisSpawnY), type: "dynamic" });
+  const chassisBody = world.createBody({ position: Vec2(startX, chassisSpawnY), type: "dynamic", angularDamping: CHASSIS_ANGULAR_DAMPING });
   chassisBody.createFixture(Box(1.2, 0.4), {
     density: CHASSIS_DENSITY,
     friction: 0.5,

@@ -1,10 +1,26 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useCallback } from "react";
 import type { DrawResult, WheelSwap } from "@drawrace/engine-core";
 import type { StrokePoint } from "./DrawScreen.js";
 import { submitGhost, waitForVerdict, isOnline, type SubmissionVerdict } from "./api.js";
 import { getSoundManager } from "./Sound.js";
 import { getHaptics } from "./Haptics.js";
 import { ensureRecoveryPhrase, wasRecoveryPhraseShown, markRecoveryPhraseShown, formatRecoveryPhrase } from "./recovery-phrase.js";
+
+export function encodeWheelForShare(vertices: Array<{ x: number; y: number }>, trackId: number): string {
+  const payload = { v: vertices.map(p => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]), t: trackId };
+  return btoa(JSON.stringify(payload));
+}
+
+export function decodeWheelFromShare(encoded: string): { vertices: Array<{ x: number; y: number }>; trackId: number } | null {
+  try {
+    const payload = JSON.parse(atob(encoded));
+    if (!Array.isArray(payload.v) || typeof payload.t !== "number") return null;
+    const vertices = payload.v.map(([x, y]: [number, number]) => ({ x, y }));
+    return { vertices, trackId: payload.t };
+  } catch {
+    return null;
+  }
+}
 
 interface GhostResult {
   name: string;
@@ -38,6 +54,20 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
   const [submitting, setSubmitting] = useState(false);
   const [showRecoveryPhrase, setShowRecoveryPhrase] = useState(false);
   const [recoveryPhrase, setRecoveryPhrase] = useState<string[] | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const handleShare = useCallback(() => {
+    const encoded = encodeWheelForShare(wheelDraw.vertices, trackId);
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("wheel", encoded);
+    navigator.clipboard.writeText(url.toString()).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    });
+    getSoundManager().playUiTap();
+    getHaptics().uiTap();
+  }, [wheelDraw.vertices, trackId]);
 
   const online = isOnline();
 
@@ -259,6 +289,24 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
         }}
       >
         Try Again
+      </button>
+
+      <button
+        onClick={handleShare}
+        aria-label="Copy share link for this wheel shape"
+        style={{
+          padding: "10px 32px",
+          fontSize: 16,
+          fontWeight: 600,
+          fontFamily: "inherit",
+          backgroundColor: "transparent",
+          color: "#2B2118",
+          border: "2px solid #2B2118",
+          borderRadius: 8,
+          cursor: "pointer",
+        }}
+      >
+        {shareCopied ? "Link copied!" : "Share Wheel"}
       </button>
 
       {online && (

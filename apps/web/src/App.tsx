@@ -13,7 +13,8 @@ import { fetchGhosts, submitCrashReport, submitTrack, type GhostData } from "./a
 import { getHaptics } from "./Haptics.js";
 import { getPlayerUuid } from "./player-identity.js";
 import type { DrawResult, WheelSwap, DrawConstraints, ChallengeModifiers } from "@drawrace/engine-core";
-import { parseSurfaces, validateZones, hashSeed } from "@drawrace/engine-core";
+import { parseSurfaces, validateZones, hashSeed, areaCentroid, convexDecompose, computeBBox } from "@drawrace/engine-core";
+import { decodeWheelFromShare } from "./ResultScreen.js";
 
 type Screen = "draw" | "race" | "result" | "daily" | "daily_draw" | "daily_race" | "daily_result" | "track_editor" | "track_moderation";
 
@@ -161,6 +162,50 @@ export function App() {
         fetchGhosts(trackData.numeric_id).then(setGhosts);
       });
   }, [currentTrackIndex]);
+
+  // Handle shared wheel links: ?wheel=<base64>
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const wheelParam = urlParams.get("wheel");
+    if (!wheelParam) return;
+
+    const decoded = decodeWheelFromShare(wheelParam);
+    if (!decoded) return;
+
+    const { vertices, trackId } = decoded;
+    const trackInfo = TRACKS.find((t) => t.numeric_id === trackId) ?? TRACKS[0];
+
+    fetch(`/tracks/${trackInfo.id}.json`)
+      .then((r) => r.json())
+      .then((trackData: TrackData) => {
+        validateTrackData(trackData);
+
+        const { cx, cy, area } = areaCentroid(vertices);
+        const convexPieces = convexDecompose(vertices);
+        const bbox = computeBBox(vertices);
+        const sharedDraw: DrawResult = {
+          vertices,
+          centroid: { x: cx, y: cy },
+          convexPieces,
+          isOpenLoop: false,
+          area,
+          bboxDiagonal: bbox.diagonal,
+        };
+
+        const playerId = getPlayerUuid();
+        const newSeed = hashSeed(trackInfo.id, playerId, 0);
+
+        setCurrentTrackIndex(TRACKS.indexOf(trackInfo));
+        setTrack(trackData);
+        setDrawResult(sharedDraw);
+        setRawStrokePoints([]);
+        setRaceSeed(newSeed);
+        setShowLanding(false);
+        setScreen("race");
+        fetchGhosts(trackData.numeric_id).then(setGhosts);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDrawComplete = useCallback((result: DrawResult, strokePoints: StrokePoint[]) => {
     setDrawResult(result);
