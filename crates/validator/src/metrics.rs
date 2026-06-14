@@ -2,7 +2,6 @@
 ///
 /// Tracks submission validation outcomes with focus on re-simulation
 /// rejection rates for physics drift detection.
-
 use metrics::counter;
 use metrics::gauge;
 
@@ -28,7 +27,8 @@ pub fn inc_quarantined() {
 
 /// Increment rejected submissions by reason.
 pub fn inc_rejected_reason(reason: &str) {
-    counter!("drawrace_validator_rejected_by_reason_total", "reason" => reason.to_string()).increment(1);
+    counter!("drawrace_validator_rejected_by_reason_total", "reason" => reason.to_string())
+        .increment(1);
 }
 
 /// Increment resim mismatch rejections (finish tick diff > tolerance).
@@ -48,7 +48,8 @@ pub fn set_resim_rejection_rate(rate: f64) {
 
 /// Record a resim tick difference (for histogram/distribution analysis).
 pub fn record_tick_diff(diff: u32) {
-    counter!("drawrace_validator_resim_tick_diff", "diff_bucket" => tick_diff_bucket(diff)).increment(1);
+    counter!("drawrace_validator_resim_tick_diff", "diff_bucket" => tick_diff_bucket(diff))
+        .increment(1);
 }
 
 /// Bucket tick differences for histogram analysis.

@@ -107,7 +107,8 @@ impl GhostBackfill {
         );
 
         // Use a placeholder player_uuid for ghost-only fetching (no shadow ghost needed)
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .query(&[("player_uuid", Uuid::nil())])
             .send()
@@ -135,7 +136,9 @@ impl GhostBackfill {
                             track_id: blob.track_id,
                             finish_time_ms: blob.time_ms,
                             initial_wheel: blob.wheel,
-                            wheel_swaps: blob.swaps.into_iter()
+                            wheel_swaps: blob
+                                .swaps
+                                .into_iter()
                                 .map(|s| (s.tick, s.wheel))
                                 .collect(),
                         },
@@ -169,9 +172,7 @@ impl GhostBackfill {
                     replay: GhostReplay {
                         track_id,
                         finish_time_ms: 45000 + (i as u32 * 3000),
-                        initial_wheel: vec![
-                            (0, -50), (50, -50), (50, 50), (0, 50),
-                        ],
+                        initial_wheel: vec![(0, -50), (50, -50), (50, 50), (0, 50)],
                         wheel_swaps: vec![],
                     },
                 });
@@ -183,7 +184,8 @@ impl GhostBackfill {
 
     /// Fetch ghost blob data from presigned S3 URL
     async fn fetch_ghost_blob(&self, url: &str) -> Result<GhostBlob> {
-        let response = self.client
+        let response = self
+            .client
             .get(url)
             .send()
             .await
@@ -203,15 +205,18 @@ impl GhostBackfill {
 
     /// Convert ghosts to PlayerInRoom for room creation
     pub fn ghosts_to_players(&self, ghosts: Vec<GhostPlayer>) -> Vec<PlayerInRoom> {
-        ghosts.into_iter().map(|ghost| {
-            let wheel = ghost.replay.initial_wheel.clone();
-            PlayerInRoom {
-                player_uuid: Uuid::new_v4(), // Ghosts get random UUIDs
-                name: ghost.name,
-                ready: true, // Ghosts are always ready
-                wheel: Some(wheel),
-            }
-        }).collect()
+        ghosts
+            .into_iter()
+            .map(|ghost| {
+                let wheel = ghost.replay.initial_wheel.clone();
+                PlayerInRoom {
+                    player_uuid: Uuid::new_v4(), // Ghosts get random UUIDs
+                    name: ghost.name,
+                    ready: true, // Ghosts are always ready
+                    wheel: Some(wheel),
+                }
+            })
+            .collect()
     }
 }
 
@@ -316,9 +321,7 @@ mod tests {
             track_id: 1,
             finish_time_ms: 30000,
             initial_wheel: vec![(0, -50), (50, -50), (50, 50), (0, 50)],
-            wheel_swaps: vec![
-                (100, vec![(0, -40), (40, -40), (40, 40), (0, 40)]),
-            ],
+            wheel_swaps: vec![(100, vec![(0, -40), (40, -40), (40, 40), (0, 40)])],
         };
 
         assert_eq!(replay.track_id, 1);

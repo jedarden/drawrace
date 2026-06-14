@@ -6,11 +6,11 @@
 //! - "Lightweight router (Redis HSET race:{id} pod {pod_ip}) pins a room to one pod"
 
 use anyhow::{Context, Result};
-use serde::{Serialize, Deserialize};
-use uuid::Uuid;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use uuid::Uuid;
 
 use crate::messages::{PlayerInRoom, RoomStatus};
 
@@ -117,8 +117,7 @@ impl RoomRegistry {
         F: FnOnce(&mut Room),
     {
         let mut rooms = self.rooms.write().await;
-        let room = rooms.get_mut(&room_id)
-            .context("room not found")?;
+        let room = rooms.get_mut(&room_id).context("room not found")?;
         f(room);
         Ok(())
     }
@@ -236,7 +235,10 @@ mod tests {
     #[test]
     fn test_room_key() {
         let room_id = Uuid::nil();
-        assert_eq!(room_key(room_id), "race:00000000-0000-0000-0000-000000000000");
+        assert_eq!(
+            room_key(room_id),
+            "race:00000000-0000-0000-0000-000000000000"
+        );
     }
 
     #[test]

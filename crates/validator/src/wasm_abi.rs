@@ -316,30 +316,39 @@ pub mod track_data {
 
 /// Obstacle descriptor offsets
 pub mod obstacle {
-    pub const TYPE: u32 = 0;      // 0 = box, 1 = circle
-    pub const POS_X: u32 = 4;     // f32
-    pub const POS_Y: u32 = 8;     // f32
-    pub const SIZE_X: u32 = 12;   // f32 (box only)
-    pub const SIZE_Y: u32 = 16;   // f32 (box only)
-    pub const RADIUS: u32 = 12;   // f32 (circle only)
-    pub const ANGLE: u32 = 20;    // f32
+    pub const TYPE: u32 = 0; // 0 = box, 1 = circle
+    pub const POS_X: u32 = 4; // f32
+    pub const POS_Y: u32 = 8; // f32
+    pub const SIZE_X: u32 = 12; // f32 (box only)
+    pub const SIZE_Y: u32 = 16; // f32 (box only)
+    pub const RADIUS: u32 = 12; // f32 (circle only)
+    pub const ANGLE: u32 = 20; // f32
     pub const FRICTION: u32 = 24; // f32
-    pub const SIZE: u32 = 28;     // total size
+    pub const SIZE: u32 = 28; // total size
 }
 
 /// Swap log entry format (in RESULT region)
 pub const SWAP_LOG_ENTRY_SIZE: u32 = 8; // swap_tick (u32) + vertex_count (u32)
 
-use wasmtime::Memory;
 pub use drawrace_api::blob::WheelEntry;
 use std::ptr;
+use wasmtime::Memory;
 
 /// Write a u32 value to WASM memory at the given offset.
-pub fn write_u32(memory: &Memory, mut store: &mut wasmtime::Store<()>, offset: u32, value: u32) -> anyhow::Result<()> {
+pub fn write_u32(
+    memory: &Memory,
+    mut store: &mut wasmtime::Store<()>,
+    offset: u32,
+    value: u32,
+) -> anyhow::Result<()> {
     let data = memory.data_mut(&mut store);
     let offset = offset as usize;
     if offset + 4 > data.len() {
-        anyhow::bail!("Memory write out of bounds: offset={}, size=4, len={}", offset, data.len());
+        anyhow::bail!(
+            "Memory write out of bounds: offset={}, size=4, len={}",
+            offset,
+            data.len()
+        );
     }
     unsafe {
         ptr::write(data.as_mut_ptr().add(offset) as *mut u32, value.to_le());
@@ -348,24 +357,46 @@ pub fn write_u32(memory: &Memory, mut store: &mut wasmtime::Store<()>, offset: u
 }
 
 /// Write a f32 value to WASM memory at the given offset.
-pub fn write_f32(memory: &Memory, mut store: &mut wasmtime::Store<()>, offset: u32, value: f32) -> anyhow::Result<()> {
+pub fn write_f32(
+    memory: &Memory,
+    mut store: &mut wasmtime::Store<()>,
+    offset: u32,
+    value: f32,
+) -> anyhow::Result<()> {
     let data = memory.data_mut(&mut store);
     let offset = offset as usize;
     if offset + 4 > data.len() {
-        anyhow::bail!("Memory write out of bounds: offset={}, size=4, len={}", offset, data.len());
+        anyhow::bail!(
+            "Memory write out of bounds: offset={}, size=4, len={}",
+            offset,
+            data.len()
+        );
     }
     unsafe {
-        ptr::write(data.as_mut_ptr().add(offset) as *mut u32, value.to_bits().to_le());
+        ptr::write(
+            data.as_mut_ptr().add(offset) as *mut u32,
+            value.to_bits().to_le(),
+        );
     }
     Ok(())
 }
 
 /// Write a vertex pair (i16, i16) to WASM memory at the given offset.
-pub fn write_vertex(memory: &Memory, mut store: &mut wasmtime::Store<()>, offset: u32, x: i16, y: i16) -> anyhow::Result<()> {
+pub fn write_vertex(
+    memory: &Memory,
+    mut store: &mut wasmtime::Store<()>,
+    offset: u32,
+    x: i16,
+    y: i16,
+) -> anyhow::Result<()> {
     let data = memory.data_mut(&mut store);
     let offset = offset as usize;
     if offset + 4 > data.len() {
-        anyhow::bail!("Memory write out of bounds: offset={}, size=4, len={}", offset, data.len());
+        anyhow::bail!(
+            "Memory write out of bounds: offset={}, size=4, len={}",
+            offset,
+            data.len()
+        );
     }
     unsafe {
         ptr::write(data.as_mut_ptr().add(offset) as *mut i16, x.to_le());
@@ -375,23 +406,41 @@ pub fn write_vertex(memory: &Memory, mut store: &mut wasmtime::Store<()>, offset
 }
 
 /// Read a u32 value from WASM memory at the given offset.
-pub fn read_u32(memory: &Memory, mut store: &mut wasmtime::Store<()>, offset: u32) -> anyhow::Result<u32> {
+pub fn read_u32(
+    memory: &Memory,
+    mut store: &mut wasmtime::Store<()>,
+    offset: u32,
+) -> anyhow::Result<u32> {
     let data = memory.data(&mut store);
     let offset = offset as usize;
     if offset + 4 > data.len() {
-        anyhow::bail!("Memory read out of bounds: offset={}, size=4, len={}", offset, data.len());
+        anyhow::bail!(
+            "Memory read out of bounds: offset={}, size=4, len={}",
+            offset,
+            data.len()
+        );
     }
     unsafe {
-        Ok(u32::from_le(ptr::read(data.as_ptr().add(offset) as *const u32)))
+        Ok(u32::from_le(ptr::read(
+            data.as_ptr().add(offset) as *const u32
+        )))
     }
 }
 
 /// Read a f32 value from WASM memory at the given offset.
-pub fn read_f32(memory: &Memory, mut store: &mut wasmtime::Store<()>, offset: u32) -> anyhow::Result<f32> {
+pub fn read_f32(
+    memory: &Memory,
+    mut store: &mut wasmtime::Store<()>,
+    offset: u32,
+) -> anyhow::Result<f32> {
     let data = memory.data(&mut store);
     let offset = offset as usize;
     if offset + 4 > data.len() {
-        anyhow::bail!("Memory read out of bounds: offset={}, size=4, len={}", offset, data.len());
+        anyhow::bail!(
+            "Memory read out of bounds: offset={}, size=4, len={}",
+            offset,
+            data.len()
+        );
     }
     unsafe {
         let bits = u32::from_le(ptr::read(data.as_ptr().add(offset) as *const u32));
@@ -400,31 +449,56 @@ pub fn read_f32(memory: &Memory, mut store: &mut wasmtime::Store<()>, offset: u3
 }
 
 /// Read a u32 value from WASM memory at the given offset (offset + 4 bytes).
-pub fn read_u32_at(memory: &Memory, store: &mut wasmtime::Store<()>, offset: u32, index: u32) -> anyhow::Result<u32> {
+pub fn read_u32_at(
+    memory: &Memory,
+    store: &mut wasmtime::Store<()>,
+    offset: u32,
+    index: u32,
+) -> anyhow::Result<u32> {
     read_u32(memory, store, offset + index * 4)
 }
 
 /// Read a i32 value from WASM memory at the given offset.
-pub fn read_i32(memory: &Memory, mut store: &mut wasmtime::Store<()>, offset: u32) -> anyhow::Result<i32> {
+pub fn read_i32(
+    memory: &Memory,
+    mut store: &mut wasmtime::Store<()>,
+    offset: u32,
+) -> anyhow::Result<i32> {
     let data = memory.data(&mut store);
     let offset = offset as usize;
     if offset + 4 > data.len() {
-        anyhow::bail!("Memory read out of bounds: offset={}, size=4, len={}", offset, data.len());
+        anyhow::bail!(
+            "Memory read out of bounds: offset={}, size=4, len={}",
+            offset,
+            data.len()
+        );
     }
     unsafe {
-        Ok(i32::from_le(ptr::read(data.as_ptr().add(offset) as *const i32)))
+        Ok(i32::from_le(ptr::read(
+            data.as_ptr().add(offset) as *const i32
+        )))
     }
 }
 
 /// Read a i16 value from WASM memory at the given offset.
-pub fn read_i16(memory: &Memory, mut store: &mut wasmtime::Store<()>, offset: u32) -> anyhow::Result<i16> {
+pub fn read_i16(
+    memory: &Memory,
+    mut store: &mut wasmtime::Store<()>,
+    offset: u32,
+) -> anyhow::Result<i16> {
     let data = memory.data(&mut store);
     let offset = offset as usize;
     if offset + 2 > data.len() {
-        anyhow::bail!("Memory read out of bounds: offset={}, size=2, len={}", offset, data.len());
+        anyhow::bail!(
+            "Memory read out of bounds: offset={}, size=2, len={}",
+            offset,
+            data.len()
+        );
     }
     unsafe {
-        Ok(i16::from_le(ptr::read(data.as_ptr().add(offset) as *const i16)))
+        Ok(i16::from_le(ptr::read(
+            data.as_ptr().add(offset) as *const i16
+        )))
     }
 }
 
@@ -453,7 +527,12 @@ pub fn write_header(
     write_f32(memory, store, o + 28, start_x)?;
     write_f32(memory, store, o + 32, start_y)?;
     write_u32(memory, store, o + 36, claimed_finish)?;
-    write_u32(memory, store, o + 40, claimed_finish.saturating_mul(2).max(90 * 60))?;
+    write_u32(
+        memory,
+        store,
+        o + 40,
+        claimed_finish.saturating_mul(2).max(90 * 60),
+    )?;
     write_u32(memory, store, o + 44, initial_vcount)?;
     write_u32(memory, store, o + 48, seed)?;
     Ok(())
@@ -481,9 +560,24 @@ pub fn write_wheels(
         }
 
         // Write wheel descriptor
-        write_u32(memory, store, wheel_offset + wheel_desc::SWAP_TICK, wheel.swap_tick)?;
-        write_u32(memory, store, wheel_offset + wheel_desc::VERTEX_COUNT, wheel.vertex_count as u32)?;
-        write_u32(memory, store, wheel_offset + wheel_desc::VERTEX_OFFSET, vertex_offset)?;
+        write_u32(
+            memory,
+            store,
+            wheel_offset + wheel_desc::SWAP_TICK,
+            wheel.swap_tick,
+        )?;
+        write_u32(
+            memory,
+            store,
+            wheel_offset + wheel_desc::VERTEX_COUNT,
+            wheel.vertex_count as u32,
+        )?;
+        write_u32(
+            memory,
+            store,
+            wheel_offset + wheel_desc::VERTEX_OFFSET,
+            vertex_offset,
+        )?;
 
         // Write vertices to vertex buffer
         let vertex_buffer_offset = VERTEX_BUFFER_OFFSET + vertex_offset * 4; // 4 bytes per vertex (2 i16)
@@ -505,7 +599,11 @@ pub fn write_terrain(
     terrain: &[(f32, f32)],
 ) -> anyhow::Result<()> {
     if terrain.len() > MAX_TERRAIN_POINTS as usize {
-        anyhow::bail!("Too many terrain points: {} > {}", terrain.len(), MAX_TERRAIN_POINTS);
+        anyhow::bail!(
+            "Too many terrain points: {} > {}",
+            terrain.len(),
+            MAX_TERRAIN_POINTS
+        );
     }
 
     let o = TRACK_DATA_OFFSET + track_data::TERRAIN_START;
@@ -545,7 +643,11 @@ pub fn write_obstacles(
     obstacles: &[Obstacle],
 ) -> anyhow::Result<()> {
     if obstacles.len() > MAX_OBSTACLES as usize {
-        anyhow::bail!("Too many obstacles: {} > {}", obstacles.len(), MAX_OBSTACLES);
+        anyhow::bail!(
+            "Too many obstacles: {} > {}",
+            obstacles.len(),
+            MAX_OBSTACLES
+        );
     }
 
     let o = TRACK_DATA_OFFSET + track_data::OBSTACLES_START;
@@ -553,7 +655,12 @@ pub fn write_obstacles(
     for (i, obs) in obstacles.iter().enumerate() {
         let offset = o + (i as u32) * obstacle::SIZE;
 
-        write_u32(memory, store, offset + obstacle::TYPE, obs.obstacle_type as u32)?;
+        write_u32(
+            memory,
+            store,
+            offset + obstacle::TYPE,
+            obs.obstacle_type as u32,
+        )?;
         write_f32(memory, store, offset + obstacle::POS_X, obs.pos_x)?;
         write_f32(memory, store, offset + obstacle::POS_Y, obs.pos_y)?;
 
@@ -576,10 +683,7 @@ pub fn write_obstacles(
 }
 
 /// Read the result region from WASM memory.
-pub fn read_result(
-    memory: &Memory,
-    store: &mut wasmtime::Store<()>,
-) -> anyhow::Result<SimResult> {
+pub fn read_result(memory: &Memory, store: &mut wasmtime::Store<()>) -> anyhow::Result<SimResult> {
     let o = RESULT_OFFSET;
 
     let finish_ticks = read_u32(memory, store, o + result::FINISH_TICKS)?;
@@ -598,7 +702,11 @@ pub fn read_result(
     }
 
     Ok(SimResult {
-        finish_ticks: if finish_ticks == u32::MAX { None } else { Some(finish_ticks) },
+        finish_ticks: if finish_ticks == u32::MAX {
+            None
+        } else {
+            Some(finish_ticks)
+        },
         stuck,
         swap_log,
     })
@@ -628,12 +736,16 @@ pub fn init_memory(
     let initial_vcount = wheels.first().map(|w| w.vertex_count as u32).unwrap_or(12);
 
     write_header(
-        memory, store,
+        memory,
+        store,
         wheels.len() as u32,
         terrain.len() as u32,
         obstacles.len() as u32,
-        finish_x, start_x, start_y,
-        claimed_finish, initial_vcount,
+        finish_x,
+        start_x,
+        start_y,
+        claimed_finish,
+        initial_vcount,
         seed,
     )?;
 
@@ -647,7 +759,12 @@ pub fn init_memory(
     }
 
     // Initialize result to zero (finish_ticks = u32::MAX means not finished)
-    write_u32(memory, store, RESULT_OFFSET + result::FINISH_TICKS, u32::MAX)?;
+    write_u32(
+        memory,
+        store,
+        RESULT_OFFSET + result::FINISH_TICKS,
+        u32::MAX,
+    )?;
     write_u32(memory, store, RESULT_OFFSET + result::STUCK, 0)?;
     write_u32(memory, store, RESULT_OFFSET + result::SWAP_LOG_COUNT, 0)?;
 
@@ -660,10 +777,7 @@ pub fn read_seed(memory: &Memory, store: &mut wasmtime::Store<()>) -> anyhow::Re
 }
 
 /// Read the current simulation state from WASM memory.
-pub fn read_state(
-    memory: &Memory,
-    store: &mut wasmtime::Store<()>,
-) -> anyhow::Result<SimState> {
+pub fn read_state(memory: &Memory, store: &mut wasmtime::Store<()>) -> anyhow::Result<SimState> {
     let o = STATE_OFFSET;
 
     Ok(SimState {
@@ -727,8 +841,8 @@ mod tests {
     /// with the exact byte layout specified by the ABI.
     #[test]
     fn test_byte_layout_known_fixture() {
-        use wasmtime::{Engine, Store, MemoryType};
         use drawrace_api::blob::WheelEntry;
+        use wasmtime::{Engine, MemoryType, Store};
 
         // Create a minimal WASM module that exports memory
         let config = wasmtime::Config::new();
@@ -757,41 +871,35 @@ mod tests {
                 swap_tick: 0,
                 vertex_count: 4,
                 polygon_vertices: vec![
-                    (-50, -50),  // Vertex 0
-                    (50, -50),   // Vertex 1
-                    (50, 50),    // Vertex 2
-                    (-50, 50),   // Vertex 3
+                    (-50, -50), // Vertex 0
+                    (50, -50),  // Vertex 1
+                    (50, 50),   // Vertex 2
+                    (-50, 50),  // Vertex 3
                 ],
             },
             WheelEntry {
                 swap_tick: 100,
                 vertex_count: 3,
                 polygon_vertices: vec![
-                    (0, -40),    // Vertex 4
-                    (35, 20),    // Vertex 5
-                    (-35, 20),   // Vertex 6
+                    (0, -40),  // Vertex 4
+                    (35, 20),  // Vertex 5
+                    (-35, 20), // Vertex 6
                 ],
             },
         ];
 
-        let terrain = vec![
-            (0.0, 500.0),
-            (500.0, 450.0),
-            (1000.0, 500.0),
-        ];
+        let terrain = vec![(0.0, 500.0), (500.0, 450.0), (1000.0, 500.0)];
 
-        let obstacles = vec![
-            Obstacle {
-                obstacle_type: ObstacleType::Box,
-                pos_x: 200.0,
-                pos_y: 470.0,
-                size_x: 30.0,
-                size_y: 20.0,
-                radius: 0.0,
-                angle: 0.0,
-                friction: 0.8,
-            },
-        ];
+        let obstacles = vec![Obstacle {
+            obstacle_type: ObstacleType::Box,
+            pos_x: 200.0,
+            pos_y: 470.0,
+            size_x: 30.0,
+            size_y: 20.0,
+            radius: 0.0,
+            angle: 0.0,
+            friction: 0.8,
+        }];
 
         // === Marshal inputs to memory ===
         let result = init_memory(
@@ -812,33 +920,90 @@ mod tests {
         let data = memory.data(&store);
 
         // Magic: "RSIM" = 0x52534D49 (little-endian: 49 4D 53 52)
-        assert_eq!(read_u32_slice(&data, (HEADER_OFFSET + header::MAGIC) as usize), ABI_MAGIC);
-        assert_eq!(read_u32_slice(&data, (HEADER_OFFSET + header::VERSION) as usize), 1);
-        assert_eq!(read_u32_slice(&data, (HEADER_OFFSET + header::NUM_WHEELS) as usize), 2);
-        assert_eq!(read_u32_slice(&data, (HEADER_OFFSET + header::MAX_WHEELS) as usize), 21);
-        assert_eq!(read_u32_slice(&data, (HEADER_OFFSET + header::TERRAIN_COUNT) as usize), 3);
-        assert_eq!(read_u32_slice(&data, (HEADER_OFFSET + header::OBSTACLE_COUNT) as usize), 1);
-        assert_eq!(read_f32_slice(&data, (HEADER_OFFSET + header::FINISH_X) as usize), 1000.0);
-        assert_eq!(read_f32_slice(&data, (HEADER_OFFSET + header::START_X) as usize), 50.0);
-        assert_eq!(read_f32_slice(&data, (HEADER_OFFSET + header::START_Y) as usize), 400.0);
-        assert_eq!(read_u32_slice(&data, (HEADER_OFFSET + header::CLAIMED_FINISH) as usize), 1800);
+        assert_eq!(
+            read_u32_slice(&data, (HEADER_OFFSET + header::MAGIC) as usize),
+            ABI_MAGIC
+        );
+        assert_eq!(
+            read_u32_slice(&data, (HEADER_OFFSET + header::VERSION) as usize),
+            1
+        );
+        assert_eq!(
+            read_u32_slice(&data, (HEADER_OFFSET + header::NUM_WHEELS) as usize),
+            2
+        );
+        assert_eq!(
+            read_u32_slice(&data, (HEADER_OFFSET + header::MAX_WHEELS) as usize),
+            21
+        );
+        assert_eq!(
+            read_u32_slice(&data, (HEADER_OFFSET + header::TERRAIN_COUNT) as usize),
+            3
+        );
+        assert_eq!(
+            read_u32_slice(&data, (HEADER_OFFSET + header::OBSTACLE_COUNT) as usize),
+            1
+        );
+        assert_eq!(
+            read_f32_slice(&data, (HEADER_OFFSET + header::FINISH_X) as usize),
+            1000.0
+        );
+        assert_eq!(
+            read_f32_slice(&data, (HEADER_OFFSET + header::START_X) as usize),
+            50.0
+        );
+        assert_eq!(
+            read_f32_slice(&data, (HEADER_OFFSET + header::START_Y) as usize),
+            400.0
+        );
+        assert_eq!(
+            read_u32_slice(&data, (HEADER_OFFSET + header::CLAIMED_FINISH) as usize),
+            1800
+        );
         // MAX_TICKS = claimed_finish * 2, but with minimum of 90*60 = 5400
-        assert_eq!(read_u32_slice(&data, (HEADER_OFFSET + header::MAX_TICKS) as usize), 5400);
-        assert_eq!(read_u32_slice(&data, (HEADER_OFFSET + header::INITIAL_VCOUNT) as usize), 4);
-        assert_eq!(read_u32_slice(&data, (HEADER_OFFSET + header::SEED) as usize), 42);
+        assert_eq!(
+            read_u32_slice(&data, (HEADER_OFFSET + header::MAX_TICKS) as usize),
+            5400
+        );
+        assert_eq!(
+            read_u32_slice(&data, (HEADER_OFFSET + header::INITIAL_VCOUNT) as usize),
+            4
+        );
+        assert_eq!(
+            read_u32_slice(&data, (HEADER_OFFSET + header::SEED) as usize),
+            42
+        );
 
         // === Validate Wheel Array (offset 256) ===
         // Wheel 0 (offset 256)
         let wheel0_offset = WHEEL_ARRAY_OFFSET as usize;
-        assert_eq!(read_u32_slice(&data, wheel0_offset + wheel_desc::SWAP_TICK as usize), 0);
-        assert_eq!(read_u32_slice(&data, wheel0_offset + wheel_desc::VERTEX_COUNT as usize), 4);
-        assert_eq!(read_u32_slice(&data, wheel0_offset + wheel_desc::VERTEX_OFFSET as usize), 0);
+        assert_eq!(
+            read_u32_slice(&data, wheel0_offset + wheel_desc::SWAP_TICK as usize),
+            0
+        );
+        assert_eq!(
+            read_u32_slice(&data, wheel0_offset + wheel_desc::VERTEX_COUNT as usize),
+            4
+        );
+        assert_eq!(
+            read_u32_slice(&data, wheel0_offset + wheel_desc::VERTEX_OFFSET as usize),
+            0
+        );
 
         // Wheel 1 (offset 256 + 16 = 272)
         let wheel1_offset = WHEEL_ARRAY_OFFSET as usize + WHEEL_DESC_SIZE as usize;
-        assert_eq!(read_u32_slice(&data, wheel1_offset + wheel_desc::SWAP_TICK as usize), 100);
-        assert_eq!(read_u32_slice(&data, wheel1_offset + wheel_desc::VERTEX_COUNT as usize), 3);
-        assert_eq!(read_u32_slice(&data, wheel1_offset + wheel_desc::VERTEX_OFFSET as usize), 4);
+        assert_eq!(
+            read_u32_slice(&data, wheel1_offset + wheel_desc::SWAP_TICK as usize),
+            100
+        );
+        assert_eq!(
+            read_u32_slice(&data, wheel1_offset + wheel_desc::VERTEX_COUNT as usize),
+            3
+        );
+        assert_eq!(
+            read_u32_slice(&data, wheel1_offset + wheel_desc::VERTEX_OFFSET as usize),
+            4
+        );
 
         // === Validate Vertex Buffer (offset 8192) ===
         // Vertices are stored as i16 pairs (x, y) in little-endian
@@ -895,27 +1060,61 @@ mod tests {
         let obs_offset = TRACK_DATA_OFFSET as usize + track_data::OBSTACLES_START as usize;
 
         // Obstacle 0 (Box) - RADIUS is at same offset as SIZE_X, but we don't write it for Box
-        assert_eq!(read_u32_slice(&data, obs_offset + obstacle::TYPE as usize), 0); // Box
-        assert_eq!(read_f32_slice(&data, obs_offset + obstacle::POS_X as usize), 200.0);
-        assert_eq!(read_f32_slice(&data, obs_offset + obstacle::POS_Y as usize), 470.0);
-        assert_eq!(read_f32_slice(&data, obs_offset + obstacle::SIZE_X as usize), 30.0);
-        assert_eq!(read_f32_slice(&data, obs_offset + obstacle::SIZE_Y as usize), 20.0);
+        assert_eq!(
+            read_u32_slice(&data, obs_offset + obstacle::TYPE as usize),
+            0
+        ); // Box
+        assert_eq!(
+            read_f32_slice(&data, obs_offset + obstacle::POS_X as usize),
+            200.0
+        );
+        assert_eq!(
+            read_f32_slice(&data, obs_offset + obstacle::POS_Y as usize),
+            470.0
+        );
+        assert_eq!(
+            read_f32_slice(&data, obs_offset + obstacle::SIZE_X as usize),
+            30.0
+        );
+        assert_eq!(
+            read_f32_slice(&data, obs_offset + obstacle::SIZE_Y as usize),
+            20.0
+        );
         // For Box obstacles, RADIUS (at same offset as SIZE_X) is not written
-        assert_eq!(read_f32_slice(&data, obs_offset + obstacle::ANGLE as usize), 0.0);
-        assert_eq!(read_f32_slice(&data, obs_offset + obstacle::FRICTION as usize), 0.8);
+        assert_eq!(
+            read_f32_slice(&data, obs_offset + obstacle::ANGLE as usize),
+            0.0
+        );
+        assert_eq!(
+            read_f32_slice(&data, obs_offset + obstacle::FRICTION as usize),
+            0.8
+        );
 
         // === Validate State Region (initialized to zero) ===
         let state_offset = STATE_OFFSET as usize;
         for i in 0..STATE_SIZE {
-            assert_eq!(data[state_offset + i as usize], 0,
-                "State region should be initialized to zero at offset {}", i);
+            assert_eq!(
+                data[state_offset + i as usize],
+                0,
+                "State region should be initialized to zero at offset {}",
+                i
+            );
         }
 
         // === Validate Result Region (initialized) ===
         let result_offset = RESULT_OFFSET as usize;
-        assert_eq!(read_u32_slice(&data, result_offset + result::FINISH_TICKS as usize), u32::MAX);
-        assert_eq!(read_u32_slice(&data, result_offset + result::STUCK as usize), 0);
-        assert_eq!(read_u32_slice(&data, result_offset + result::SWAP_LOG_COUNT as usize), 0);
+        assert_eq!(
+            read_u32_slice(&data, result_offset + result::FINISH_TICKS as usize),
+            u32::MAX
+        );
+        assert_eq!(
+            read_u32_slice(&data, result_offset + result::STUCK as usize),
+            0
+        );
+        assert_eq!(
+            read_u32_slice(&data, result_offset + result::SWAP_LOG_COUNT as usize),
+            0
+        );
     }
 
     /// Helper to read u32 directly from a byte slice
@@ -930,10 +1129,7 @@ mod tests {
 
     /// Helper to read i16 directly from a byte slice
     fn read_i16_slice(data: &[u8], offset: usize) -> i16 {
-        i16::from_le_bytes([
-            data[offset],
-            data[offset + 1],
-        ])
+        i16::from_le_bytes([data[offset], data[offset + 1]])
     }
 
     /// Helper to read f32 directly from a byte slice

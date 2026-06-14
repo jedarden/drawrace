@@ -1,12 +1,12 @@
 pub mod app;
+pub mod background;
+pub mod ghost;
 pub mod lobby;
+pub mod messages;
+pub mod physics;
 pub mod room;
 pub mod websocket;
-pub mod messages;
-pub mod background;
-pub mod physics;
-pub mod ghost;
 
 pub use app::LiveState;
+pub use ghost::{GhostBackfill, GhostPlayer, GhostRacer, GhostReplay};
 pub use physics::{RaceExecutor, RaceSimulator};
-pub use ghost::{GhostBackfill, GhostRacer, GhostPlayer, GhostReplay};

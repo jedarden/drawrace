@@ -7,11 +7,10 @@
 /// Per plan §Multiplayer & Backend 13:
 /// - "The pod runs the same WASM physics module the client uses, at 30 Hz fixed step"
 /// - "Each tick broadcasts {racer_id, x, y, angle, t} for 2–8 racers"
-
 use anyhow::{Context, Result};
-use std::path::PathBuf;
-use wasmtime::{Engine, Module, Store, Linker, Memory};
 use drawrace_api::blob::WheelEntry;
+use std::path::PathBuf;
+use wasmtime::{Engine, Linker, Memory, Module, Store};
 
 /// Physics engine wrapper for WASM simulation.
 #[derive(Clone)]
@@ -34,12 +33,16 @@ impl PhysicsEngine {
         config.wasm_simd(true);
         config.wasm_multi_memory(true);
 
-        let engine = Engine::new(&config)
-            .context("Failed to create WASM engine")?;
+        let engine = Engine::new(&config).context("Failed to create WASM engine")?;
 
-        let module = Module::new(&engine, &wasm_bytes)
-            .map_err(|e| anyhow::anyhow!("Failed to load WASM module from {}: WASM size={} bytes. Error: {}",
-                wasm_path.display(), wasm_bytes.len(), e))?;
+        let module = Module::new(&engine, &wasm_bytes).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to load WASM module from {}: WASM size={} bytes. Error: {}",
+                wasm_path.display(),
+                wasm_bytes.len(),
+                e
+            )
+        })?;
 
         // Verify the module has the required exports
         let required_exports = vec![
@@ -63,7 +66,8 @@ impl PhysicsEngine {
         // Get physics version
         let mut store = Store::new(&engine, ());
         let linker = Linker::new(&engine);
-        let instance = linker.instantiate(&mut store, &module)
+        let instance = linker
+            .instantiate(&mut store, &module)
             .context("Failed to instantiate WASM module")?;
 
         let physics_version_func = instance
@@ -89,8 +93,7 @@ impl PhysicsEngine {
 
     /// Find the resim.wasm file.
     fn find_resim_path() -> Result<PathBuf> {
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-            .unwrap_or_else(|_| ".".to_string());
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
 
         // Compute workspace root from manifest_dir (crates/live -> workspace root)
         let workspace_root = PathBuf::from(&manifest_dir)
@@ -112,10 +115,19 @@ impl PhysicsEngine {
             // Prefer resim.wasm (rebuilt with Python script)
             format!("{}/packages/engine-core/dist/resim.wasm", workspace_root),
             // Fallback to resim-test.wasm
-            format!("{}/packages/engine-core/dist/resim-test.wasm", workspace_root),
+            format!(
+                "{}/packages/engine-core/dist/resim-test.wasm",
+                workspace_root
+            ),
             // Standard workspace layout
-            format!("{}/../../packages/engine-core/dist/resim.wasm", manifest_dir),
-            format!("{}/../../packages/engine-core/dist/resim-test.wasm", manifest_dir),
+            format!(
+                "{}/../../packages/engine-core/dist/resim.wasm",
+                manifest_dir
+            ),
+            format!(
+                "{}/../../packages/engine-core/dist/resim-test.wasm",
+                manifest_dir
+            ),
             // From current working directory
             "packages/engine-core/dist/resim.wasm".to_string(),
             "packages/engine-core/dist/resim-test.wasm".to_string(),
@@ -195,7 +207,8 @@ impl RacerSim {
     ) -> Result<Self> {
         let mut store = Store::new(&engine, ());
         let linker = Linker::new(&engine);
-        let instance = linker.instantiate(&mut store, &module)
+        let instance = linker
+            .instantiate(&mut store, &module)
             .context("Failed to instantiate WASM module")?;
 
         // Get exported memory
@@ -214,16 +227,8 @@ impl RacerSim {
 
         // Initialize memory with simulation data
         wasm_abi::init_memory(
-            &memory,
-            &mut store,
-            &wheels,
-            terrain,
-            obstacles,
-            finish_x,
-            start_x,
-            start_y,
-            max_ticks,
-            seed,
+            &memory, &mut store, &wheels, terrain, obstacles, finish_x, start_x, start_y,
+            max_ticks, seed,
         )?;
 
         // Initialize simulation
@@ -255,17 +260,16 @@ impl RacerSim {
         let step_result = self.resim_step.call(&mut self._store, ()).unwrap_or(0);
 
         // Read state
-        let state = wasm_abi::read_state(&self.memory, &mut self._store)
-            .unwrap_or_else(|e| {
-                tracing::error!(error = %e, "Failed to read WASM state");
-                RacerStateInternal {
-                    sim_tick: self.current_tick,
-                    finished: false,
-                    stuck: true,
-                    chassis_x: self.start_x,
-                    chassis_y: self.start_y,
-                }
-            });
+        let state = wasm_abi::read_state(&self.memory, &mut self._store).unwrap_or_else(|e| {
+            tracing::error!(error = %e, "Failed to read WASM state");
+            RacerStateInternal {
+                sim_tick: self.current_tick,
+                finished: false,
+                stuck: true,
+                chassis_x: self.start_x,
+                chassis_y: self.start_y,
+            }
+        });
 
         self.current_tick = state.sim_tick;
 
@@ -416,7 +420,12 @@ mod wasm_abi {
         pub const CHASSIS_Y: u32 = 20;
     }
 
-    fn write_u32(memory: &Memory, store: &mut wasmtime::Store<()>, offset: u32, value: u32) -> anyhow::Result<()> {
+    fn write_u32(
+        memory: &Memory,
+        store: &mut wasmtime::Store<()>,
+        offset: u32,
+        value: u32,
+    ) -> anyhow::Result<()> {
         let data = memory.data_mut(store);
         let offset = offset as usize;
         if offset + 4 > data.len() {
@@ -428,19 +437,33 @@ mod wasm_abi {
         Ok(())
     }
 
-    fn write_f32(memory: &Memory, store: &mut wasmtime::Store<()>, offset: u32, value: f32) -> anyhow::Result<()> {
+    fn write_f32(
+        memory: &Memory,
+        store: &mut wasmtime::Store<()>,
+        offset: u32,
+        value: f32,
+    ) -> anyhow::Result<()> {
         let data = memory.data_mut(store);
         let offset = offset as usize;
         if offset + 4 > data.len() {
             anyhow::bail!("Memory write out of bounds");
         }
         unsafe {
-            ptr::write(data.as_mut_ptr().add(offset) as *mut u32, value.to_bits().to_le());
+            ptr::write(
+                data.as_mut_ptr().add(offset) as *mut u32,
+                value.to_bits().to_le(),
+            );
         }
         Ok(())
     }
 
-    fn write_vertex(memory: &Memory, store: &mut wasmtime::Store<()>, offset: u32, x: i16, y: i16) -> anyhow::Result<()> {
+    fn write_vertex(
+        memory: &Memory,
+        store: &mut wasmtime::Store<()>,
+        offset: u32,
+        x: i16,
+        y: i16,
+    ) -> anyhow::Result<()> {
         let data = memory.data_mut(store);
         let offset = offset as usize;
         if offset + 4 > data.len() {
@@ -453,18 +476,28 @@ mod wasm_abi {
         Ok(())
     }
 
-    fn read_u32(memory: &Memory, store: &mut wasmtime::Store<()>, offset: u32) -> anyhow::Result<u32> {
+    fn read_u32(
+        memory: &Memory,
+        store: &mut wasmtime::Store<()>,
+        offset: u32,
+    ) -> anyhow::Result<u32> {
         let data = memory.data(store);
         let offset = offset as usize;
         if offset + 4 > data.len() {
             anyhow::bail!("Memory read out of bounds");
         }
         unsafe {
-            Ok(u32::from_le(ptr::read(data.as_ptr().add(offset) as *const u32)))
+            Ok(u32::from_le(ptr::read(
+                data.as_ptr().add(offset) as *const u32
+            )))
         }
     }
 
-    fn read_f32(memory: &Memory, store: &mut wasmtime::Store<()>, offset: u32) -> anyhow::Result<f32> {
+    fn read_f32(
+        memory: &Memory,
+        store: &mut wasmtime::Store<()>,
+        offset: u32,
+    ) -> anyhow::Result<f32> {
         let data = memory.data(store);
         let offset = offset as usize;
         if offset + 4 > data.len() {
@@ -496,8 +529,18 @@ mod wasm_abi {
         write_u32(memory, store, o + header::VERSION, ABI_VERSION)?;
         write_u32(memory, store, o + header::NUM_WHEELS, wheels.len() as u32)?;
         write_u32(memory, store, o + header::MAX_WHEELS, MAX_WHEELS)?;
-        write_u32(memory, store, o + header::TERRAIN_COUNT, terrain.len() as u32)?;
-        write_u32(memory, store, o + header::OBSTACLE_COUNT, obstacles.len() as u32)?;
+        write_u32(
+            memory,
+            store,
+            o + header::TERRAIN_COUNT,
+            terrain.len() as u32,
+        )?;
+        write_u32(
+            memory,
+            store,
+            o + header::OBSTACLE_COUNT,
+            obstacles.len() as u32,
+        )?;
         write_f32(memory, store, o + header::FINISH_X, finish_x)?;
         write_f32(memory, store, o + header::START_X, start_x)?;
         write_f32(memory, store, o + header::START_Y, start_y)?;
@@ -513,9 +556,24 @@ mod wasm_abi {
         for (i, wheel) in wheels.iter().enumerate() {
             let wheel_offset = o + (i as u32) * WHEEL_DESC_SIZE;
 
-            write_u32(memory, store, wheel_offset + wheel_desc::SWAP_TICK, wheel.swap_tick)?;
-            write_u32(memory, store, wheel_offset + wheel_desc::VERTEX_COUNT, wheel.vertex_count as u32)?;
-            write_u32(memory, store, wheel_offset + wheel_desc::VERTEX_OFFSET, vertex_offset)?;
+            write_u32(
+                memory,
+                store,
+                wheel_offset + wheel_desc::SWAP_TICK,
+                wheel.swap_tick,
+            )?;
+            write_u32(
+                memory,
+                store,
+                wheel_offset + wheel_desc::VERTEX_COUNT,
+                wheel.vertex_count as u32,
+            )?;
+            write_u32(
+                memory,
+                store,
+                wheel_offset + wheel_desc::VERTEX_OFFSET,
+                vertex_offset,
+            )?;
 
             // Write vertices to vertex buffer
             let vertex_buffer_offset = VERTEX_BUFFER_OFFSET + vertex_offset * 4;
@@ -538,7 +596,12 @@ mod wasm_abi {
         for (i, obs) in obstacles.iter().enumerate() {
             let offset = o + (i as u32) * obstacle::SIZE;
 
-            write_u32(memory, store, offset + obstacle::TYPE, obs.obstacle_type as u32)?;
+            write_u32(
+                memory,
+                store,
+                offset + obstacle::TYPE,
+                obs.obstacle_type as u32,
+            )?;
             write_f32(memory, store, offset + obstacle::POS_X, obs.pos_x)?;
             write_f32(memory, store, offset + obstacle::POS_Y, obs.pos_y)?;
 
@@ -595,7 +658,9 @@ mod tests {
                 assert_eq!(engine.physics_version, 4);
             }
             Err(e) => {
-                if e.to_string().contains("No such file") || e.to_string().contains("could not find") {
+                if e.to_string().contains("No such file")
+                    || e.to_string().contains("could not find")
+                {
                     println!("Skipping test: resim.wasm not found (run build first)");
                     return;
                 }

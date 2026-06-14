@@ -116,13 +116,22 @@ pub async fn load_seed_pool(
         return Ok(());
     }
 
-    tracing::info!("Ghosts table is empty, loading seed pool from {}", track_1_dir.display());
+    tracing::info!(
+        "Ghosts table is empty, loading seed pool from {}",
+        track_1_dir.display()
+    );
 
     // Collect all .blob files
     let mut blob_files: Vec<_> = fs::read_dir(&track_1_dir)
         .context("Failed to read seeds directory")?
         .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.path().extension().map(|e| e == "blob").unwrap_or(false))
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .map(|e| e == "blob")
+                .unwrap_or(false)
+        })
         .collect();
 
     // Sort by filename for deterministic loading order

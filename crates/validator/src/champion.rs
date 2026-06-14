@@ -8,7 +8,6 @@
 /// Submissions faster than the champion by more than 2% are quarantined
 /// for human review, as they likely represent cheating or a bug rather
 /// than legitimate skill.
-
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -100,8 +99,7 @@ impl ChampionValidator {
             }
         }
 
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-            .unwrap_or_else(|_| ".".to_string());
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
 
         // Compute workspace root
         let workspace_root = PathBuf::from(&manifest_dir)
@@ -112,8 +110,14 @@ impl ChampionValidator {
 
         // List of paths to try
         let candidates = vec![
-            format!("{}/crates/validator/reference-champion.json", workspace_root),
-            format!("{}/../../crates/validator/reference-champion.json", manifest_dir),
+            format!(
+                "{}/crates/validator/reference-champion.json",
+                workspace_root
+            ),
+            format!(
+                "{}/../../crates/validator/reference-champion.json",
+                manifest_dir
+            ),
             "crates/validator/reference-champion.json".to_string(),
             "/etc/drawrace/reference-champion.json".to_string(),
         ];
@@ -128,7 +132,11 @@ impl ChampionValidator {
         Err(anyhow::anyhow!(
             "Could not find reference-champion.json in any of the following locations: {:?}. \
              Set CHAMPION_JSON_PATH environment variable to override.",
-            ["CHAMPION_JSON_PATH env", "crates/validator/reference-champion.json", "/etc/drawrace/reference-champion.json"]
+            [
+                "CHAMPION_JSON_PATH env",
+                "crates/validator/reference-champion.json",
+                "/etc/drawrace/reference-champion.json"
+            ]
         ))
     }
 
@@ -144,7 +152,11 @@ impl ChampionValidator {
     /// # Returns
     /// * `Ok(())` - Submission is within acceptable bounds
     /// * `Err(QuarantineReason)` - Submission should be quarantined
-    pub fn check_submission(&self, track_id: u16, finish_time_ms: u32) -> Result<(), QuarantineReason> {
+    pub fn check_submission(
+        &self,
+        track_id: u16,
+        finish_time_ms: u32,
+    ) -> Result<(), QuarantineReason> {
         let track_key = track_id.to_string();
 
         let champion = match self.data.champions.get(&track_key) {
@@ -160,7 +172,8 @@ impl ChampionValidator {
         // Negative value = submission is slower (OK)
         // Positive value = submission is faster (potentially suspicious)
         let percent_faster = ((champion.best_time_ms as f64 - finish_time_ms as f64)
-            / champion.best_time_ms as f64) * 100.0;
+            / champion.best_time_ms as f64)
+            * 100.0;
 
         if percent_faster > self.quarantine_threshold_percent {
             tracing::warn!(

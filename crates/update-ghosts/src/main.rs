@@ -85,8 +85,7 @@ fn main() -> Result<()> {
     let module = wasmtime::Module::new(&engine, &wasm_bytes)?;
 
     // Load track store
-    let tracks_dir = std::env::current_dir()?
-        .join("apps/web/public/tracks");
+    let tracks_dir = std::env::current_dir()?.join("apps/web/public/tracks");
     let track_store = drawrace_validator::track::TrackStore::load(tracks_dir)?;
 
     println!("Processing ghosts...");
@@ -97,7 +96,10 @@ fn main() -> Result<()> {
         let track_data = match track_store.get(ghost.track_id) {
             Some(t) => t,
             None => {
-                println!("  {}: track {} not found, skipping", ghost_id, ghost.track_id);
+                println!(
+                    "  {}: track {} not found, skipping",
+                    ghost_id, ghost.track_id
+                );
                 continue;
             }
         };
@@ -142,10 +144,8 @@ fn main() -> Result<()> {
         )?;
 
         // Run simulation
-        let resim_init = instance
-            .get_typed_func::<(), u32>(&mut store, "resim_init")?;
-        let resim_step = instance
-            .get_typed_func::<(), u32>(&mut store, "resim_step")?;
+        let resim_init = instance.get_typed_func::<(), u32>(&mut store, "resim_init")?;
+        let resim_step = instance.get_typed_func::<(), u32>(&mut store, "resim_step")?;
 
         let init_result = resim_init.call(&mut store, ())?;
         if init_result != 1 {

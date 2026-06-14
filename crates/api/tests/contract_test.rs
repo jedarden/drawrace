@@ -196,7 +196,12 @@ fn make_blob_with_time(player_uuid: &str, track_id: u16, time_ms: u32) -> Vec<u8
     make_blob_with_version_time(player_uuid, track_id, 2, time_ms)
 }
 
-fn make_blob_with_version_time(player_uuid: &str, track_id: u16, version: u8, time_ms: u32) -> Vec<u8> {
+fn make_blob_with_version_time(
+    player_uuid: &str,
+    track_id: u16,
+    version: u8,
+    time_ms: u32,
+) -> Vec<u8> {
     let mut buf = Vec::new();
     buf.extend_from_slice(b"DRGH");
     buf.push(version); // physics_version

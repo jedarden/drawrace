@@ -53,10 +53,7 @@ pub enum ServerMessage {
         start_time_ms: i64,
     },
     /// Authoritative state snapshot (broadcast at 20-30 Hz)
-    State {
-        tick: u32,
-        racers: Vec<RacerState>,
-    },
+    State { tick: u32, racers: Vec<RacerState> },
     /// Player joined the lobby/room
     PlayerJoined { player: PlayerInfo },
     /// Player disconnected

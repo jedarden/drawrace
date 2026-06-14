@@ -3,7 +3,6 @@
 /// This module loads track JSON files from the versioned track store
 /// and converts them to the terrain/obstacle format expected by the
 /// WASM re-simulation engine.
-
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -108,8 +107,9 @@ impl TrackStore {
         };
 
         // Load all track JSON files from the directory
-        let entries = std::fs::read_dir(&tracks_dir)
-            .with_context(|| format!("Failed to read tracks directory: {}", tracks_dir.display()))?;
+        let entries = std::fs::read_dir(&tracks_dir).with_context(|| {
+            format!("Failed to read tracks directory: {}", tracks_dir.display())
+        })?;
 
         for entry in entries {
             let entry = entry.context("Failed to read directory entry")?;
@@ -161,7 +161,8 @@ impl TrackStore {
     fn convert_track(json: &TrackJson) -> Result<TrackData> {
         // Convert terrain: the JSON format uses [x_index, y_value] where
         // x_index is an integer index. Convert to actual (x, y) coordinates.
-        let terrain: Vec<(f32, f32)> = json.terrain
+        let terrain: Vec<(f32, f32)> = json
+            .terrain
             .iter()
             .map(|point| (point[0], point[1]))
             .collect();
@@ -254,7 +255,10 @@ mod tests {
         let track_data = TrackStore::convert_track(&track_json).unwrap();
 
         assert_eq!(track_data.track_id, 99);
-        assert_eq!(track_data.terrain, vec![(0.0, 0.0), (10.0, 1.0), (20.0, 0.5)]);
+        assert_eq!(
+            track_data.terrain,
+            vec![(0.0, 0.0), (10.0, 1.0), (20.0, 0.5)]
+        );
         assert_eq!(track_data.obstacles.len(), 2);
         assert_eq!(track_data.start_x, 1.0);
         assert_eq!(track_data.start_y, 0.0);

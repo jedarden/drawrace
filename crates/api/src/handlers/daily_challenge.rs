@@ -22,7 +22,9 @@ impl SeededRng {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         date.hash(&mut hasher);
         let seed = hasher.finish();
-        Self { state: seed.wrapping_add(1) }
+        Self {
+            state: seed.wrapping_add(1),
+        }
     }
 
     fn next(&mut self) -> u64 {

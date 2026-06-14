@@ -5,18 +5,18 @@
 //! - "The pod runs the same WASM physics module the client uses, at 30 Hz fixed step"
 //! - "Each tick broadcasts {racer_id, x, y, angle, t} for 2–8 racers"
 
-pub mod wasm_engine;
 pub mod track;
+pub mod wasm_engine;
 
-pub use wasm_engine::{PhysicsEngine, RacerSim, RacerPhysicsState, Obstacle, ObstacleType};
-pub use track::{TrackStore, TrackData};
+pub use track::{TrackData, TrackStore};
+pub use wasm_engine::{Obstacle, ObstacleType, PhysicsEngine, RacerPhysicsState, RacerSim};
 
 use anyhow::{Context, Result};
+use drawrace_api::blob::WheelEntry;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use drawrace_api::blob::WheelEntry;
 
 /// Global physics engine singleton.
 ///
@@ -29,11 +29,9 @@ pub struct GlobalPhysicsEngine {
 impl GlobalPhysicsEngine {
     /// Load the physics engine and track store.
     pub fn load(tracks_dir: PathBuf) -> Result<Self> {
-        let engine = PhysicsEngine::load()
-            .context("Failed to load WASM physics engine")?;
+        let engine = PhysicsEngine::load().context("Failed to load WASM physics engine")?;
 
-        let track_store = TrackStore::load(tracks_dir)
-            .context("Failed to load track store")?;
+        let track_store = TrackStore::load(tracks_dir).context("Failed to load track store")?;
 
         tracing::info!(
             physics_version = engine.physics_version,
@@ -64,7 +62,9 @@ impl GlobalPhysicsEngine {
         wheels: Vec<WheelEntry>,
         seed: u32,
     ) -> Result<RacerSim> {
-        let track_data = self.track_store.get(track_id)
+        let track_data = self
+            .track_store
+            .get(track_id)
             .ok_or_else(|| anyhow::anyhow!("Track {} not found in track store", track_id))?;
 
         self.engine.create_racer_sim(
@@ -176,7 +176,9 @@ impl RaceSimulator {
     /// Initialize all racer simulations (call before starting the race).
     pub async fn init_racer_sims(&self, seed: u32) -> Result<()> {
         let mut racers = self.racers.write().await;
-        let track_data = self.track_store.get(self.track_id)
+        let track_data = self
+            .track_store
+            .get(self.track_id)
             .ok_or_else(|| anyhow::anyhow!("Track {} not found", self.track_id))?;
 
         for racer in racers.iter_mut() {
@@ -199,15 +201,23 @@ impl RaceSimulator {
                 });
             }
 
-            let sim = self.physics_engine.create_racer_sim(
-                all_wheels,
-                &track_data.terrain,
-                &track_data.obstacles,
-                track_data.finish_x,
-                track_data.start_x,
-                track_data.start_y,
-                seed,
-            ).with_context(|| format!("Failed to create racer sim for player {}", racer.player_uuid))?;
+            let sim = self
+                .physics_engine
+                .create_racer_sim(
+                    all_wheels,
+                    &track_data.terrain,
+                    &track_data.obstacles,
+                    track_data.finish_x,
+                    track_data.start_x,
+                    track_data.start_y,
+                    seed,
+                )
+                .with_context(|| {
+                    format!(
+                        "Failed to create racer sim for player {}",
+                        racer.player_uuid
+                    )
+                })?;
 
             racer.init_sim(sim);
         }
@@ -216,9 +226,15 @@ impl RaceSimulator {
     }
 
     /// Handle a mid-race wheel swap from a client.
-    pub async fn handle_wheel_swap(&mut self, player_uuid: Uuid, swap_tick: u32, wheel: Vec<(i16, i16)>) -> Result<()> {
+    pub async fn handle_wheel_swap(
+        &mut self,
+        player_uuid: Uuid,
+        swap_tick: u32,
+        wheel: Vec<(i16, i16)>,
+    ) -> Result<()> {
         let mut racers = self.racers.write().await;
-        let racer = racers.iter_mut()
+        let racer = racers
+            .iter_mut()
             .find(|r| r.player_uuid == player_uuid)
             .context("Player not found in race")?;
 
@@ -313,7 +329,8 @@ impl RaceSimulator {
     /// Get finish times for all racers.
     pub async fn finish_times(&self) -> std::collections::HashMap<Uuid, u32> {
         let racers = self.racers.read().await;
-        racers.iter()
+        racers
+            .iter()
             .filter_map(|r| {
                 if r.finished {
                     Some((r.player_uuid, r.finish_time_ms))
@@ -347,7 +364,12 @@ impl RaceExecutor {
     }
 
     /// Create a new race for a room.
-    pub async fn create_race(&self, room_id: Uuid, track_id: u16, players: Vec<crate::messages::PlayerInRoom>) -> Result<()> {
+    pub async fn create_race(
+        &self,
+        room_id: Uuid,
+        track_id: u16,
+        players: Vec<crate::messages::PlayerInRoom>,
+    ) -> Result<()> {
         let mut races = self.races.write().await;
         let mut sim = RaceSimulator::new(
             room_id,
@@ -369,16 +391,14 @@ impl RaceExecutor {
     /// Initialize racer simulations for a race.
     pub async fn init_race(&self, room_id: Uuid, seed: u32) -> Result<()> {
         let mut races = self.races.write().await;
-        let sim = races.get_mut(&room_id)
-            .context("Race not found")?;
+        let sim = races.get_mut(&room_id).context("Race not found")?;
         sim.init_racer_sims(seed).await
     }
 
     /// Start the countdown for a race.
     pub async fn start_countdown(&self, room_id: Uuid, duration_ms: u64) -> Result<()> {
         let mut races = self.races.write().await;
-        let sim = races.get_mut(&room_id)
-            .context("Race not found")?;
+        let sim = races.get_mut(&room_id).context("Race not found")?;
         sim.start_countdown(duration_ms).await;
         Ok(())
     }
@@ -386,23 +406,29 @@ impl RaceExecutor {
     /// Start a race (after countdown completes).
     pub async fn start_race(&self, room_id: Uuid) -> Result<()> {
         let mut races = self.races.write().await;
-        let sim = races.get_mut(&room_id)
-            .context("Race not found")?;
+        let sim = races.get_mut(&room_id).context("Race not found")?;
         sim.start_race().await;
         Ok(())
     }
 
     /// Handle a wheel swap during a race.
-    pub async fn handle_wheel_swap(&self, room_id: Uuid, player_uuid: Uuid, swap_tick: u32, wheel: Vec<(i16, i16)>) -> Result<()> {
+    pub async fn handle_wheel_swap(
+        &self,
+        room_id: Uuid,
+        player_uuid: Uuid,
+        swap_tick: u32,
+        wheel: Vec<(i16, i16)>,
+    ) -> Result<()> {
         let mut races = self.races.write().await;
-        let sim = races.get_mut(&room_id)
-            .context("Race not found")?;
+        let sim = races.get_mut(&room_id).context("Race not found")?;
         sim.handle_wheel_swap(player_uuid, swap_tick, wheel).await?;
         Ok(())
     }
 
     /// Step all active races and collect state updates.
-    pub async fn step_all(&self) -> std::collections::HashMap<Uuid, Vec<crate::messages::RacerState>> {
+    pub async fn step_all(
+        &self,
+    ) -> std::collections::HashMap<Uuid, Vec<crate::messages::RacerState>> {
         let mut races = self.races.write().await;
         let mut updates = std::collections::HashMap::new();
 
@@ -419,7 +445,10 @@ impl RaceExecutor {
     }
 
     /// Get finish times for a completed race.
-    pub async fn get_finish_times(&self, room_id: Uuid) -> Option<std::collections::HashMap<Uuid, u32>> {
+    pub async fn get_finish_times(
+        &self,
+        room_id: Uuid,
+    ) -> Option<std::collections::HashMap<Uuid, u32>> {
         let races = self.races.read().await;
         let room_id_copy = room_id;
         let sim = races.get(&room_id_copy)?;

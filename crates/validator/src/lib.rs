@@ -1,12 +1,12 @@
 pub const VALIDATOR_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub mod wasm_loader;
-pub mod wasm_abi;
-pub mod resim;
 pub mod champion;
-pub mod track;
-pub mod seed_loader;
 pub mod metrics;
+pub mod resim;
+pub mod seed_loader;
+pub mod track;
+pub mod wasm_abi;
+pub mod wasm_loader;
 
 #[cfg(test)]
 mod tests {
@@ -22,7 +22,10 @@ mod tests {
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| ".".to_string());
 
-        let wasm_path = PathBuf::from(format!("{}/packages/engine-core/dist/resim.wasm", workspace_root));
+        let wasm_path = PathBuf::from(format!(
+            "{}/packages/engine-core/dist/resim.wasm",
+            workspace_root
+        ));
         if !wasm_path.exists() {
             println!("Skipping test: resim.wasm not found");
             return;
@@ -35,7 +38,8 @@ mod tests {
         assert_eq!(&wasm_bytes[0..4], b"\x00asm", "Invalid WASM magic");
 
         // Check WASM version
-        let version = u32::from_le_bytes([wasm_bytes[4], wasm_bytes[5], wasm_bytes[6], wasm_bytes[7]]);
+        let version =
+            u32::from_le_bytes([wasm_bytes[4], wasm_bytes[5], wasm_bytes[6], wasm_bytes[7]]);
         assert_eq!(version, 1, "Invalid WASM version");
 
         println!("WASM binary format: OK");
@@ -43,7 +47,7 @@ mod tests {
 
     #[test]
     fn test_wasm_load_with_minimal_config() {
-        use wasmtime::{Engine, Module, Config};
+        use wasmtime::{Config, Engine, Module};
 
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
         let workspace_root = PathBuf::from(&manifest_dir)
@@ -52,7 +56,10 @@ mod tests {
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| ".".to_string());
 
-        let wasm_path = PathBuf::from(format!("{}/packages/engine-core/dist/resim.wasm", workspace_root));
+        let wasm_path = PathBuf::from(format!(
+            "{}/packages/engine-core/dist/resim.wasm",
+            workspace_root
+        ));
         if !wasm_path.exists() {
             println!("Skipping test: resim.wasm not found");
             return;
@@ -78,7 +85,10 @@ mod tests {
                     eprintln!("Source error: {}", source);
                 }
                 // Print hex dump of the problematic area
-                eprintln!("First 100 bytes: {:02x?}", &wasm_bytes[..100.min(wasm_bytes.len())]);
+                eprintln!(
+                    "First 100 bytes: {:02x?}",
+                    &wasm_bytes[..100.min(wasm_bytes.len())]
+                );
                 panic!("Failed to load module");
             }
         }
@@ -86,7 +96,7 @@ mod tests {
 
     #[test]
     fn test_wasm_detailed_parse() {
-        use wasmtime::{Engine, Module, Config};
+        use wasmtime::{Config, Engine, Module};
 
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
         let workspace_root = PathBuf::from(&manifest_dir)
@@ -95,7 +105,10 @@ mod tests {
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| ".".to_string());
 
-        let wasm_path = PathBuf::from(format!("{}/packages/engine-core/dist/resim.wasm", workspace_root));
+        let wasm_path = PathBuf::from(format!(
+            "{}/packages/engine-core/dist/resim.wasm",
+            workspace_root
+        ));
         if !wasm_path.exists() {
             println!("Skipping test: resim.wasm not found");
             return;
@@ -124,20 +137,18 @@ mod tests {
         for (name, config) in configs {
             println!("\nTrying with {} config:", name);
             match Engine::new(&config) {
-                Ok(engine) => {
-                    match Module::new(&engine, &wasm_bytes) {
-                        Ok(_) => {
-                            println!("  ✓ Success!");
-                            return;
-                        }
-                        Err(e) => {
-                            println!("  ✗ Failed: {}", e);
-                            if let Some(source) = e.source() {
-                                println!("    Source: {}", source);
-                            }
+                Ok(engine) => match Module::new(&engine, &wasm_bytes) {
+                    Ok(_) => {
+                        println!("  ✓ Success!");
+                        return;
+                    }
+                    Err(e) => {
+                        println!("  ✗ Failed: {}", e);
+                        if let Some(source) = e.source() {
+                            println!("    Source: {}", source);
                         }
                     }
-                }
+                },
                 Err(e) => {
                     println!("  ✗ Failed to create engine: {}", e);
                 }

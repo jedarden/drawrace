@@ -8,10 +8,10 @@ use tokio::time::{interval, MissedTickBehavior};
 use uuid::Uuid;
 
 use crate::app::LiveState;
-use crate::lobby::{self, LOBBY_TIMEOUT_SECS, MIN_LIVE_PLAYERS, MAX_PLAYERS_PER_ROOM};
+use crate::ghost::GhostBackfill;
+use crate::lobby::{self, LOBBY_TIMEOUT_SECS, MAX_PLAYERS_PER_ROOM, MIN_LIVE_PLAYERS};
 use crate::messages::{PlayerInRoom, ServerMessage};
 use crate::room;
-use crate::ghost::GhostBackfill;
 
 /// Run the lobby background task
 ///
@@ -51,7 +51,8 @@ pub async fn run_race_loop(state: &LiveState) {
 
         for (room_id, racer_states) in updates {
             // Broadcast state to all players in the room
-            let tick = racer_states.first()
+            let tick = racer_states
+                .first()
                 .map(|s| s.t_ms / 16) // Approximate tick from ms
                 .unwrap_or(0);
 
@@ -70,9 +71,7 @@ pub async fn run_race_loop(state: &LiveState) {
 
                 // Broadcast finish times to all players
                 for (player_uuid, time_ms) in &finish_times {
-                    let rank = finish_times.iter()
-                        .filter(|(_, t)| *t < time_ms)
-                        .count() as u8 + 1;
+                    let rank = finish_times.iter().filter(|(_, t)| *t < time_ms).count() as u8 + 1;
 
                     let msg = ServerMessage::RaceFinished {
                         player_uuid: *player_uuid,
@@ -121,14 +120,20 @@ async fn process_lobby_key(
         return Ok(()); // Skip invalid keys
     }
 
-    let track_id: u16 = parts[1].parse()
-        .unwrap_or(1);
+    let track_id: u16 = parts[1].parse().unwrap_or(1);
     let bucket = parts[2];
 
     // Clean up expired entries
-    let removed = lobby::cleanup_expired_entries(redis_mgr, track_id, bucket, LOBBY_TIMEOUT_SECS + 60).await?;
+    let removed =
+        lobby::cleanup_expired_entries(redis_mgr, track_id, bucket, LOBBY_TIMEOUT_SECS + 60)
+            .await?;
     if removed > 0 {
-        tracing::debug!(track_id, bucket, removed, "Cleaned up expired lobby entries");
+        tracing::debug!(
+            track_id,
+            bucket,
+            removed,
+            "Cleaned up expired lobby entries"
+        );
     }
 
     // Check lobby size
@@ -165,9 +170,12 @@ async fn process_lobby_key(
     room.start_countdown(start_time_ms);
 
     // Update room in registry
-    state.rooms.update(room_id, |r| {
-        r.start_countdown(start_time_ms);
-    }).await?;
+    state
+        .rooms
+        .update(room_id, |r| {
+            r.start_countdown(start_time_ms);
+        })
+        .await?;
 
     // Register room in Redis
     room::register_room_in_redis(redis_mgr, &room).await?;
@@ -179,7 +187,10 @@ async fn process_lobby_key(
 
         // Fetch ghosts to fill the room
         let ghost_backfill = GhostBackfill::new();
-        match ghost_backfill.fetch_ghosts(track_id, bucket, ghost_count).await {
+        match ghost_backfill
+            .fetch_ghosts(track_id, bucket, ghost_count)
+            .await
+        {
             Ok(ghosts) => {
                 let ghost_players = ghost_backfill.ghosts_to_players(ghosts);
                 for ghost_player in ghost_players {

@@ -10,7 +10,6 @@
 /// full regression suite.
 ///
 /// See plan.md §Testing Layer 6 for details.
-
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -73,8 +72,7 @@ fn find_ghosts_path() -> Result<PathBuf> {
         }
     }
 
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-        .unwrap_or_else(|_| ".".to_string());
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
 
     // Compute workspace root
     let workspace_root = PathBuf::from(&manifest_dir)
@@ -86,7 +84,10 @@ fn find_ghosts_path() -> Result<PathBuf> {
     // List of paths to try
     let candidates = vec![
         format!("{}/crates/validator/reference-ghosts.json", workspace_root),
-        format!("{}/../../crates/validator/reference-ghosts.json", manifest_dir),
+        format!(
+            "{}/../../crates/validator/reference-ghosts.json",
+            manifest_dir
+        ),
         "crates/validator/reference-ghosts.json".to_string(),
     ];
 
@@ -100,7 +101,10 @@ fn find_ghosts_path() -> Result<PathBuf> {
     Err(anyhow::anyhow!(
         "Could not find reference-ghosts.json in any of the following locations: {:?}. \
          Set REFERENCE_GHOSTS_PATH environment variable to override.",
-        ["REFERENCE_GHOSTS_PATH env", "crates/validator/reference-ghosts.json"]
+        [
+            "REFERENCE_GHOSTS_PATH env",
+            "crates/validator/reference-ghosts.json"
+        ]
     ))
 }
 
@@ -155,10 +159,14 @@ fn replay_all_reference_ghosts() {
         format!("{}/apps/web/public/tracks", workspace_root)
     });
 
-    let track_store = match drawrace_validator::track::TrackStore::load(PathBuf::from(&tracks_dir)) {
+    let track_store = match drawrace_validator::track::TrackStore::load(PathBuf::from(&tracks_dir))
+    {
         Ok(t) => t,
         Err(e) => {
-            println!("Skipping replay test: failed to load track store from {}: {}", tracks_dir, e);
+            println!(
+                "Skipping replay test: failed to load track store from {}: {}",
+                tracks_dir, e
+            );
             return;
         }
     };

@@ -3,11 +3,10 @@
 /// This module loads the engine-core WASM module using the content-hash
 /// metadata file, verifies the physics_version export, and provides
 /// access to the WASM instance.
-
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::path::PathBuf;
-use wasmtime::{Engine, Module, Store, Linker};
+use wasmtime::{Engine, Linker, Module, Store};
 
 /// Metadata structure from engine-core.wasm.json
 #[derive(Debug, Deserialize)]
@@ -55,15 +54,14 @@ impl EngineCoreWasm {
         config.wasm_simd(true);
         config.wasm_multi_memory(true);
 
-        let engine = Engine::new(&config)
-            .context("Failed to create WASM engine")?;
+        let engine = Engine::new(&config).context("Failed to create WASM engine")?;
 
-        let module = Module::new(&engine, &wasm_bytes)
-            .context("Failed to load WASM module")?;
+        let module = Module::new(&engine, &wasm_bytes).context("Failed to load WASM module")?;
 
         let mut store = Store::new(&engine, ());
         let linker = Linker::new(&engine);
-        let instance = linker.instantiate(&mut store, &module)
+        let instance = linker
+            .instantiate(&mut store, &module)
             .context("Failed to instantiate WASM module")?;
 
         // Get and verify physics_version export
@@ -97,16 +95,15 @@ impl EngineCoreWasm {
         let content = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read metadata file: {}", path.display()))?;
 
-        let metadata: EngineCoreMetadata = serde_json::from_str(&content)
-            .context("Failed to parse metadata JSON")?;
+        let metadata: EngineCoreMetadata =
+            serde_json::from_str(&content).context("Failed to parse metadata JSON")?;
 
         Ok(metadata)
     }
 
     /// Find the metadata file (engine-core.wasm.json).
     fn find_metadata_path() -> Result<PathBuf> {
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-            .unwrap_or_else(|_| ".".to_string());
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
 
         // Compute workspace root from manifest_dir (crates/validator -> workspace root)
         let workspace_root = PathBuf::from(&manifest_dir)
@@ -126,11 +123,20 @@ impl EngineCoreWasm {
         // List of paths to try, in order
         let candidates = vec![
             // Absolute path from workspace root
-            format!("{}/packages/engine-core/dist/engine-core.wasm.json", workspace_root),
+            format!(
+                "{}/packages/engine-core/dist/engine-core.wasm.json",
+                workspace_root
+            ),
             // Standard workspace layout
-            format!("{}/../../packages/engine-core/dist/engine-core.wasm.json", manifest_dir),
+            format!(
+                "{}/../../packages/engine-core/dist/engine-core.wasm.json",
+                manifest_dir
+            ),
             // Test environment
-            format!("{}/../../../../../packages/engine-core/dist/engine-core.wasm.json", manifest_dir),
+            format!(
+                "{}/../../../../../packages/engine-core/dist/engine-core.wasm.json",
+                manifest_dir
+            ),
             // From current working directory
             "packages/engine-core/dist/engine-core.wasm.json".to_string(),
         ];

@@ -103,7 +103,8 @@ pub async fn post_submission(
                 "error": "PHYSICS_VERSION_MISMATCH",
                 "expected": validator.physics_version
             })),
-        ).into_response());
+        )
+            .into_response());
     }
     drop(validator);
 
@@ -147,16 +148,15 @@ pub async fn post_submission(
     // Validate daily_challenge_date if provided
     let daily_challenge_date = if let Some(date_str) = daily_query.daily_challenge_date {
         // Verify the challenge exists
-        let exists: Option<(i16,)> = sqlx::query_as(
-            "SELECT track_id FROM daily_challenges WHERE challenge_date = $1",
-        )
-        .bind(&date_str)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| ApiError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: format!("db error: {e}"),
-        })?;
+        let exists: Option<(i16,)> =
+            sqlx::query_as("SELECT track_id FROM daily_challenges WHERE challenge_date = $1")
+                .bind(&date_str)
+                .fetch_optional(&state.pool)
+                .await
+                .map_err(|e| ApiError {
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: format!("db error: {e}"),
+                })?;
 
         if exists.is_none() {
             return Err(ApiError {

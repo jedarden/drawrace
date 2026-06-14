@@ -1,10 +1,10 @@
+mod champion;
+mod metrics;
 mod resim;
+mod seed_loader;
+mod track;
 mod wasm_abi;
 mod wasm_loader;
-mod champion;
-mod track;
-mod seed_loader;
-mod metrics;
 
 // Import the external metrics crate with an alias to avoid shadowing our local metrics module
 extern crate metrics as global_metrics;
@@ -47,22 +47,25 @@ async fn main() -> anyhow::Result<()> {
     let s3_bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "drawrace-ghosts".to_string());
 
     // Track store - load from versioned track JSON files
-    let tracks_dir = std::env::var("TRACKS_DIR")
-        .unwrap_or_else(|_| {
-            // Default: relative to workspace root
-            let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
-            let workspace_root = PathBuf::from(&manifest_dir)
-                .parent() // crates
-                .and_then(|p| p.parent()) // workspace root
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|| ".".to_string());
-            format!("{}/apps/web/public/tracks", workspace_root)
-        });
+    let tracks_dir = std::env::var("TRACKS_DIR").unwrap_or_else(|_| {
+        // Default: relative to workspace root
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+        let workspace_root = PathBuf::from(&manifest_dir)
+            .parent() // crates
+            .and_then(|p| p.parent()) // workspace root
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| ".".to_string());
+        format!("{}/apps/web/public/tracks", workspace_root)
+    });
     let track_store = Arc::new(
         track::TrackStore::load(PathBuf::from(&tracks_dir))
-            .with_context(|| format!("Failed to load track store from: {}", tracks_dir))?
+            .with_context(|| format!("Failed to load track store from: {}", tracks_dir))?,
     );
-    let track_ids: Vec<String> = track_store.track_ids().iter().map(|id| id.to_string()).collect();
+    let track_ids: Vec<String> = track_store
+        .track_ids()
+        .iter()
+        .map(|id| id.to_string())
+        .collect();
     tracing::info!(
         track_ids = %track_ids.join(","),
         "Loaded track store"
@@ -99,7 +102,9 @@ async fn main() -> anyhow::Result<()> {
 
     // Load seed pool if the ghosts table is empty (new deployment)
     let seeds_dir = std::path::PathBuf::from("/app/seeds");
-    if let Err(e) = seed_loader::load_seed_pool(&state.pool, &state.s3, &state.s3_bucket, &seeds_dir).await {
+    if let Err(e) =
+        seed_loader::load_seed_pool(&state.pool, &state.s3, &state.s3_bucket, &seeds_dir).await
+    {
         tracing::error!(error = %e, "Failed to load seed pool, continuing anyway");
     }
 
@@ -287,7 +292,9 @@ async fn validate_ghost(
     // the reference champion by >2%. This catches impossible times before
     // we do the expensive re-simulation.
     if let Some(validator) = champion_validator {
-        if let Err(quarantine_reason) = validator.check_submission(expected_track_id, header.finish_time_ms) {
+        if let Err(quarantine_reason) =
+            validator.check_submission(expected_track_id, header.finish_time_ms)
+        {
             tracing::warn!(
                 track_id = %expected_track_id,
                 submission_time_ms = header.finish_time_ms,
@@ -372,8 +379,10 @@ async fn validate_ghost(
     // and verify the finish tick is within tolerance of the client's claim.
 
     // Load track data from track store
-    let track_data = track_store.get(expected_track_id)
-        .context(format!("Track {} not found in track store", expected_track_id))?;
+    let track_data = track_store.get(expected_track_id).context(format!(
+        "Track {} not found in track store",
+        expected_track_id
+    ))?;
 
     let terrain = &track_data.terrain;
     let obstacles = &track_data.obstacles;
@@ -447,9 +456,7 @@ async fn validate_ghost(
                     time_ms: None,
                     reject_reason: Some(format!(
                         "resim finish tick {} differs from client {} by more than {} ticks",
-                        server_finish_ticks,
-                        client_finish_ticks,
-                        FINISH_TICK_TOLERANCE
+                        server_finish_ticks, client_finish_ticks, FINISH_TICK_TOLERANCE
                     )),
                 });
             }
@@ -557,7 +564,8 @@ async fn update_submission_verdict(
             if let Some(reason) = &verdict.reject_reason {
                 crate::metrics::inc_rejected_reason(reason);
                 // Track resim mismatches specifically
-                if reason.contains("tick") || reason.contains("finish") || reason.contains("resim") {
+                if reason.contains("tick") || reason.contains("finish") || reason.contains("resim")
+                {
                     crate::metrics::inc_resim_mismatch();
                 }
             }
@@ -657,7 +665,9 @@ mod tests {
     async fn valid_blob_is_accepted() {
         let blob = make_valid_blob();
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         if verdict.status != "accepted" {
             eprintln!("Reject reason: {:?}", verdict.reject_reason);
         }
@@ -671,7 +681,9 @@ mod tests {
     async fn track_id_mismatch_rejected() {
         let blob = make_blob(1, 28441, &[12], &[0], &[5000, 15000, 25000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 2, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 2, "2", None, &track_store)
+            .await
+            .unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(verdict.reject_reason.as_deref(), Some("track_id mismatch"));
     }
@@ -699,7 +711,9 @@ mod tests {
     async fn non_monotonic_checkpoints_rejected() {
         let blob = make_blob(1, 28441, &[12], &[0], &[10000, 5000, 15000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(
             verdict.reject_reason.as_deref(),
@@ -711,7 +725,9 @@ mod tests {
     async fn equal_checkpoints_rejected() {
         let blob = make_blob(1, 28441, &[12], &[0], &[10000, 10000, 15000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(
             verdict.reject_reason.as_deref(),
@@ -723,7 +739,9 @@ mod tests {
     async fn zero_finish_time_rejected() {
         let blob = make_blob(1, 0, &[12], &[0], &[5000, 15000, 25000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         assert_eq!(verdict.status, "rejected");
         assert_eq!(
             verdict.reject_reason.as_deref(),
@@ -735,7 +753,9 @@ mod tests {
     async fn single_checkpoint_accepted() {
         let blob = make_blob(1, 6067, &[12], &[0], &[15000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -743,7 +763,9 @@ mod tests {
     async fn empty_checkpoints_accepted() {
         let blob = make_blob(1, 6067, &[12], &[0], &[]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -766,22 +788,24 @@ mod tests {
             &[5000, 15000],
         );
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         assert_eq!(verdict.status, "rejected");
-        assert!(verdict.reject_reason.as_deref().unwrap().contains("swap_tick gap"));
+        assert!(verdict
+            .reject_reason
+            .as_deref()
+            .unwrap()
+            .contains("swap_tick gap"));
     }
 
     #[tokio::test]
     async fn swap_tick_gap_exactly_30_accepted() {
-        let blob = make_blob(
-            1,
-            6067,
-            &[12, 12],
-            &[0, 30],
-            &[5000],
-        );
+        let blob = make_blob(1, 6067, &[12, 12], &[0, 30], &[5000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -791,7 +815,9 @@ mod tests {
         let swap_ticks: Vec<u32> = (0..6).map(|i| i * 60).collect();
         let blob = make_blob(1, 6067, &vertex_counts, &swap_ticks, &[5000, 15000, 25000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -799,10 +825,12 @@ mod tests {
     async fn twenty_swap_blob_accepted() {
         // Create 7 wheels (6 swaps) all before finish at 364 ticks
         let vertex_counts: Vec<u8> = (0..7).map(|_| 12u8).collect();
-        let swap_ticks: Vec<u32> = (0..7).map(|i| i * 60).collect();  // 0, 60, ..., 360
+        let swap_ticks: Vec<u32> = (0..7).map(|i| i * 60).collect(); // 0, 60, ..., 360
         let blob = make_blob(1, 6067, &vertex_counts, &swap_ticks, &[5000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -825,10 +853,16 @@ mod tests {
         // final swap_tick = 90 > 60 → must reject
         let blob = make_blob(1, 1000, &[12, 12], &[0, 90], &[]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         assert_eq!(verdict.status, "rejected");
         assert!(
-            verdict.reject_reason.as_deref().unwrap().contains("swap_tick"),
+            verdict
+                .reject_reason
+                .as_deref()
+                .unwrap()
+                .contains("swap_tick"),
             "reason: {:?}",
             verdict.reject_reason
         );
@@ -840,7 +874,9 @@ mod tests {
         // final swap_tick = 364 == 364 → boundary: must accept
         let blob = make_blob(1, 6067, &[12, 12], &[0, 364], &[]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         assert_eq!(verdict.status, "accepted");
     }
 
@@ -854,7 +890,9 @@ mod tests {
         // 364 ticks * 1000 / 60 = 6067ms (exact match for WASM physics)
         let blob = make_blob(1, 6067, &[12], &[0], &[5000, 15000, 25000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         if verdict.status != "accepted" {
             eprintln!("Reject reason: {:?}", verdict.reject_reason);
         }
@@ -872,13 +910,15 @@ mod tests {
         // All swaps must be before finish, so we use 6067ms = 364 ticks
         let blob = make_blob(
             1,
-            6067,  // 364 ticks, matches WASM physics
+            6067, // 364 ticks, matches WASM physics
             &[12, 10, 14, 8, 12, 16],
-            &[0, 30, 90, 150, 200, 300],  // all swaps before finish at ~364
+            &[0, 30, 90, 150, 200, 300], // all swaps before finish at ~364
             &[5000, 15000, 25000],
         );
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         if verdict.status != "accepted" {
             eprintln!("Reject reason: {:?}", verdict.reject_reason);
         }
@@ -893,11 +933,13 @@ mod tests {
     async fn twenty_swap_resim_accepted() {
         // With 6 m/s velocity on 40m track, race finishes at ~364 ticks
         // We can only fit swaps at 0, 60, 120, 180, 240, 300 before finish
-        let vertex_counts: Vec<u8> = (0..7).map(|_| 12u8).collect();  // 7 wheels = 6 swaps
-        let swap_ticks: Vec<u32> = (0..7).map(|i| i * 60).collect();  // 0, 60, ..., 360
+        let vertex_counts: Vec<u8> = (0..7).map(|_| 12u8).collect(); // 7 wheels = 6 swaps
+        let swap_ticks: Vec<u32> = (0..7).map(|i| i * 60).collect(); // 0, 60, ..., 360
         let blob = make_blob(1, 6067, &vertex_counts, &swap_ticks, &[5000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
         if verdict.status != "accepted" {
             eprintln!("Reject reason: {:?}", verdict.reject_reason);
         }
@@ -926,14 +968,17 @@ mod tests {
     async fn submission_faster_than_champion_quarantined() {
         // Champion best time is 5850ms. 2.1% faster is ~5727ms.
         let blob = make_blob(1, 5727, &[12], &[0], &[5000, 15000, 25000]);
-        let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
-            .unwrap();
+        let validator = champion::ChampionValidator::load_from_path(&champion_test_path()).unwrap();
         let track_store = test_track_store().await;
         let verdict = validate_ghost(&blob, 1, "2", Some(&validator), &track_store)
             .await
             .unwrap();
         assert_eq!(verdict.status, "quarantined");
-        assert!(verdict.reject_reason.as_ref().unwrap().contains("champion_quarantine"));
+        assert!(verdict
+            .reject_reason
+            .as_ref()
+            .unwrap()
+            .contains("champion_quarantine"));
     }
 
     /// Submission slower than champion passes champion check.
@@ -941,8 +986,7 @@ mod tests {
     async fn submission_slower_than_champion_accepted() {
         // Champion best time is 5850ms. 6067ms is slower but within tolerance.
         let blob = make_blob(1, 6067, &[12], &[0], &[5000, 15000, 25000]);
-        let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
-            .unwrap();
+        let validator = champion::ChampionValidator::load_from_path(&champion_test_path()).unwrap();
         let track_store = test_track_store().await;
         let verdict = validate_ghost(&blob, 1, "2", Some(&validator), &track_store)
             .await
@@ -956,8 +1000,7 @@ mod tests {
         // Champion best time is 5850ms. 6067ms is slower (not faster).
         // This passes champion check and resim tick comparison.
         let blob = make_blob(1, 6067, &[12], &[0], &[5000, 15000, 25000]);
-        let validator = champion::ChampionValidator::load_from_path(&champion_test_path())
-            .unwrap();
+        let validator = champion::ChampionValidator::load_from_path(&champion_test_path()).unwrap();
         let track_store = test_track_store().await;
         let verdict = validate_ghost(&blob, 1, "2", Some(&validator), &track_store)
             .await
@@ -974,13 +1017,23 @@ mod tests {
         // Claim 3000ms = 180 ticks, which is impossibly fast
         let blob = make_blob(1, 3000, &[12], &[0], &[5000, 15000, 25000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
 
         // Should be rejected due to tick mismatch
         assert_eq!(verdict.status, "rejected");
         assert!(
-            verdict.reject_reason.as_ref().unwrap().contains("tick mismatch") ||
-            verdict.reject_reason.as_ref().unwrap().contains("finish tick"),
+            verdict
+                .reject_reason
+                .as_ref()
+                .unwrap()
+                .contains("tick mismatch")
+                || verdict
+                    .reject_reason
+                    .as_ref()
+                    .unwrap()
+                    .contains("finish tick"),
             "Expected tick mismatch rejection, got: {:?}",
             verdict.reject_reason
         );
@@ -996,7 +1049,9 @@ mod tests {
         // Note: 6034ms * 60 / 1000 = 362 ticks (integer division), difference is |364 - 362| = 2
         let blob = make_blob(1, 6034, &[12], &[0], &[5000, 15000, 25000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
 
         assert_eq!(verdict.status, "accepted");
         assert!(verdict.ghost_id.is_some());
@@ -1011,7 +1066,9 @@ mod tests {
         // This tests the upper bound of the tolerance
         let blob = make_blob(1, 6100, &[12], &[0], &[5000, 15000, 25000]);
         let track_store = test_track_store().await;
-        let verdict = validate_ghost(&blob, 1, "2", None, &track_store).await.unwrap();
+        let verdict = validate_ghost(&blob, 1, "2", None, &track_store)
+            .await
+            .unwrap();
 
         assert_eq!(verdict.status, "accepted");
         assert!(verdict.ghost_id.is_some());
@@ -1107,26 +1164,32 @@ mod tests {
             drawrace_api::blob::WheelEntry {
                 swap_tick: 0,
                 vertex_count: 12,
-                polygon_vertices: (0..12).map(|i| {
-                    let angle = (i as f32 / 12.0) * std::f32::consts::PI * 2.0;
-                    ((angle.cos() * 100.0) as i16, (angle.sin() * 100.0) as i16)
-                }).collect(),
+                polygon_vertices: (0..12)
+                    .map(|i| {
+                        let angle = (i as f32 / 12.0) * std::f32::consts::PI * 2.0;
+                        ((angle.cos() * 100.0) as i16, (angle.sin() * 100.0) as i16)
+                    })
+                    .collect(),
             },
             drawrace_api::blob::WheelEntry {
                 swap_tick: 60,
                 vertex_count: 8,
-                polygon_vertices: (0..8).map(|i| {
-                    let angle = (i as f32 / 8.0) * std::f32::consts::PI * 2.0;
-                    ((angle.cos() * 100.0) as i16, (angle.sin() * 100.0) as i16)
-                }).collect(),
+                polygon_vertices: (0..8)
+                    .map(|i| {
+                        let angle = (i as f32 / 8.0) * std::f32::consts::PI * 2.0;
+                        ((angle.cos() * 100.0) as i16, (angle.sin() * 100.0) as i16)
+                    })
+                    .collect(),
             },
             drawrace_api::blob::WheelEntry {
                 swap_tick: 120,
                 vertex_count: 16,
-                polygon_vertices: (0..16).map(|i| {
-                    let angle = (i as f32 / 16.0) * std::f32::consts::PI * 2.0;
-                    ((angle.cos() * 100.0) as i16, (angle.sin() * 100.0) as i16)
-                }).collect(),
+                polygon_vertices: (0..16)
+                    .map(|i| {
+                        let angle = (i as f32 / 16.0) * std::f32::consts::PI * 2.0;
+                        ((angle.cos() * 100.0) as i16, (angle.sin() * 100.0) as i16)
+                    })
+                    .collect(),
             },
         ];
 
@@ -1219,13 +1282,37 @@ mod tests {
 
         // Run with different seeds - results should still be identical
         // because the physics is deterministic (seed is for any RNG that might be added)
-        let seed_42 = engine.resim(&wheels, &terrain, &obstacles, finish_x, start_x, start_y, claimed_finish, 42).unwrap();
-        let seed_123 = engine.resim(&wheels, &terrain, &obstacles, finish_x, start_x, start_y, claimed_finish, 123).unwrap();
+        let seed_42 = engine
+            .resim(
+                &wheels,
+                &terrain,
+                &obstacles,
+                finish_x,
+                start_x,
+                start_y,
+                claimed_finish,
+                42,
+            )
+            .unwrap();
+        let seed_123 = engine
+            .resim(
+                &wheels,
+                &terrain,
+                &obstacles,
+                finish_x,
+                start_x,
+                start_y,
+                claimed_finish,
+                123,
+            )
+            .unwrap();
 
         // For the current deterministic physics, different seeds should produce the same result
         // (the seed parameter is reserved for future use with stochastic elements)
-        assert_eq!(seed_42.finish_ticks, seed_123.finish_ticks,
-            "Different seeds should produce the same result for deterministic physics");
+        assert_eq!(
+            seed_42.finish_ticks, seed_123.finish_ticks,
+            "Different seeds should produce the same result for deterministic physics"
+        );
     }
 
     /// Debug test to see what the WASM resim actually produces.
@@ -1298,8 +1385,12 @@ mod tests {
             match result {
                 Ok(r) => {
                     if let Some(ticks) = r.finish_ticks {
-                        println!("  claimed_finish={}: actual ticks = {} ({} ms)",
-                            claimed_finish, ticks, ticks * 1000 / 60);
+                        println!(
+                            "  claimed_finish={}: actual ticks = {} ({} ms)",
+                            claimed_finish,
+                            ticks,
+                            ticks * 1000 / 60
+                        );
                     } else {
                         println!("  claimed_finish={}: DNF/timeout", claimed_finish);
                     }

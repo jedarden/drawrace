@@ -3,16 +3,12 @@
 /// This module loads the resim.wasm module and provides a high-level
 /// interface for running re-simulations with wheel swaps, track data,
 /// and reading deterministic results.
-
 use anyhow::{Context, Result};
-use std::path::PathBuf;
-use wasmtime::{Engine, Module, Store, Linker};
 use drawrace_api::blob::WheelEntry;
+use std::path::PathBuf;
+use wasmtime::{Engine, Linker, Module, Store};
 
-use crate::wasm_abi::{
-    self, Obstacle, SimResult, SimState,
-    TOTAL_MEMORY_SIZE,
-};
+use crate::wasm_abi::{self, Obstacle, SimResult, SimState, TOTAL_MEMORY_SIZE};
 
 /// WASM re-simulation engine.
 pub struct ResimEngine {
@@ -32,12 +28,16 @@ impl ResimEngine {
 
         let config = wasmtime::Config::new();
 
-        let engine = Engine::new(&config)
-            .context("Failed to create WASM engine")?;
+        let engine = Engine::new(&config).context("Failed to create WASM engine")?;
 
-        let module = Module::new(&engine, &wasm_bytes)
-            .map_err(|e| anyhow::anyhow!("Failed to load WASM module from {}: WASM size={} bytes. Error: {}",
-                wasm_path.display(), wasm_bytes.len(), e))?;
+        let module = Module::new(&engine, &wasm_bytes).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to load WASM module from {}: WASM size={} bytes. Error: {}",
+                wasm_path.display(),
+                wasm_bytes.len(),
+                e
+            )
+        })?;
 
         // Verify the module has the required exports
         let required_exports = vec![
@@ -62,7 +62,8 @@ impl ResimEngine {
         // Get physics version
         let mut store = Store::new(&engine, ());
         let linker = Linker::new(&engine);
-        let instance = linker.instantiate(&mut store, &module)
+        let instance = linker
+            .instantiate(&mut store, &module)
             .context("Failed to instantiate WASM module")?;
 
         let physics_version_func = instance
@@ -82,8 +83,7 @@ impl ResimEngine {
 
     /// Find the resim.wasm file.
     fn find_resim_path() -> Result<PathBuf> {
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-            .unwrap_or_else(|_| ".".to_string());
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
 
         // Compute workspace root from manifest_dir (crates/validator -> workspace root)
         let workspace_root = PathBuf::from(&manifest_dir)
@@ -105,10 +105,19 @@ impl ResimEngine {
             // Prefer resim.wasm (rebuilt with Python script)
             format!("{}/packages/engine-core/dist/resim.wasm", workspace_root),
             // Fallback to resim-test.wasm
-            format!("{}/packages/engine-core/dist/resim-test.wasm", workspace_root),
+            format!(
+                "{}/packages/engine-core/dist/resim-test.wasm",
+                workspace_root
+            ),
             // Standard workspace layout
-            format!("{}/../../packages/engine-core/dist/resim.wasm", manifest_dir),
-            format!("{}/../../packages/engine-core/dist/resim-test.wasm", manifest_dir),
+            format!(
+                "{}/../../packages/engine-core/dist/resim.wasm",
+                manifest_dir
+            ),
+            format!(
+                "{}/../../packages/engine-core/dist/resim-test.wasm",
+                manifest_dir
+            ),
             // From current working directory
             "packages/engine-core/dist/resim.wasm".to_string(),
             "packages/engine-core/dist/resim-test.wasm".to_string(),
@@ -142,7 +151,8 @@ impl ResimEngine {
     ) -> Result<SimResult> {
         let mut store = Store::new(&self.engine, ());
         let linker = Linker::new(&self.engine);
-        let instance = linker.instantiate(&mut store, &self.module)
+        let instance = linker
+            .instantiate(&mut store, &self.module)
             .context("Failed to instantiate WASM module")?;
 
         // Get exported memory
@@ -202,7 +212,11 @@ impl ResimEngine {
             }
 
             // Safety check: prevent infinite loops
-            let current_tick = wasm_abi::read_u32(&memory, &mut store, wasm_abi::STATE_OFFSET + wasm_abi::state::SIM_TICK)?;
+            let current_tick = wasm_abi::read_u32(
+                &memory,
+                &mut store,
+                wasm_abi::STATE_OFFSET + wasm_abi::state::SIM_TICK,
+            )?;
             if current_tick > max_ticks {
                 anyhow::bail!("Simulation exceeded maximum tick count: {}", current_tick);
             }
@@ -228,7 +242,8 @@ impl ResimEngine {
     ) -> Result<(SimResult, SimState)> {
         let mut store = Store::new(&self.engine, ());
         let linker = Linker::new(&self.engine);
-        let instance = linker.instantiate(&mut store, &self.module)
+        let instance = linker
+            .instantiate(&mut store, &self.module)
             .context("Failed to instantiate WASM module")?;
 
         // Get exported memory
@@ -287,7 +302,11 @@ impl ResimEngine {
             }
 
             // Safety check: prevent infinite loops
-            let current_tick = wasm_abi::read_u32(&memory, &mut store, wasm_abi::STATE_OFFSET + wasm_abi::state::SIM_TICK)?;
+            let current_tick = wasm_abi::read_u32(
+                &memory,
+                &mut store,
+                wasm_abi::STATE_OFFSET + wasm_abi::state::SIM_TICK,
+            )?;
             if current_tick > max_ticks {
                 anyhow::bail!("Simulation exceeded maximum tick count: {}", current_tick);
             }
@@ -312,7 +331,9 @@ mod tests {
                 assert_eq!(engine.physics_version, 4);
             }
             Err(e) => {
-                if e.to_string().contains("No such file") || e.to_string().contains("could not find") {
+                if e.to_string().contains("No such file")
+                    || e.to_string().contains("could not find")
+                {
                     println!("Skipping test: resim.wasm not found (run build first)");
                     return;
                 }
@@ -326,7 +347,9 @@ mod tests {
         let engine = match ResimEngine::load() {
             Ok(e) => e,
             Err(e) => {
-                if e.to_string().contains("No such file") || e.to_string().contains("could not find") {
+                if e.to_string().contains("No such file")
+                    || e.to_string().contains("could not find")
+                {
                     println!("Skipping test: resim.wasm not found (run build first)");
                     return;
                 }
@@ -336,18 +359,11 @@ mod tests {
 
         // Simple test case: straight track, one wheel
         // Using realistic values for a short race
-        let wheels = vec![
-            WheelEntry {
-                swap_tick: 0,
-                vertex_count: 4,
-                polygon_vertices: vec![
-                    (-50, -50),
-                    (50, -50),
-                    (50, 50),
-                    (-50, 50),
-                ],
-            },
-        ];
+        let wheels = vec![WheelEntry {
+            swap_tick: 0,
+            vertex_count: 4,
+            polygon_vertices: vec![(-50, -50), (50, -50), (50, 50), (-50, 50)],
+        }];
 
         // For a square wheel (4 vertices), velocity_factor = 0.50, target_velocity = 6.35 * 0.50 = 3.175 m/s
         // For a 10-second race (600 ticks), distance = 3.175 * 10 = 31.75 meters
@@ -370,7 +386,7 @@ mod tests {
             5.0,      // start_x
             498.0,    // start_y (terrain_y - wheel_radius - 1.5)
             claimed_finish,
-            42,       // seed
+            42, // seed
         );
 
         assert!(result.is_ok(), "resim failed: {:?}", result.err());
@@ -388,7 +404,8 @@ mod tests {
         assert!(
             finish_ticks > 0 && finish_ticks < claimed_finish * 2,
             "Expected reasonable finish_ticks, got {} (claimed: {})",
-            finish_ticks, claimed_finish
+            finish_ticks,
+            claimed_finish
         );
     }
 }

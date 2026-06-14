@@ -1,3 +1,4 @@
+use drawrace_api::blob::WheelEntry;
 /// Round-trip parity test (bf-3ht9).
 ///
 /// This test verifies that the WASM re-simulation produces deterministic
@@ -23,9 +24,7 @@
 /// - Gravity and friction
 /// - Motor torque and angular velocity
 /// - Wheel shape-dependent rolling resistance
-
 use drawrace_validator::resim::ResimEngine;
-use drawrace_api::blob::WheelEntry;
 use drawrace_validator::wasm_abi::Obstacle;
 
 /// Unit circle wheel (12 vertices, radius ~1.0)
@@ -40,19 +39,12 @@ fn unit_circle_12() -> Vec<(i16, i16)> {
 
 /// Triangle wheel (3 vertices, radius ~0.35)
 fn triangle_r40() -> Vec<(i16, i16)> {
-    vec![
-        (40, 0),
-        (-20, 35),
-        (-20, -35),
-    ]
+    vec![(40, 0), (-20, 35), (-20, -35)]
 }
 
 /// Flat 100m track for testing
 /// Terrain at y=500, wheel starts at y=498.5 (on ground with wheel radius ~1.5)
-const FLAT_TERRAIN_100M: &[(f32, f32)] = &[
-    (0.0, 500.0),
-    (100.0, 500.0),
-];
+const FLAT_TERRAIN_100M: &[(f32, f32)] = &[(0.0, 500.0), (100.0, 500.0)];
 
 const SEED: u32 = 42;
 
@@ -107,7 +99,10 @@ fn test_resim_deterministic_circle_wheel() {
     let r2 = result2.unwrap();
 
     // Deterministic: same inputs produce same outputs
-    assert_eq!(r1.finish_ticks, r2.finish_ticks, "finish_ticks should be deterministic");
+    assert_eq!(
+        r1.finish_ticks, r2.finish_ticks,
+        "finish_ticks should be deterministic"
+    );
     assert_eq!(r1.stuck, r2.stuck, "stuck should be deterministic");
 }
 
@@ -152,7 +147,10 @@ fn test_resim_deterministic_triangle_wheel() {
     let r1 = result1.unwrap();
     let r2 = result2.unwrap();
 
-    assert_eq!(r1.finish_ticks, r2.finish_ticks, "finish_ticks should be deterministic");
+    assert_eq!(
+        r1.finish_ticks, r2.finish_ticks,
+        "finish_ticks should be deterministic"
+    );
     assert_eq!(r1.stuck, r2.stuck, "stuck should be deterministic");
 }
 
@@ -199,7 +197,11 @@ fn test_resim_wheel_swap_scheduling() {
         SEED,
     );
 
-    assert!(result.is_ok(), "Resim with wheel swaps failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Resim with wheel swaps failed: {:?}",
+        result.err()
+    );
 
     let sim_result = result.unwrap();
 
@@ -293,5 +295,8 @@ fn test_resim_max_ticks_enforcement() {
     let sim_result = result.unwrap();
 
     // Document current behavior
-    println!("With claimed_finish=60, finish_ticks={:?}", sim_result.finish_ticks);
+    println!(
+        "With claimed_finish=60, finish_ticks={:?}",
+        sim_result.finish_ticks
+    );
 }

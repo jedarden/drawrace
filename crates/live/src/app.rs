@@ -1,17 +1,12 @@
 //! Application state and routing for drawrace-live
 
-use axum::{
-    extract::State,
-    routing::get,
-    Router,
-    response::Json,
-};
-use redis::{Client as RedisClient, aio::ConnectionManager};
+use axum::{extract::State, response::Json, routing::get, Router};
+use redis::{aio::ConnectionManager, Client as RedisClient};
 use std::sync::Arc;
 
+use crate::physics::{GlobalPhysicsEngine, RaceExecutor};
 use crate::room::RoomRegistry;
 use crate::websocket::{websocket_handler, ConnectionRegistry};
-use crate::physics::{RaceExecutor, GlobalPhysicsEngine};
 
 /// Shared application state
 pub struct LiveState {
@@ -64,9 +59,7 @@ async fn metrics_handler(State(state): State<Arc<LiveState>>) -> String {
          # HELP drawrace_races_active Number of active races\n\
          # TYPE drawrace_races_active gauge\n\
          drawrace_races_active {}\n",
-        connection_count,
-        room_count,
-        race_count,
+        connection_count, room_count, race_count,
     )
 }
 
@@ -86,10 +79,7 @@ impl LiveState {
             redis,
             redis_mgr: Arc::new(tokio::sync::Mutex::new(redis_mgr)),
             pod_ip,
-            race_executor: Arc::new(RaceExecutor::new(
-                engine.clone(),
-                track_store.clone(),
-            )),
+            race_executor: Arc::new(RaceExecutor::new(engine.clone(), track_store.clone())),
             physics_engine,
         }
     }

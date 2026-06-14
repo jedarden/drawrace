@@ -1,13 +1,13 @@
 use anyhow::{Context, Result};
-use drawrace_live::{LiveState, background, app};
 use drawrace_live::physics::GlobalPhysicsEngine;
+use drawrace_live::{app, background, LiveState};
 use metrics_exporter_prometheus::PrometheusBuilder;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tracing_subscriber::{EnvFilter, fmt};
 use tracing::Level;
+use tracing_subscriber::{fmt, EnvFilter};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -27,31 +27,27 @@ async fn main() -> Result<()> {
     metrics::set_global_recorder(recorder)?;
 
     // Load configuration from environment
-    let redis_url = std::env::var("REDIS_URL")
-        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-    let listen_addr = std::env::var("LISTEN_ADDR")
-        .unwrap_or_else(|_| "0.0.0.0:8080".to_string());
-    let pod_ip = std::env::var("POD_IP")
-        .unwrap_or_else(|_| "127.0.0.1".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let listen_addr = std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
+    let pod_ip = std::env::var("POD_IP").unwrap_or_else(|_| "127.0.0.1".to_string());
 
     // Load tracks directory from environment
-    let tracks_dir = std::env::var("TRACKS_DIR")
-        .unwrap_or_else(|_| {
-            // Default: relative to workspace root
-            let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-                .unwrap_or_else(|_| ".".to_string());
-            let workspace_root = PathBuf::from(&manifest_dir)
-                .parent() // crates
-                .and_then(|p| p.parent()) // workspace root
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|| ".".to_string());
-            format!("{}/apps/web/public/tracks", workspace_root)
-        });
+    let tracks_dir = std::env::var("TRACKS_DIR").unwrap_or_else(|_| {
+        // Default: relative to workspace root
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+        let workspace_root = PathBuf::from(&manifest_dir)
+            .parent() // crates
+            .and_then(|p| p.parent()) // workspace root
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| ".".to_string());
+        format!("{}/apps/web/public/tracks", workspace_root)
+    });
 
     // Load physics engine and track store
     let physics_engine = Arc::new(
         GlobalPhysicsEngine::load(PathBuf::from(&tracks_dir))
-            .context("Failed to load physics engine")?
+            .context("Failed to load physics engine")?,
     );
 
     tracing::info!(
@@ -65,12 +61,7 @@ async fn main() -> Result<()> {
     let redis_mgr = redis.get_connection_manager().await?;
 
     // Create application state
-    let state = Arc::new(LiveState::new(
-        redis,
-        redis_mgr,
-        pod_ip,
-        physics_engine,
-    ));
+    let state = Arc::new(LiveState::new(redis, redis_mgr, pod_ip, physics_engine));
 
     // Build router
     let app = app::app(state.clone());

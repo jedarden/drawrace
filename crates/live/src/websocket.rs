@@ -20,7 +20,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::app::LiveState;
-use crate::messages::{ClientMessage, ServerMessage, PlayerInRoom};
+use crate::messages::{ClientMessage, PlayerInRoom, ServerMessage};
 
 /// Matchmake API response for bucket lookup
 #[derive(Deserialize)]
@@ -63,7 +63,8 @@ impl ConnectionRegistry {
 
     pub async fn get_room_connections(&self, room_id: Uuid) -> Vec<Connection> {
         let conns = self.connections.read().await;
-        conns.iter()
+        conns
+            .iter()
             .filter(|c| c.room_id == room_id)
             .cloned()
             .collect()
@@ -110,8 +111,8 @@ pub async fn websocket_handler(
 
 /// Query the matchmake API for the player's bucket
 async fn get_player_bucket(player_uuid: Uuid, track_id: u16) -> String {
-    let api_url = std::env::var("DRAWRACE_API_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:3000".to_string());
+    let api_url =
+        std::env::var("DRAWRACE_API_URL").unwrap_or_else(|_| "http://127.0.0.1:3000".to_string());
 
     let url = format!(
         "{}/v1/matchmake/{}",
@@ -186,7 +187,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<LiveState>) {
                                     &mut player_uuid,
                                     &mut room_id,
                                     &sender,
-                                ).await {
+                                )
+                                .await
+                                {
                                     Ok(Some(response)) => {
                                         if let Err(e) = send_message(&sender, &response).await {
                                             tracing::error!("Failed to send message: {}", e);
@@ -254,7 +257,11 @@ async fn handle_client_message(
     sender: &Arc<tokio::sync::Mutex<futures_util::stream::SplitSink<WebSocket, Message>>>,
 ) -> Result<Option<ServerMessage>> {
     match msg {
-        ClientMessage::Hello { player_uuid: uuid, name, track_id } => {
+        ClientMessage::Hello {
+            player_uuid: uuid,
+            name,
+            track_id,
+        } => {
             *player_uuid = Some(uuid);
 
             // Determine bucket from leaderboard API
@@ -265,18 +272,22 @@ async fn handle_client_message(
             *room_id = Some(rid);
 
             // Register connection
-            state.connections.add(Connection {
-                player_uuid: uuid,
-                room_id: rid,
-                sender: sender.clone(),
-            }).await;
+            state
+                .connections
+                .add(Connection {
+                    player_uuid: uuid,
+                    room_id: rid,
+                    sender: sender.clone(),
+                })
+                .await;
 
             // Get room state
-            let room = state.rooms.get(rid).await
-                .context("room not found")?;
+            let room = state.rooms.get(rid).await.context("room not found")?;
 
             // Build player list
-            let players = room.players.values()
+            let players = room
+                .players
+                .values()
                 .map(|p| crate::messages::PlayerInfo {
                     player_uuid: p.player_uuid,
                     name: p.name.clone(),
@@ -285,13 +296,19 @@ async fn handle_client_message(
                 .collect();
 
             // Broadcast player joined to others
-            let _ = state.connections.broadcast(rid, &ServerMessage::PlayerJoined {
-                player: crate::messages::PlayerInfo {
-                    player_uuid: uuid,
-                    name,
-                    ready: false,
-                },
-            }).await;
+            let _ = state
+                .connections
+                .broadcast(
+                    rid,
+                    &ServerMessage::PlayerJoined {
+                        player: crate::messages::PlayerInfo {
+                            player_uuid: uuid,
+                            name,
+                            ready: false,
+                        },
+                    },
+                )
+                .await;
 
             Ok(Some(ServerMessage::Welcome {
                 player_uuid: uuid,
@@ -304,38 +321,57 @@ async fn handle_client_message(
             let rid = room_id.context("Not in room")?;
 
             // Update player's wheel and mark ready
-            state.rooms.update(rid, |r| {
-                if let Some(p) = r.players.get_mut(&uuid) {
-                    p.wheel = Some(wheel.clone());
-                    p.ready = true;
-                }
-            }).await?;
+            state
+                .rooms
+                .update(rid, |r| {
+                    if let Some(p) = r.players.get_mut(&uuid) {
+                        p.wheel = Some(wheel.clone());
+                        p.ready = true;
+                    }
+                })
+                .await?;
 
             // Check if all players are ready
-            let room = state.rooms.get(rid).await
+            let room = state
+                .rooms
+                .get(rid)
+                .await
                 .ok_or_else(|| anyhow::anyhow!("room not found"))?;
             if room.is_ready() && room.player_count() >= crate::lobby::MIN_LIVE_PLAYERS {
                 // Create the race in the executor
                 let players: Vec<_> = room.players.values().cloned().collect();
-                if let Err(e) = state.race_executor.create_race(rid, room.track_id, players).await {
+                if let Err(e) = state
+                    .race_executor
+                    .create_race(rid, room.track_id, players)
+                    .await
+                {
                     tracing::error!("Failed to create race: {}", e);
                 }
 
                 // Start countdown (3 seconds)
                 let start_time_ms = crate::lobby::now_ms() + 3000;
-                state.rooms.update(rid, |r| {
-                    r.start_countdown(start_time_ms);
-                }).await?;
+                state
+                    .rooms
+                    .update(rid, |r| {
+                        r.start_countdown(start_time_ms);
+                    })
+                    .await?;
 
                 if let Err(e) = state.race_executor.start_countdown(rid, 3000).await {
                     tracing::error!("Failed to start countdown: {}", e);
                 }
 
                 // Broadcast countdown
-                state.connections.broadcast(rid, &ServerMessage::RaceStart {
-                    countdown: 3,
-                    start_time_ms,
-                }).await?;
+                state
+                    .connections
+                    .broadcast(
+                        rid,
+                        &ServerMessage::RaceStart {
+                            countdown: 3,
+                            start_time_ms,
+                        },
+                    )
+                    .await?;
 
                 // Start the race after countdown
                 let rid_clone = rid;
@@ -355,13 +391,14 @@ async fn handle_client_message(
             let rid = room_id.context("Not in room")?;
 
             // Forward to race executor for handling
-            state.race_executor.handle_wheel_swap(rid, uuid, swap_tick, wheel).await?;
+            state
+                .race_executor
+                .handle_wheel_swap(rid, uuid, swap_tick, wheel)
+                .await?;
 
             Ok(None)
         }
-        ClientMessage::Ping { timestamp } => {
-            Ok(Some(ServerMessage::Pong { timestamp }))
-        }
+        ClientMessage::Ping { timestamp } => Ok(Some(ServerMessage::Pong { timestamp })),
     }
 }
 
@@ -370,14 +407,19 @@ async fn handle_disconnect(state: &Arc<LiveState>, player_uuid: Uuid, room_id: U
     state.connections.remove(player_uuid).await;
 
     // Remove from room
-    state.rooms.update(room_id, |r| {
-        r.remove_player(player_uuid);
-    }).await.ok();
+    state
+        .rooms
+        .update(room_id, |r| {
+            r.remove_player(player_uuid);
+        })
+        .await
+        .ok();
 
     // Broadcast player left
-    let _ = state.connections.broadcast(room_id, &ServerMessage::PlayerLeft {
-        player_uuid,
-    }).await;
+    let _ = state
+        .connections
+        .broadcast(room_id, &ServerMessage::PlayerLeft { player_uuid })
+        .await;
 
     // If room is empty, clean it up
     let room = state.rooms.get(room_id).await;
@@ -419,14 +461,17 @@ async fn find_or_create_room(
     });
 
     // Update in registry
-    state.rooms.update(room_id, |r| {
-        r.add_player(PlayerInRoom {
-            player_uuid,
-            name,
-            ready: false,
-            wheel: None,
-        });
-    }).await?;
+    state
+        .rooms
+        .update(room_id, |r| {
+            r.add_player(PlayerInRoom {
+                player_uuid,
+                name,
+                ready: false,
+                wheel: None,
+            });
+        })
+        .await?;
 
     // Register in Redis
     crate::room::register_room_in_redis(&mut redis_mgr, &room).await?;
