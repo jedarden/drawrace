@@ -318,6 +318,8 @@ describe("hills-01 per-zone timing (v2 zone/surface combination)", () => {
       // Zone D (water/jump): medium wheels balance drag and jump
 
       // For this validation, we use relative performance characteristics
+      // Use a reasonable average velocity for scaling zone time calculations
+      const avgVel = 8; // m/s (typical racing speed on normal terrain)
       const zoneFactors: Record<string, number[]> = {
         "circle-r35 (Zone A)": [1.0, 0.85, 0.9, 0.95],   // Fast on flats, struggles elsewhere
         "gear-16 (Zone B)": [0.9, 1.0, 0.85, 0.9],       // Best on ice, struggles on snow

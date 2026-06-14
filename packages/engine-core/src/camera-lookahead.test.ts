@@ -74,7 +74,7 @@ function calculateTotalPreviewMeters(
  * Calculate preview time in seconds at given velocity.
  */
 function calculatePreviewTimeSeconds(
-  _velocityX: number,
+  velocityX: number,
   screenWidth: number,
   ppm: number = 30
 ): number {
