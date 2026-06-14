@@ -6,7 +6,10 @@
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 import { createHeadlessRace, type TrackDef } from "./headless-race.js";
 import { runHeadless } from "./headless.js";
 import { validateZones } from "./surface.js";

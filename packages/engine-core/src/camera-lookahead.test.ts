@@ -9,7 +9,10 @@ import { describe, it, expect } from "vitest";
 import type { TrackDef } from "./race-sim.js";
 import { RaceSim } from "./race-sim.js";
 import { readFileSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const TRACK_PATH = join(
   __dirname,
