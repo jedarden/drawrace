@@ -11,7 +11,7 @@
  */
 
 import { execSync } from "child_process";
-import { readFileSync, renameSync, writeFileSync, mkdirSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { createHash } from "crypto";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";

@@ -16,7 +16,7 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import { RaceSim } from "../src/race-sim.js";
 import { processDraw } from "../src/draw-pipeline.js";
-import { extractSnapshotFrames, type ReplayRecording } from "../src/replay-driver.js";
+import { type ReplayRecording } from "../src/replay-driver.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

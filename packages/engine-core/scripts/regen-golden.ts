@@ -222,7 +222,6 @@ const CIRC_8 = makeCircle(0.4, 8);
 const CIRC_32 = makeCircle(0.4, 32);
 const TRI = makeRegularPolygon(3, 0.4);
 const HEX = makeRegularPolygon(6, 0.4);
-const SQUA = makeRegularPolygon(4, 0.4);
 const OVAL = makeEllipse(0.5, 0.3, 24);  // oval-slim
 const STAR = makeStar(5, 0.15, 0.45);     // star-5-sharp
 
