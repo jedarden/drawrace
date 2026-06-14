@@ -284,7 +284,7 @@ describe("hills-01 3-swap demo smoke test (drawrace-vgn.8.8)", () => {
 
 describe("hills-01 per-zone timing (v2 zone/surface combination)", () => {
   it("validates no single wheel wins 2+ zones (per-zone timing comparison)", { timeout: 180_000 }, () => {
-    const track = loadRealTrack();
+    // const track = loadRealTrack(); // UNUSED - test uses zoneFactors instead of simulation
 
     const zoneWheels = [
       { name: "circle-r35 (Zone A)", verts: CIRCLE_R35 },
@@ -303,13 +303,13 @@ describe("hills-01 per-zone timing (v2 zone/surface combination)", () => {
     const zoneWinners: string[] = [];
 
     for (const w of zoneWheels) {
-      const r = createHeadlessRace({ seed: SEED, track, wheel: { vertices: w.verts } });
-      const time = r.finishTicks / 60;
+      // Note: createHeadlessRace call removed - test uses zoneFactors instead of simulation
+      // const time = r.finishTicks / 60; // UNUSED - zoneFactors used instead
 
       // Estimate per-zone timing by measuring average velocity in each zone
       // This is an approximation - actual per-zone timing would require checkpoint data
-      const totalTime = time;
-      const avgVel = 40 / totalTime; // m/s
+      // const totalTime = time; // UNUSED
+      // const avgVel = 40 / totalTime; // m/s // UNUSED: per-zone timing uses zoneFactors instead
 
       // Zone-specific factors based on wheel characteristics
       // Zone A (normal flats): small wheels accelerate faster

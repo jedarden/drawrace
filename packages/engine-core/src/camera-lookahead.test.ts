@@ -74,7 +74,7 @@ function calculateTotalPreviewMeters(
  * Calculate preview time in seconds at given velocity.
  */
 function calculatePreviewTimeSeconds(
-  velocityX: number,
+  _velocityX: number,
   screenWidth: number,
   ppm: number = 30
 ): number {
@@ -176,7 +176,7 @@ describe("camera look-ahead (drawrace-vgn.8.11)", () => {
       sim.enableMotor();
 
       let prevX = 0;
-      let maxVelocity = 0;
+      let _maxVelocity = 0;
       let minPreviewTime = Infinity;
 
       // Simulate the race and check preview time at each tick
@@ -186,7 +186,7 @@ describe("camera look-ahead (drawrace-vgn.8.11)", () => {
         const velocity = Math.abs(dx) * 60; // m/s
         prevX = snap.wheel.x;
 
-        if (velocity > maxVelocity) maxVelocity = velocity;
+        if (velocity > _maxVelocity) _maxVelocity = velocity;
 
         // Calculate preview time at current velocity
         if (velocity > 0.5) { // Only check when moving
@@ -221,7 +221,7 @@ describe("camera look-ahead (drawrace-vgn.8.11)", () => {
       sim.enableMotor();
 
       let prevX = 0;
-      let maxVelocity = 0;
+      let _maxVelocity = 0;
       let minPreviewTime = Infinity;
 
       // Simulate the race
@@ -231,7 +231,7 @@ describe("camera look-ahead (drawrace-vgn.8.11)", () => {
         const velocity = Math.abs(dx) * 60; // m/s
         prevX = snap.wheel.x;
 
-        if (velocity > maxVelocity) maxVelocity = velocity;
+        if (velocity > _maxVelocity) _maxVelocity = velocity;
 
         // Calculate preview time at current velocity
         if (velocity > 0.5) {

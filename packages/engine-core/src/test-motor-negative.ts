@@ -4,14 +4,14 @@
  */
 
 // Triangular wheel (should grip)
-// const _wheelTri: Array<{ x: number; y: number }> = [
+// const __wheelTri: Array<{ x: number; y: number }> = [
 //   { x: 0.8, y: 0 },
 //   { x: -0.4, y: 0.693 },
 //   { x: -0.4, y: -0.693 },
 // ];
 
 // Flat track
-// const _flatTrack = {
+// const __flatTrack = {
 //   id: "motor-negative-test",
 //   world: { gravity: [0, 10] as [number, number], pixelsPerMeter: 80 },
 //   terrain: [

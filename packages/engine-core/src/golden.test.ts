@@ -8,8 +8,6 @@ import {
   Edge,
   Box,
   WheelJoint,
-
-
 } from "planck";
 import {
   createHeadlessRace,
