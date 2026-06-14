@@ -132,10 +132,10 @@ function captureWheelPositionAtTick(
   const [gx, gy] = track.world.gravity;
   const world = new World({ x: gx, y: gy });
 
-  const ground = world.createBody();
+  const _ground = world.createBody();
   const terrain = track.terrain;
   for (let i = 0; i < terrain.length - 1; i++) {
-    ground.createFixture(
+    _ground.createFixture(
       Edge(
         Vec2(terrain[i][0], terrain[i][1]),
         Vec2(terrain[i + 1][0], terrain[i + 1][1]),

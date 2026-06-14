@@ -43,9 +43,9 @@ describe("wheel grip regression (bf-5fz89)", () => {
     const world = new World(Vec2(0, 10));
 
     // --- terrain ---
-    const ground = world.createBody();
+    const _ground = world.createBody();
     for (let i = 0; i < TEST_TERRAIN.length - 1; i++) {
-      ground.createFixture(
+      _ground.createFixture(
         Edge(Vec2(TEST_TERRAIN[i][0], TEST_TERRAIN[i][1]), Vec2(TEST_TERRAIN[i + 1][0], TEST_TERRAIN[i + 1][1])),
         { friction: 0.9, restitution: 0.0 },
       );
@@ -145,9 +145,9 @@ describe("wheel grip regression (bf-5fz89)", () => {
     const world = new World(Vec2(0, 10));
 
     // --- terrain ---
-    const ground = world.createBody();
+    const _ground = world.createBody();
     for (let i = 0; i < TEST_TERRAIN.length - 1; i++) {
-      ground.createFixture(
+      _ground.createFixture(
         Edge(Vec2(TEST_TERRAIN[i][0], TEST_TERRAIN[i][1]), Vec2(TEST_TERRAIN[i + 1][0], TEST_TERRAIN[i + 1][1])),
         { friction: 0.9, restitution: 0.0 },
       );
