@@ -704,8 +704,6 @@ function writeGoldenMetrics() {
 
   // Only write in CI environment
   if (process.env.CI) {
-    const { writeFileSync } = require("fs");
-    const { join } = require("path");
     const outputPath = join(process.cwd(), "golden-results.json");
     writeFileSync(outputPath, JSON.stringify(metricsOutput, null, 2));
     console.error(`Golden metrics written to ${outputPath}`);

@@ -4,7 +4,6 @@
  */
 
 import { World, Vec2, Edge, Polygon, Box, WheelJoint } from "planck";
-import { sfc32 } from "./prng.js";
 
 const DT = 1 / 60;
 const VELOCITY_ITERATIONS = 8;

@@ -1,4 +1,4 @@
-import { World, Vec2, Edge, Polygon, Circle, Box, WheelJoint, RevoluteJoint } from "planck";
+import { World, Vec2, Edge, Box, WheelJoint, Circle } from "planck";
 import { PHYSICS_VERSION } from "./version.js";
 import { sfc32, hashSeed } from "./prng.js";
 import { InjectedClock } from "./clock.js";
@@ -51,10 +51,6 @@ const VELOCITY_ITERATIONS = 8;
 const POSITION_ITERATIONS = 3;
 const MAX_TICKS = 60 * 180; // 3 minute DNF
 const CHASSIS_DENSITY = 1.0;
-const WHEEL_DENSITY = 1.0;
-const WHEEL_FRICTION = 2.5;  // Increased from 0.8 for better terrain grip (bf-5fz89)
-const WHEEL_RESTITUTION = 0.3;
-const REAR_WHEEL_RADIUS = 0.35;
 const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain

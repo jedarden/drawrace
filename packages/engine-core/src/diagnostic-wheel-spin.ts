@@ -9,7 +9,7 @@
  */
 
 import { RaceSim } from "./race-sim.js";
-import { World, Vec2, Edge, Polygon, Box, WheelJoint, type Joint } from "planck";
+import { World, Vec2, Edge, Polygon, Box, WheelJoint } from "planck";
 
 // Simple 12-gon wheel (smooth polygon that might not grip terrain edges)
 const wheel12Gon: Array<{ x: number; y: number }> = [];
@@ -166,8 +166,6 @@ console.log("=".repeat(120));
 console.log("\nTesting: If MOTOR_SPEED=-8, triangular wheels should move BACKWARD");
 console.log("This confirms MOTOR_SPEED=8 is the correct sign for forward motion.\n");
 
-import { World, Vec2, Edge, Box, WheelJoint, type Joint } from "planck";
-
 const NEG_MOTOR_SPEED = -8;
 const NEG_MOTOR_MAX_TORQUE = 40;
 const NEG_DT = 1 / 60;
@@ -243,7 +241,7 @@ function runNegativeMotorTest(
   });
 
   // Joints with MOTOR_SPEED=-8
-  const wheelJoint = world.createJoint(
+  world.createJoint(
     WheelJoint({
       bodyA: chassisBody,
       bodyB: wheelBody,
@@ -258,7 +256,7 @@ function runNegativeMotorTest(
     }),
   )!;
 
-  const rearWheelJoint = world.createJoint(
+  world.createJoint(
     WheelJoint({
       bodyA: chassisBody,
       bodyB: rearWheelBody,

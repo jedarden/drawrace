@@ -11,7 +11,7 @@
  * the terrain and maintain angular velocity > 0.5 rad/s during motion.
  */
 import { describe, it, expect } from "vitest";
-import { World, Vec2, Edge, Box, WheelJoint, Circle } from "planck";
+import { World, Vec2, Edge, Box, WheelJoint } from "planck";
 import { buildWheelBody } from "./swap.js";
 
 // Test track with mild incline (similar to hills-01 terrain)
@@ -37,8 +37,6 @@ const SUSPENSION_FREQ_HZ = 2.5;  // Updated from 4.0 (softer for better grip)
 const SUSPENSION_DAMPING_RATIO = 0.7;
 const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
-const WHEEL_FRICTION = 2.5;  // Updated from 0.8 (higher for better grip)
-const WHEEL_RESTITUTION = 0.3;
 
 describe("wheel grip regression (bf-5fz89)", () => {
   it("front wheel angular velocity > 0.5 rad/s at tick 60 on mild incline", () => {

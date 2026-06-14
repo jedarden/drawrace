@@ -8,7 +8,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { createHeadlessRace, type TrackDef } from "./headless-race.js";
-import { runHeadless, type WheelSwap } from "./headless.js";
+import { runHeadless } from "./headless.js";
 import { validateZones } from "./surface.js";
 
 const TRACK_PATH = join(

@@ -5,7 +5,7 @@
  * Previous commit claims +8 drives forward, but diagnostic shows backward motion.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it } from "vitest";
 import { RaceSim } from "./race-sim.js";
 
 // Simple 12-gon wheel (what users typically draw)

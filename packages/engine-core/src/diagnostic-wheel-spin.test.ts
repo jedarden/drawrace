@@ -114,7 +114,7 @@ function runDiagnostic(
   const startX = track.start.pos[0];
 
   for (let i = 0; i < 30; i++) {
-    const snap = sim.step();
+    sim.step();
     const diag = sim.getDiagnosticData();
     ticks.push({
       tick: i,
@@ -153,7 +153,7 @@ function runDiagnostic(
 }
 
 describe("wheel spin diagnostic", () => {
-  it("12-gon wheel on flat ground - wheels spin but chassis slips backward (grip issue)", (t) => {
+  it("12-gon wheel on flat ground - wheels spin but chassis slips backward (grip issue)", () => {
     const result = runDiagnostic(flatTrack, wheel12Gon, "12-gon", "flat");
 
     console.log("\n=== 12-gon wheel on flat ground ===");
@@ -187,7 +187,7 @@ describe("wheel spin diagnostic", () => {
     );
   });
 
-  it("triangular wheel on flat ground - should move due to better grip", (t) => {
+  it("triangular wheel on flat ground - should move due to better grip", () => {
     const result = runDiagnostic(flatTrack, wheelTri, "triangle", "flat");
 
     console.log("\n=== Triangular wheel on flat ground ===");
@@ -210,7 +210,7 @@ describe("wheel spin diagnostic", () => {
     assert.ok(result.summary.chassisMovedForward, "Triangle wheel should move forward");
   });
 
-  it("hexagonal wheel on flat ground - intermediate between 12-gon and triangle", (t) => {
+  it("hexagonal wheel on flat ground - intermediate between 12-gon and triangle", () => {
     const result = runDiagnostic(flatTrack, wheelHex, "hexagon", "flat");
 
     console.log("\n=== Hexagonal wheel on flat ground ===");
@@ -237,7 +237,7 @@ describe("wheel spin diagnostic", () => {
     );
   });
 
-  it("12-gon wheel at cliff edge - diagnostic for stuck behavior", (t) => {
+  it("12-gon wheel at cliff edge - diagnostic for stuck behavior", () => {
     const result = runDiagnostic(cliffTrack, wheel12Gon, "12-gon", "cliff");
 
     console.log("\n=== 12-gon wheel at cliff edge ===");
@@ -266,7 +266,7 @@ describe("wheel spin diagnostic", () => {
     }
   });
 
-  it("triangular wheel at cliff edge - compare grip to 12-gon", (t) => {
+  it("triangular wheel at cliff edge - compare grip to 12-gon", () => {
     const result = runDiagnostic(cliffTrack, wheelTri, "triangle", "cliff");
 
     console.log("\n=== Triangular wheel at cliff edge ===");
@@ -285,7 +285,7 @@ describe("wheel spin diagnostic", () => {
     console.log(`  Chassis moved: ${result.summary.chassisDeltaX.toFixed(2)} units`);
   });
 
-  it("comparison: 12-gon vs triangle vs hexagon on flat ground", (t) => {
+  it("comparison: 12-gon vs triangle vs hexagon on flat ground", () => {
     const r12 = runDiagnostic(flatTrack, wheel12Gon, "12-gon", "flat");
     const rTri = runDiagnostic(flatTrack, wheelTri, "triangle", "flat");
     const rHex = runDiagnostic(flatTrack, wheelHex, "hexagon", "flat");
