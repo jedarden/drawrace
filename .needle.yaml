@@ -1,0 +1,102 @@
+# NEEDLE workspace configuration
+# Workspace: /home/coding/drawrace
+
+agent:
+  default: claude-code-glm-4.7
+  timeout: 900
+
+strands:
+  pluck:
+    enabled: true
+    exclude_labels:
+      - deferred
+      - human
+      - blocked
+  weave:
+    enabled: true
+    max_beads_per_run: 3
+    cooldown_hours: 24
+    doc_patterns:
+      - "README*"
+      - "docs/**/*"
+      - "PROGRESS.md"
+      - "notes/**/*"
+  unravel:
+    enabled: true
+    max_beads_per_run: 3
+    cooldown_hours: 168
+  pulse:
+    enabled: true
+    cooldown_hours: 48
+    severity_threshold: 3
+    scanners:
+      - name: lint
+        command: "cd /home/coding/drawrace && pnpm lint 2>&1"
+      - name: test
+        command: "cd /home/coding/drawrace && pnpm test 2>&1"
+      - name: contract
+        command: "cd /home/coding/drawrace && cargo test -p drawrace-validator 2>&1"
+
+verification:
+  - /home/coding/.needle/hooks/verify-changes.sh
+
+prompt:
+  context_files:
+    - docs/plan/plan.md
+    - PROGRESS.md
+  instructions: |
+    You are working on DrawRace, a mobile-first wheel-drawing racing PWA.
+    Players draw a wheel shape, then race it across a hand-crafted physics track against ghost opponents.
+
+    IMPORTANT: You must ONLY work within /home/coding/drawrace/. Do not read, write, or
+    explore files outside this directory.
+
+    Architecture:
+    - Monorepo with pnpm workspaces (packageManager: pnpm@10.33.1)
+    - apps/web — React + Vite frontend (TypeScript), deployed to Cloudflare Pages
+    - packages/engine-core — Deterministic physics engine (Planck.js, seeded PRNG, fixed 1/60s timestep)
+    - crates/api — Axum HTTP server (Rust): submissions, leaderboard, ghosts, matchmake, names, health
+    - crates/validator — Redis queue worker (Rust): structural ghost validation
+    - crates/live — Live race coordination
+    - Postgres for persistence, Garage S3 for ghost blob storage
+
+    Rules:
+    - Read docs/plan/plan.md for full architecture before starting any bead
+    - Check PROGRESS.md for what's already implemented (all phases 0–5 complete)
+    - Run `pnpm test` before closing a bead (unit tests must pass)
+    - Run `pnpm lint` before closing a bead
+    - Run `cargo test -p drawrace-validator` for any Rust changes
+    - Never use `Math.random()` in engine code — a lint rule enforces this
+    - Follow existing patterns in packages/engine-core/src/ and apps/web/src/
+    - Write table-driven / golden-file tests alongside implementation
+    - Proxy for API calls: https://traefik-apexalgo-iad.tail1b1987.ts.net:8444
+  templates:
+    pluck: |
+      ## Workflow
+
+      You are a coding agent. Complete the task below, then close the bead.
+
+      Steps:
+      1. Read the task description and context below
+      2. Implement the required changes in {workspace_path}
+      3. Commit your work: `git commit -am "brief description of what was done"`
+      4. Push: `git push`
+      5. Close the bead: `br close {bead_id} --body "brief summary of what was implemented"`
+
+      If you cannot complete the task — do NOT close the bead. It will be retried automatically.
+
+      ---
+
+      ## Task: {bead_title}
+
+      {bead_body}
+
+      ## Rules
+
+      {workspace_instructions}
+
+      ## Context
+
+      {context_file_contents}
+
+      Bead ID: {bead_id}
