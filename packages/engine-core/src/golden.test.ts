@@ -125,7 +125,7 @@ function loadSwapGoldens(): SwapGoldenFile {
 
 function captureWheelPositionAtTick(
   wheels: WheelSwap[],
-  seed: number,
+  _seed: number,
   stopTick: number,
 ): { x: number; y: number } {
   const track = TEST_TRACK;

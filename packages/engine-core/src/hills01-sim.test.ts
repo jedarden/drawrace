@@ -56,14 +56,14 @@ for (let i = 0; i < 22; i++) {
 
 // Jack-of-all-trades wheels (should be mediocre everywhere)
 const CIRCLE_R50: [number, number][] = [];
-for (let i = 0; i < 24; i++) {
-  const angle = (i / 24) * Math.PI * 2;
+for (let _i = 0; _i < 24; _i++) {
+  const angle = (_i / 24) * Math.PI * 2;
   CIRCLE_R50.push([0.5 * Math.cos(angle), 0.5 * Math.sin(angle)]);
 }
 
 const CIRCLE_R60: [number, number][] = [];
-for (let i = 0; i < 28; i++) {
-  const angle = (i / 28) * Math.PI * 2;
+for (let _i = 0; _i < 28; _i++) {
+  const angle = (_i / 28) * Math.PI * 2;
   CIRCLE_R60.push([0.6 * Math.cos(angle), 0.6 * Math.sin(angle)]);
 }
 
@@ -156,7 +156,7 @@ describe("hills-01 zone-surface calibration", () => {
     // Skip early swaps that cause DNF (negative offsets cause failures)
     for (const offset of [0, 60, 120, 180]) {
       const baseTicks = [480, 1080, 1680];
-      const ticks = baseTicks.map(t => Math.max(1, t + offset));
+      const ticks = baseTicks.map((t) => Math.max(1, t + offset));
 
       const result = runHeadless({
         seed: SEED,
@@ -318,7 +318,7 @@ describe("hills-01 per-zone timing (v2 zone/surface combination)", () => {
       };
 
       const factors = zoneFactors[w.name];
-      const zoneTimes = zoneBoundaries.map((_, i) => {
+      const zoneTimes = zoneBoundaries.map((_end, i) => {
         if (i === 0) return (zoneBoundaries[i] * factors[i]) / avgVel;
         return ((zoneBoundaries[i] - zoneBoundaries[i-1]) * factors[i]) / avgVel;
       });
