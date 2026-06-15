@@ -10,8 +10,7 @@
  * to determine if wheels are spinning and if that spin translates to forward motion.
  */
 
-import { describe, it } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import { RaceSim } from "./race-sim.js";
 
 // Test wheel shapes
@@ -176,15 +175,15 @@ describe("wheel spin diagnostic", () => {
     console.log(`  Chassis moving forward: ${result.summary.chassisMovedForward}`);
 
     // Investigation finding: 12-gon wheels spin but slip backward due to poor grip
-    assert.ok(
+    expect(
       result.summary.wheelsSpinning,
       "Wheels should be spinning (angular velocity > 0.1 rad/s)"
-    );
+    ).toBe(true);
     // 12-gon wheels DON'T move forward - they slip backward
-    assert.ok(
-      !result.summary.chassisMovedForward,
+    expect(
+      result.summary.chassisMovedForward,
       "12-gon wheels slip backward (chassisMovedForward should be false) - this is expected grip failure"
-    );
+    ).toBe(false);
   });
 
   it("triangular wheel on flat ground - should move due to better grip", () => {
@@ -207,7 +206,7 @@ describe("wheel spin diagnostic", () => {
     console.log(`  Avg front wheel ω: ${result.summary.avgFrontWheelAngVel.toFixed(2)} rad/s`);
     console.log(`  Max front wheel ω: ${result.summary.maxFrontWheelAngVel.toFixed(2)} rad/s`);
 
-    assert.ok(result.summary.chassisMovedForward, "Triangle wheel should move forward");
+    expect(result.summary.chassisMovedForward).toBe(true);
   });
 
   it("hexagonal wheel on flat ground - intermediate between 12-gon and triangle", () => {
@@ -231,10 +230,7 @@ describe("wheel spin diagnostic", () => {
     console.log(`  Max front wheel ω: ${result.summary.maxFrontWheelAngVel.toFixed(2)} rad/s`);
 
     // Investigation finding: hexagon wheels also slip backward (though less than 12-gon)
-    assert.ok(
-      !result.summary.chassisMovedForward,
-      "Hexagon wheels slip backward - insufficient grip despite more edges than triangle"
-    );
+    expect(result.summary.chassisMovedForward).toBe(false);
   });
 
   it("12-gon wheel at cliff edge - diagnostic for stuck behavior", () => {
@@ -311,8 +307,8 @@ describe("wheel spin diagnostic", () => {
 
     // Investigation findings: wheel shape determines grip
     // 12-gon and hexagon wheels slip backward due to poor grip
-    assert.ok(!r12.summary.chassisMovedForward, "12-gon slips backward on flat ground - poor grip");
-    assert.ok(rTri.summary.chassisMovedForward, "Triangle should move on flat ground - good grip");
-    assert.ok(!rHex.summary.chassisMovedForward, "Hexagon slips backward on flat ground - insufficient grip");
+    expect(r12.summary.chassisMovedForward).toBe(false);
+    expect(rTri.summary.chassisMovedForward).toBe(true);
+    expect(rHex.summary.chassisMovedForward).toBe(false);
   });
 });
