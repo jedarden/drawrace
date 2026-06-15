@@ -174,7 +174,7 @@ export function validateZones(
 export function createSurfaceContactFilter(
   groundBody: Body,
   surfaces: SurfaceSegment[],
-): (contact: Contact) => void {
+): (_contact: Contact) => void {
   return (contact: Contact) => {
     const fA = contact.getFixtureA();
     const fB = contact.getFixtureB();

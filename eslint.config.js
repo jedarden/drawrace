@@ -10,6 +10,13 @@ export default tseslint.config(
   {
     files: ["packages/engine-core/src/**/*.ts"],
     rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
       "no-restricted-syntax": [
         "error",
         {
