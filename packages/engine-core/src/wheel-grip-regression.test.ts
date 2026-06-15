@@ -117,7 +117,7 @@ describe("wheel grip regression (bf-5fz89)", () => {
     );
 
     // --- simulate 60 ticks ---
-    for (let tick = 0; tick < 60; tick++) {
+    for (let _tick = 0; _tick < 60; _tick++) {
       world.step(DT, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
     }
 
@@ -187,7 +187,7 @@ describe("wheel grip regression (bf-5fz89)", () => {
     }));
 
     // --- simulate 60 ticks ---
-    for (let tick = 0; tick < 60; tick++) {
+    for (let _tick = 0; _tick < 60; _tick++) {
       world.step(DT, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
     }
 

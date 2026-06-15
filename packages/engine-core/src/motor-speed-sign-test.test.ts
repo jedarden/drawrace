@@ -41,7 +41,7 @@ describe("MOTOR_SPEED sign verification", () => {
 
     // Run for 60 ticks (1 second)
     let finalX = flatTrack.start.pos[0];
-    for (let i = 0; i < 60; i++) {
+    for (let _i = 0; _i < 60; _i++) {
       const snap = sim.step();
       finalX = snap.chassis.x;
     }

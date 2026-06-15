@@ -10,7 +10,7 @@ describe("StuckDetector", () => {
     // Each rotation: ω = 2π rad/s → rotationIncrement = (2π + 2π) * (1/60) / (2π * 2) = 1/60
     // 10 rotations = 600 ticks
     const angVel = 2 * Math.PI; // 1 rotation per second per wheel
-    for (let i = 0; i < 600; i++) {
+    for (let _i = 0; _i < 600; _i++) {
       const result = detector.tick(angVel, angVel, 0.1); // 0.1m progress
       if (result === "stuck") {
         expect(result).toBe("stuck");
@@ -32,7 +32,7 @@ describe("StuckDetector", () => {
 
     // Simulate 10 rotations with 0.6m progress
     // Progress threshold is 0.5m, so at 0.6m the counter should reset
-    for (let i = 0; i < 600; i++) {
+    for (let _i = 0; _i < 600; _i++) {
       const result = detector.tick(angVel, angVel, 0.6);
       if (result === "stuck") {
         stuckTriggered = true;
@@ -55,7 +55,7 @@ describe("StuckDetector", () => {
     const angVel = 2 * Math.PI; // 1 rotation per second per wheel
 
     // Accumulate 5 rotations (300 ticks)
-    for (let i = 0; i < 300; i++) {
+    for (let _i = 0; _i < 300; _i++) {
       detector.tick(angVel, angVel, 0);
     }
     const rotationsBeforeSwap = detector.getRotations();

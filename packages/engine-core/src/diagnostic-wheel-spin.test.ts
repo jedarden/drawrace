@@ -112,11 +112,11 @@ function runDiagnostic(
   const ticks: DiagnosticTick[] = [];
   const startX = track.start.pos[0];
 
-  for (let i = 0; i < 30; i++) {
+  for (let _i = 0; _i < 30; _i++) {
     sim.step();
     const diag = sim.getDiagnosticData();
     ticks.push({
-      tick: i,
+      tick: _i,
       frontWheelAngVel: diag.frontWheelAngVel,
       rearWheelAngVel: diag.rearWheelAngVel,
       chassisVelX: diag.chassisVelX,
