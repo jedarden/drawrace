@@ -141,40 +141,40 @@ describe("dunes-03 zone-surface calibration", () => {
 
   // Zone A optimal: small near-circle for quick acceleration on normal flats
   const CIRCLE_R35: [number, number][] = [];
-  for (let i = 0; i < 18; i++) {
-    const angle = (i / 18) * Math.PI * 2;
+  for (let _i = 0; _i < 18; _i++) {
+    const angle = (_i / 18) * Math.PI * 2;
     CIRCLE_R35.push([0.35 * Math.cos(angle), 0.35 * Math.sin(angle)]);
   }
 
   // Zone B optimal: small wheel for water (drag = 3.0, compact favored)
   const CIRCLE_R25: [number, number][] = [];
-  for (let i = 0; i < 12; i++) {
-    const angle = (i / 12) * Math.PI * 2;
+  for (let _i = 0; _i < 12; _i++) {
+    const angle = (_i / 12) * Math.PI * 2;
     CIRCLE_R25.push([0.25 * Math.cos(angle), 0.25 * Math.sin(angle)]);
   }
 
   // Zone C optimal: gear teeth for rock grip on steep climb
   const GEAR_20: [number, number][] = [];
-  for (let i = 0; i < 20; i++) {
-    const baseAngle = (i / 20) * Math.PI * 2;
-    for (let j = 0; j < 3; j++) {
-      const toothAngle = baseAngle + (j / 3) * (Math.PI * 2 / 20);
-      const radius = (j === 1) ? 0.42 : 0.28;
+  for (let _i = 0; _i < 20; _i++) {
+    const baseAngle = (_i / 20) * Math.PI * 2;
+    for (let _j = 0; _j < 3; _j++) {
+      const toothAngle = baseAngle + (_j / 3) * (Math.PI * 2 / 20);
+      const radius = (_j === 1) ? 0.42 : 0.28;
       GEAR_20.push([radius * Math.cos(toothAngle), radius * Math.sin(toothAngle)]);
     }
   }
 
   // Zone D optimal: gear teeth for ice grip (slippery)
   const CIRCLE_R50: [number, number][] = [];
-  for (let i = 0; i < 24; i++) {
-    const angle = (i / 24) * Math.PI * 2;
+  for (let _i = 0; _i < 24; _i++) {
+    const angle = (_i / 24) * Math.PI * 2;
     CIRCLE_R50.push([0.5 * Math.cos(angle), 0.5 * Math.sin(angle)]);
   }
 
   // Zone E optimal: large wheel for snow (drag = 1.5, large favored)
   const CIRCLE_R70: [number, number][] = [];
-  for (let i = 0; i < 32; i++) {
-    const angle = (i / 32) * Math.PI * 2;
+  for (let _i = 0; _i < 32; _i++) {
+    const angle = (_i / 32) * Math.PI * 2;
     CIRCLE_R70.push([0.7 * Math.cos(angle), 0.7 * Math.sin(angle)]);
   }
 

@@ -15,8 +15,8 @@ import { RaceSim } from "./race-sim.js";
 
 // Test wheel shapes
 const wheel12Gon: Array<{ x: number; y: number }> = [];
-for (let i = 0; i < 12; i++) {
-  const angle = (i / 12) * Math.PI * 2;
+for (let _i = 0; _i < 12; _i++) {
+  const angle = (_i / 12) * Math.PI * 2;
   wheel12Gon.push({
     x: Math.cos(angle) * 0.8,
     y: Math.sin(angle) * 0.8,
@@ -30,8 +30,8 @@ const wheelTri: Array<{ x: number; y: number }> = [
 ];
 
 const wheelHex: Array<{ x: number; y: number }> = [];
-for (let i = 0; i < 6; i++) {
-  const angle = (i / 6) * Math.PI * 2;
+for (let _i = 0; _i < 6; _i++) {
+  const angle = (_i / 6) * Math.PI * 2;
   wheelHex.push({
     x: Math.cos(angle) * 0.8,
     y: Math.sin(angle) * 0.8,

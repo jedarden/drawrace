@@ -13,8 +13,8 @@ import { World, Vec2, Edge, Polygon, Box, WheelJoint } from "planck";
 
 // Simple 12-gon wheel (smooth polygon that might not grip terrain edges)
 const wheel12Gon: Array<{ x: number; y: number }> = [];
-for (let i = 0; i < 12; i++) {
-  const angle = (i / 12) * Math.PI * 2;
+for (let _i = 0; _i < 12; _i++) {
+  const angle = (_i / 12) * Math.PI * 2;
   wheel12Gon.push({
     x: Math.cos(angle) * 0.8,
     y: Math.sin(angle) * 0.8,

@@ -30,7 +30,7 @@ it("circle at MAX_R completes hills-01 without DNF", { timeout: 30000 }, () => {
   const sim = new RaceSim(track, makeCircle(MAX_R, 12), 42);
   sim.enableMotor();
   let snap = sim.snapshot();
-  for (let i = 0; i < 10800; i++) {
+  for (let _i = 0; _i < 10800; _i++) {
     snap = sim.step();
     if (snap.finished) break;
   }
@@ -45,7 +45,7 @@ it("circle at MIN_R completes hills-01 without DNF", { timeout: 30000 }, () => {
   const sim = new RaceSim(track, makeCircle(MIN_R, 8), 42);
   sim.enableMotor();
   let snap = sim.snapshot();
-  for (let i = 0; i < 10800; i++) {
+  for (let _i = 0; _i < 10800; _i++) {
     snap = sim.step();
     if (snap.finished) break;
   }
