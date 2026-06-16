@@ -133,8 +133,8 @@ describe("camera look-ahead (drawrace-vgn.8.11)", () => {
 
       // For each zone boundary (except the start), verify that a car
       // traveling at typical speeds would see the boundary at least 4s early
-      for (let i = 1; i < zones.length; i++) {
-        const boundaryX = zones[i].x_start;
+      for (let _i = 1; _i < zones.length; _i++) {
+        const boundaryX = zones[_i].x_start;
 
         // At 5 m/s (typical speed on normal terrain)
         const velocity5 = 5;

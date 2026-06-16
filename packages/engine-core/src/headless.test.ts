@@ -106,7 +106,7 @@ describe("executeWheelSwap", () => {
     const { world, wheelBody, chassisBody, wheelJoint } = setupMinimalWorld();
 
     // Warm up with 30 steps so the wheel is actually moving
-    for (let i = 0; i < 30; i++) world.step(1 / 60, 8, 3);
+    for (let _i = 0; _i < 30; _i++) world.step(1 / 60, 8, 3);
 
     const preX = wheelBody.getPosition().x;
     const preY = wheelBody.getPosition().y;
@@ -123,7 +123,7 @@ describe("executeWheelSwap", () => {
   it("velocity handoff: new wheel linear velocity equals chassis linear velocity", () => {
     const { world, wheelBody, chassisBody, wheelJoint } = setupMinimalWorld();
 
-    for (let i = 0; i < 30; i++) world.step(1 / 60, 8, 3);
+    for (let _i = 0; _i < 30; _i++) world.step(1 / 60, 8, 3);
 
     const cvx = chassisBody.getLinearVelocity().x;
     const cvy = chassisBody.getLinearVelocity().y;
@@ -139,7 +139,7 @@ describe("executeWheelSwap", () => {
 
   it("new wheel angular velocity is zero after swap", () => {
     const { world, wheelBody, chassisBody, wheelJoint } = setupMinimalWorld();
-    for (let i = 0; i < 30; i++) world.step(1 / 60, 8, 3);
+    for (let _i = 0; _i < 30; _i++) world.step(1 / 60, 8, 3);
 
     const swapLog: WheelSwap[] = [];
     const { newWheelBody } = executeWheelSwap(
@@ -151,7 +151,7 @@ describe("executeWheelSwap", () => {
 
   it("appends to swapLog with correct tick and polygon", () => {
     const { world, wheelBody, chassisBody, wheelJoint } = setupMinimalWorld();
-    for (let i = 0; i < 10; i++) world.step(1 / 60, 8, 3);
+    for (let _i = 0; _i < 10; _i++) world.step(1 / 60, 8, 3);
 
     const swapLog: WheelSwap[] = [];
     executeWheelSwap(world, chassisBody, wheelBody, wheelJoint, TRI, 10, swapLog);
