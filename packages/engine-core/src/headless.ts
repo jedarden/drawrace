@@ -9,7 +9,10 @@ import { StuckDetector } from "./stuck-detector.js";
 
 export type { WheelSwap };
 
-export type TickSampler = (_tick: number, _chassisBody: { getPosition: { (): { x: number; y: number } }, getLinearVelocity: { (): { x: number; y: number } } }) => void;
+export type TickSampler = (_tick: number, _chassisBody: {
+  getPosition: () => { x: number; y: number };
+  getLinearVelocity: () => { x: number; y: number };
+}) => void;
 
 export interface MultiWheelInput {
   /** wheels[0].swap_tick must be 0 (initial spawn); remaining entries are mid-race swaps */

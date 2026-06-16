@@ -576,7 +576,7 @@ describe("Physics golden (Layer 2) — swap scenarios (legacy swaps.json)", () =
     expect(entry).toBeDefined();
 
     const hashes: string[] = [];
-    for (let i = 0; i < 100; i++) {
+    for (let _i = 0; _i < 100; _i++) {
       hashes.push(
         runHeadless({ seed: entry.seed, track: TEST_TRACK, wheels: entry.wheels })
           .streamHash,
