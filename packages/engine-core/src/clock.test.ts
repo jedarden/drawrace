@@ -15,7 +15,7 @@ describe("InjectedClock", () => {
 
   it("accumulates advances", () => {
     const clock = new InjectedClock(0);
-    for (let i = 0; i < 60; i++) {
+    for (let _i = 0; _i < 60; _i++) {
       clock.advance(1000 / 60);
     }
     expect(clock.nowMs()).toBeCloseTo(1000, 0);

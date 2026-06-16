@@ -71,7 +71,7 @@ describe("StuckDetector", () => {
 
     // Accumulate another 10 rotations from the swap point
     let stuckTriggered = false;
-    for (let i = 0; i < 600; i++) {
+    for (let _i = 0; _i < 600; _i++) {
       const result = detector.tick(angVel, angVel, 5.0); // No progress from new baseline
       if (result === "stuck") {
         stuckTriggered = true;
@@ -91,14 +91,14 @@ describe("StuckDetector", () => {
     const angVel = 2 * Math.PI;
 
     // First 0.5m progress → reset
-    for (let i = 0; i < 300; i++) {
+    for (let _i = 0; _i < 300; _i++) {
       detector.tick(angVel, angVel, 0.5);
     }
     expect(detector.getBaselineX()).toBe(0.5);
     expect(detector.getRotations()).toBeLessThan(10);
 
     // Second 0.5m progress → another reset
-    for (let i = 0; i < 300; i++) {
+    for (let _i = 0; _i < 300; _i++) {
       detector.tick(angVel, angVel, 1.0);
     }
     expect(detector.getBaselineX()).toBe(1.0);
@@ -106,7 +106,7 @@ describe("StuckDetector", () => {
 
     // No more progress → should eventually stick
     let stuckTriggered = false;
-    for (let i = 0; i < 700; i++) {
+    for (let _i = 0; _i < 700; _i++) {
       const result = detector.tick(angVel, angVel, 1.0);
       if (result === "stuck") {
         stuckTriggered = true;
@@ -121,7 +121,7 @@ describe("StuckDetector", () => {
     detector.setBaseline(0);
 
     // Run with zero angular velocity for 1000 ticks
-    for (let i = 0; i < 1000; i++) {
+    for (let _i = 0; _i < 1000; _i++) {
       const result = detector.tick(0, 0, 0);
       expect(result).toBe("running");
     }
@@ -136,7 +136,7 @@ describe("StuckDetector", () => {
     const angVel = 2 * Math.PI;
 
     // Only 5 rotations (300 ticks) - below threshold
-    for (let i = 0; i < 300; i++) {
+    for (let _i = 0; _i < 300; _i++) {
       const result = detector.tick(angVel, angVel, 0);
       expect(result).toBe("running");
     }
@@ -153,7 +153,7 @@ describe("StuckDetector", () => {
 
     // 10 rotations with minimal progress from negative baseline
     let stuckTriggered = false;
-    for (let i = 0; i < 600; i++) {
+    for (let _i = 0; _i < 600; _i++) {
       const result = detector.tick(angVel, angVel, -4.9); // Only 0.1m progress
       if (result === "stuck") {
         stuckTriggered = true;
@@ -169,7 +169,7 @@ describe("StuckDetector", () => {
     detector.setBaseline(10.0);
 
     const angVel = 2 * Math.PI;
-    for (let i = 0; i < 300; i++) {
+    for (let _i = 0; _i < 300; _i++) {
       detector.tick(angVel, angVel, 10.0);
     }
 
@@ -202,7 +202,7 @@ describe("StuckDetector", () => {
     let stuckTriggered = false;
     for (let cycle = 0; cycle < 20; cycle++) {
       // Push forward to 0.5m (progress threshold would trigger reset in old code)
-      for (let i = 0; i < 30; i++) {
+      for (let _i = 0; _i < 30; _i++) {
         const result = detector.tick(angVel, angVel, 0.5);
         if (result === "stuck") {
           stuckTriggered = true;
@@ -212,7 +212,7 @@ describe("StuckDetector", () => {
       if (stuckTriggered) break;
 
       // Slide back to 0.3m
-      for (let i = 0; i < 30; i++) {
+      for (let _j = 0; _j < 30; _j++) {
         const result = detector.tick(angVel, angVel, 0.3);
         if (result === "stuck") {
           stuckTriggered = true;
@@ -235,7 +235,7 @@ describe("StuckDetector", () => {
     const angVel = 2 * Math.PI;
 
     // Accumulate 5 rotations at x=0.4m (below progress threshold)
-    for (let i = 0; i < 300; i++) {
+    for (let _i = 0; _i < 300; _i++) {
       detector.tick(angVel, angVel, 0.4);
     }
     const rotationsAt04 = detector.getRotations();
@@ -246,7 +246,7 @@ describe("StuckDetector", () => {
 
     // Now make progress to 0.9m (0.5m beyond baseline, exceeding threshold)
     // This should trigger reset
-    for (let i = 0; i < 30; i++) {
+    for (let _j = 0; _j < 30; _j++) {
       detector.tick(angVel, angVel, 0.9);
     }
 

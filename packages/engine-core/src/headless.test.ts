@@ -227,7 +227,7 @@ describe("runHeadless", () => {
     const input: MultiWheelInput = { seed: SEED, track: TEST_TRACK, wheels };
 
     const hashes: string[] = [];
-    for (let i = 0; i < 100; i++) {
+    for (let _i = 0; _i < 100; _i++) {
       hashes.push(runHeadless(input).streamHash);
     }
 
