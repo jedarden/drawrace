@@ -23,8 +23,8 @@ const TEST_TERRAIN = [
 
 // 12-gon wheel (smooth polygon - what users typically draw)
 const wheel12Gon: [number, number][] = [];
-for (let i = 0; i < 12; i++) {
-  const angle = (i / 12) * Math.PI * 2;
+for (let _i = 0; _i < 12; _i++) {
+  const angle = (_i / 12) * Math.PI * 2;
   wheel12Gon.push([0.35 * Math.cos(angle), 0.35 * Math.sin(angle)]);
 }
 
@@ -137,8 +137,8 @@ describe("wheel grip regression (bf-5fz89)", () => {
 
   it("6-gon wheel has better grip than 12-gon on same terrain", () => {
     const wheel6Gon: [number, number][] = [];
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2;
+    for (let _i = 0; _i < 6; _i++) {
+      const angle = (_i / 6) * Math.PI * 2;
       wheel6Gon.push([0.35 * Math.cos(angle), 0.35 * Math.sin(angle)]);
     }
 

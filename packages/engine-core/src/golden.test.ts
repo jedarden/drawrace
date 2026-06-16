@@ -220,9 +220,9 @@ function captureWheelPositionAtTick(
   let swapIdx = 0;
   const swapLog: WheelSwap[] = [{ swap_tick: 0, polygon: initialPoly }];
 
-  for (let tick = 0; tick < stopTick; tick++) {
+  for (let _tick = 0; _tick < stopTick; _tick++) {
     world.step(1 / 60, 8, 3);
-    const currentTick = tick + 1;
+    const currentTick = _tick + 1;
     while (
       swapIdx < pendingSwaps.length &&
       pendingSwaps[swapIdx].swap_tick === currentTick
@@ -270,8 +270,8 @@ describe("Physics golden (Layer 2) — single wheel", () => {
       results.push(result.streamHash);
     }
     const first = results[0];
-    for (let i = 1; i < results.length; i++) {
-      expect(results[i]).toBe(first);
+    for (let _i = 1; _i < results.length; _i++) {
+      expect(results[_i]).toBe(first);
     }
   });
 

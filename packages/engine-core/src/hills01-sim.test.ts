@@ -24,15 +24,15 @@ function loadRealTrack(): TrackDef {
 
 // Zone A optimal: small near-circle for quick acceleration on normal flats
 const CIRCLE_R35: [number, number][] = [];
-for (let i = 0; i < 18; i++) {
-  const angle = (i / 18) * Math.PI * 2;
+for (let _i = 0; _i < 18; _i++) {
+  const angle = (_i / 18) * Math.PI * 2;
   CIRCLE_R35.push([0.35 * Math.cos(angle), 0.35 * Math.sin(angle)]);
 }
 
 // Zone B optimal: aggressive gear with many sharp teeth for ice grip
 const GEAR_16: [number, number][] = [];
-for (let i = 0; i < 16; i++) {
-  const baseAngle = (i / 16) * Math.PI * 2;
+for (let _i = 0; _i < 16; _i++) {
+  const baseAngle = (_i / 16) * Math.PI * 2;
   for (let j = 0; j < 3; j++) {
     const toothAngle = baseAngle + (j / 3) * (Math.PI * 2 / 16);
     const radius = (j === 1) ? 0.38 : 0.25;
@@ -42,15 +42,15 @@ for (let i = 0; i < 16; i++) {
 
 // Zone C optimal: large circle for smooth over rocky terrain
 const CIRCLE_R65: [number, number][] = [];
-for (let i = 0; i < 30; i++) {
-  const angle = (i / 30) * Math.PI * 2;
+for (let _i = 0; _i < 30; _i++) {
+  const angle = (_i / 30) * Math.PI * 2;
   CIRCLE_R65.push([0.65 * Math.cos(angle), 0.65 * Math.sin(angle)]);
 }
 
 // Zone D optimal: medium circle for water/jump (balanced)
 const CIRCLE_R48: [number, number][] = [];
-for (let i = 0; i < 22; i++) {
-  const angle = (i / 22) * Math.PI * 2;
+for (let _i = 0; _i < 22; _i++) {
+  const angle = (_i / 22) * Math.PI * 2;
   CIRCLE_R48.push([0.48 * Math.cos(angle), 0.48 * Math.sin(angle)]);
 }
 
