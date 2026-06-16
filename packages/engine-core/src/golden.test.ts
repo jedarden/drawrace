@@ -261,7 +261,7 @@ describe("Physics golden (Layer 2) — single wheel", () => {
     expect(entry).toBeDefined();
 
     const results: string[] = [];
-    for (let i = 0; i < 100; i++) {
+    for (let _i = 0; _i < 100; _i++) {
       const result = createHeadlessRace({
         seed: entry.seed,
         track: TEST_TRACK,
@@ -513,7 +513,7 @@ describe("Physics golden (Layer 2) — swap scenarios (unified wheels.json)", ()
     for (const entry of multiEntries) {
       const hashes: string[] = [];
       // Run 10 iterations instead of 100 to avoid timeout
-      for (let i = 0; i < 10; i++) {
+      for (let _i = 0; _i < 10; _i++) {
         hashes.push(
           runHeadless({
             seed: entry.seed,
