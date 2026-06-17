@@ -55,9 +55,9 @@ const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
-const CHASSIS_ANGULAR_DAMPING = 0.5;  // Passive body-level damping (PD torques handle anti-flip)
-const CHASSIS_RIGHTING_STIFFNESS = 60;   // N·m/rad — spring pulling chassis toward upright
-const CHASSIS_RIGHTING_EXTRA_DAMPING = 15; // N·m·s/rad — extra angular damping applied as torque
+const CHASSIS_FLIP_THRESHOLD = Math.PI / 6; // 30° dead zone — allow natural chassis lean for grip
+const CHASSIS_RIGHTING_STIFFNESS = 500;  // N·m/rad above threshold — strong spring to resist flip
+const CHASSIS_RIGHTING_EXTRA_DAMPING = 0; // N·m·s/rad always-on damping
 
 export function createHeadlessRace(
   input: HeadlessRaceInput
@@ -164,7 +164,6 @@ export function createHeadlessRace(
   const chassisBody = world.createBody({
     position: Vec2(startX, chassisSpawnY),
     type: "dynamic",
-    angularDamping: CHASSIS_ANGULAR_DAMPING,
   });
   chassisBody.createFixture(Box(1.2, 0.4), {
     density: CHASSIS_DENSITY,
@@ -218,7 +217,10 @@ export function createHeadlessRace(
     applyDrag(chassisBody, surfaces);
     const _ra = chassisBody.getAngle();
     const _rv = chassisBody.getAngularVelocity();
-    chassisBody.applyTorque(-CHASSIS_RIGHTING_STIFFNESS * _ra - CHASSIS_RIGHTING_EXTRA_DAMPING * _rv);
+    const _excess = Math.abs(_ra) > CHASSIS_FLIP_THRESHOLD
+      ? _ra - Math.sign(_ra) * CHASSIS_FLIP_THRESHOLD
+      : 0;
+    chassisBody.applyTorque(-CHASSIS_RIGHTING_STIFFNESS * _excess - CHASSIS_RIGHTING_EXTRA_DAMPING * _rv);
     world.step(DT, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
     clock.advance(DT * 1000);
 

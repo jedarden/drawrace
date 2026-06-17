@@ -30,9 +30,9 @@ const MAX_TICKS = 60 * 180; // 3-minute DNF ceiling
 const CHASSIS_DENSITY = 1.0;
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
-const CHASSIS_ANGULAR_DAMPING = 0.5;  // Passive body-level damping (PD torques handle anti-flip)
-const CHASSIS_RIGHTING_STIFFNESS = 60;   // N·m/rad — spring pulling chassis toward upright
-const CHASSIS_RIGHTING_EXTRA_DAMPING = 15; // N·m·s/rad — extra angular damping applied as torque
+const CHASSIS_FLIP_THRESHOLD = Math.PI / 6; // 30° dead zone — allow natural chassis lean for grip
+const CHASSIS_RIGHTING_STIFFNESS = 500;  // N·m/rad above threshold — strong spring to resist flip
+const CHASSIS_RIGHTING_EXTRA_DAMPING = 0; // N·m·s/rad always-on damping
 const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 
@@ -137,7 +137,7 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
   let wheelBody = buildWheelBody(world, initialPoly, startX, wheelSpawnY);
 
   const chassisSpawnY = wheelSpawnY - 1.5;
-  const chassisBody = world.createBody({ position: Vec2(startX, chassisSpawnY), type: "dynamic", angularDamping: CHASSIS_ANGULAR_DAMPING });
+  const chassisBody = world.createBody({ position: Vec2(startX, chassisSpawnY), type: "dynamic" });
   chassisBody.createFixture(Box(1.2, 0.4), {
     density: CHASSIS_DENSITY,
     friction: 0.5,
@@ -191,7 +191,10 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
     applyDrag(chassisBody, surfaces);
     const _ra = chassisBody.getAngle();
     const _rv = chassisBody.getAngularVelocity();
-    chassisBody.applyTorque(-CHASSIS_RIGHTING_STIFFNESS * _ra - CHASSIS_RIGHTING_EXTRA_DAMPING * _rv);
+    const _excess = Math.abs(_ra) > CHASSIS_FLIP_THRESHOLD
+      ? _ra - Math.sign(_ra) * CHASSIS_FLIP_THRESHOLD
+      : 0;
+    chassisBody.applyTorque(-CHASSIS_RIGHTING_STIFFNESS * _excess - CHASSIS_RIGHTING_EXTRA_DAMPING * _rv);
     world.step(DT, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
     clock.advance(DT * 1000);
 

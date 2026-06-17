@@ -63,7 +63,6 @@ const MOTOR_MAX_TORQUE = 40;
 const MOTOR_HOLD_TORQUE = 5;  // Small torque to hold position during countdown (bf-31s6q)
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
-const CHASSIS_ANGULAR_DAMPING = 5;    // Passive body-level damping
 const CHASSIS_FLIP_THRESHOLD = Math.PI / 6; // 30° dead zone — allow natural chassis lean for grip
 const CHASSIS_RIGHTING_STIFFNESS = 500;  // N·m/rad above threshold — strong spring to resist flip
 const CHASSIS_RIGHTING_EXTRA_DAMPING = 0; // N·m·s/rad always-on damping
@@ -215,7 +214,6 @@ export class RaceSim {
     this.chassisBody = this.world.createBody({
       position: Vec2(startX, chassisSpawnY),
       type: "dynamic",
-      angularDamping: CHASSIS_ANGULAR_DAMPING,
     });
     this.chassisBody.createFixture(Box(1.2, 0.4), {
       density: chassisDensity, friction: chassisFriction, restitution: 0.1,
