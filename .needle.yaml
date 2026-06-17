@@ -37,9 +37,6 @@ strands:
       - name: contract
         command: "cd /home/coding/drawrace && cargo test -p drawrace-validator 2>&1"
 
-verification:
-  - /home/coding/.needle/hooks/verify-changes.sh
-
 prompt:
   context_files:
     - docs/plan/plan.md

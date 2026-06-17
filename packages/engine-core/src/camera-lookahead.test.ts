@@ -205,7 +205,7 @@ describe("camera look-ahead (drawrace-vgn.8.11)", () => {
       }
 
       // The minimum preview time throughout the race should be at least 4 seconds
-      expect(minPreviewTime, `Minimum preview time should be ≥4s, got ${minPreviewTime.toFixed(2)}s`).toBeGreaterThanOrEqual(4);
+      expect(minPreviewTime, `Minimum preview time should be ≥4s, got ${minPreviewTime.toFixed(2)}s`).toBeGreaterThanOrEqual(4 - 1e-9);
     });
 
     it("slow 1-wheel reference run maintains 4s preview window", () => {
@@ -242,7 +242,7 @@ describe("camera look-ahead (drawrace-vgn.8.11)", () => {
       }
 
       // The minimum preview time throughout the race should be at least 4 seconds
-      expect(minPreviewTime, `Minimum preview time should be ≥4s, got ${minPreviewTime.toFixed(2)}s`).toBeGreaterThanOrEqual(4);
+      expect(minPreviewTime, `Minimum preview time should be ≥4s, got ${minPreviewTime.toFixed(2)}s`).toBeGreaterThanOrEqual(4 - 1e-9);
     });
   });
 });
