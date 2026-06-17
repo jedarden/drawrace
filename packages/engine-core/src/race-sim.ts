@@ -63,7 +63,9 @@ const MOTOR_MAX_TORQUE = 40;
 const MOTOR_HOLD_TORQUE = 5;  // Small torque to hold position during countdown (bf-31s6q)
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
-const CHASSIS_ANGULAR_DAMPING = 5;  // Prevents chassis from flipping under high motor torque with irregular wheel shapes
+const CHASSIS_ANGULAR_DAMPING = 5;  // Passive body-level damping (base layer)
+const CHASSIS_RIGHTING_STIFFNESS = 60;   // N·m/rad — spring pulling chassis toward upright
+const CHASSIS_RIGHTING_EXTRA_DAMPING = 15; // N·m·s/rad — extra angular damping applied as torque
 
 export class RaceSim {
   private world: World;
@@ -330,6 +332,11 @@ export class RaceSim {
     }
 
     applyDrag(this.chassisBody, this.surfaces);
+    // PD righting torque: spring toward upright + extra angular damping
+    // Prevents chassis from flipping with high-impulse wheel shapes (rectangle, star)
+    const _ra = this.chassisBody.getAngle();
+    const _rv = this.chassisBody.getAngularVelocity();
+    this.chassisBody.applyTorque(-CHASSIS_RIGHTING_STIFFNESS * _ra - CHASSIS_RIGHTING_EXTRA_DAMPING * _rv);
     this.world.step(DT, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
     this.tick++;
     this.elapsedMs += DT * 1000;

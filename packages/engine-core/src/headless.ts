@@ -30,7 +30,9 @@ const MAX_TICKS = 60 * 180; // 3-minute DNF ceiling
 const CHASSIS_DENSITY = 1.0;
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
-const CHASSIS_ANGULAR_DAMPING = 5;  // Prevents chassis from flipping under high motor torque with irregular wheel shapes
+const CHASSIS_ANGULAR_DAMPING = 5;  // Passive body-level damping (base layer)
+const CHASSIS_RIGHTING_STIFFNESS = 60;   // N·m/rad — spring pulling chassis toward upright
+const CHASSIS_RIGHTING_EXTRA_DAMPING = 15; // N·m·s/rad — extra angular damping applied as torque
 const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 
@@ -187,6 +189,9 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
 
   for (ticks = 0; ticks < MAX_TICKS; ticks++) {
     applyDrag(chassisBody, surfaces);
+    const _ra = chassisBody.getAngle();
+    const _rv = chassisBody.getAngularVelocity();
+    chassisBody.applyTorque(-CHASSIS_RIGHTING_STIFFNESS * _ra - CHASSIS_RIGHTING_EXTRA_DAMPING * _rv);
     world.step(DT, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
     clock.advance(DT * 1000);
 
