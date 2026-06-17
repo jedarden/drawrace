@@ -63,7 +63,7 @@ const MOTOR_MAX_TORQUE = 40;
 const MOTOR_HOLD_TORQUE = 5;  // Small torque to hold position during countdown (bf-31s6q)
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
-const CHASSIS_ANGULAR_DAMPING = 5;  // Passive body-level damping (base layer)
+const CHASSIS_ANGULAR_DAMPING = 0.5;  // Passive body-level damping (PD torques handle anti-flip)
 const CHASSIS_RIGHTING_STIFFNESS = 60;   // N·m/rad — spring pulling chassis toward upright
 const CHASSIS_RIGHTING_EXTRA_DAMPING = 15; // N·m·s/rad — extra angular damping applied as torque
 
