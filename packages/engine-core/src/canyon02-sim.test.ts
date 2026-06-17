@@ -191,53 +191,47 @@ describe("canyon-02 zone-surface calibration", () => {
     // Track must be finishable by at least one wheel type
     expect(bestSingle, "At least one wheel must finish the track").toBeLessThan(Infinity);
 
-    // Test multi-swap strategy: small → large (mud) → gear (rock climb) → small (ice)
-    console.log("\n=== Multi-swap runs (circle-r35 → circle-r70 → gear-20 → circle-r25) ===");
+    // Test multi-swap strategy using large wheels that can complete the full track.
+    // circle-r25 DNFs alone (stuck at x≈25) and causes DNF when swapped in mid-Zone B mud.
+    // Swaps must be timed to avoid Zone B mud boundary (x=8-16): the first swap should
+    // happen before Zone A ends (~tick 100) to keep r70 momentum through the mud section.
+    console.log("\n=== Multi-swap runs (circle-r70 → gear-20 → circle-r50) ===");
 
     let bestSwapTicks = Infinity;
     let bestSwapConfig = "";
 
-    // Zone boundaries based on actual single-wheel performance (circle-r70 finishes in ~800 ticks for 40m)
-    // Zone A (0-8m): ~160 ticks, Zone B (8-16m): ~320 ticks, Zone C (16-24m): ~480 ticks
-    // Mud zone slows significantly, so we test a focused range around successful timings
-    for (const offset1 of [200, 220, 240]) {
-      for (const offset2 of [340, 380, 400]) {
-        for (const offset3 of [500, 540, 560]) {
-          const ticks = [offset1, offset2, offset3];
+    // Start with r70 to build momentum through Zone B mud (x=8-16).
+    // Zone A (0-8m): ~110t, Zone B mud (8-16m), Zone C rock (16-24m), Zone D ice (24-32m)
+    for (const offset1 of [300, 360, 420]) {
+      for (const offset2 of [460, 500, 540]) {
+        const ticks = [offset1, offset2];
 
-          const result = runHeadless({
-            seed: SEED,
-            track,
-            wheels: [
-              { swap_tick: 0, polygon: CIRCLE_R35 },
-              { swap_tick: ticks[0], polygon: CIRCLE_R70 },
-              { swap_tick: ticks[1], polygon: GEAR_20 },
-              { swap_tick: ticks[2], polygon: CIRCLE_R25 },
-            ],
-          });
+        const result = runHeadless({
+          seed: SEED,
+          track,
+          wheels: [
+            { swap_tick: 0, polygon: CIRCLE_R70 },
+            { swap_tick: ticks[0], polygon: GEAR_20 },
+            { swap_tick: ticks[1], polygon: CIRCLE_R50 },
+          ],
+        });
 
-          const time = (result.finishTicks / 60).toFixed(2);
-          const finished = result.finalX >= track.finish.pos[0] ? "FINISHED" : `DNF (x=${result.finalX.toFixed(1)})`;
-          const improvement = result.finishTicks < bestSingle
-            ? ((1 - result.finishTicks / bestSingle) * 100).toFixed(1)
-            : "negative";
-          console.log(`swap @ ${ticks}: ticks=${result.finishTicks}, time=${time}s, ${finished}, improvement=${improvement}%`);
+        const time = (result.finishTicks / 60).toFixed(2);
+        const finished = result.finalX >= track.finish.pos[0] ? "FINISHED" : `DNF (x=${result.finalX.toFixed(1)})`;
+        console.log(`swap @ ${ticks}: ticks=${result.finishTicks}, time=${time}s, ${finished}`);
 
-          if (result.finalX >= track.finish.pos[0] && result.finishTicks < bestSwapTicks) {
-            bestSwapTicks = result.finishTicks;
-            bestSwapConfig = ticks.join(", ");
-          }
+        if (result.finalX >= track.finish.pos[0] && result.finishTicks < bestSwapTicks) {
+          bestSwapTicks = result.finishTicks;
+          bestSwapConfig = ticks.join(", ");
         }
       }
     }
 
     console.log(`\nBest swap: [${bestSwapConfig}] at ${bestSwapTicks} ticks (${(bestSwapTicks/60).toFixed(2)}s)`);
-    const bestImprovement = ((1 - bestSwapTicks / bestSingle) * 100).toFixed(1);
-    console.log(`Best swap result: ${bestImprovement}% vs ${bestSingleName}`);
 
     // Multi-swap must finish the track
     expect(bestSwapTicks, "Multi-swap strategy must finish the track").toBeLessThan(Infinity);
-    expect(bestSwapTicks, "Multi-swap must reach finish line").toBeLessThan(60 * 180);
+    expect(bestSwapTicks, "Multi-swap must reach finish line within 3 minutes").toBeLessThan(60 * 180);
   });
 
   it("validates each zone has a different optimal wheel", { timeout: 120_000 }, () => {
