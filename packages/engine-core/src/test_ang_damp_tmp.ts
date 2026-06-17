@@ -28,11 +28,10 @@ chassisBody.createFixture(Box(1.2, 0.4), { density: CHASSIS_DENSITY, friction: 0
 
 const rearWheelBody = buildWheelBody(world, wv, startX - 0.9, wheelSpawnY);
 
-// Add motor to both - like race-sim.ts does it
-const _fj = world.createJoint(WheelJoint({ bodyA: chassisBody, bodyB: wheelBody, localAnchorA: Vec2(0.5, 0.5), localAnchorB: Vec2(0, 0), localAxisA: Vec2(0, 1), frequencyHz: SUSPENSION_FREQ_HZ, dampingRatio: SUSPENSION_DAMPING_RATIO, enableMotor: true, motorSpeed: MOTOR_SPEED, maxMotorTorque: MOTOR_MAX_TORQUE }));
+world.createJoint(WheelJoint({ bodyA: chassisBody, bodyB: wheelBody, localAnchorA: Vec2(0.5, 0.5), localAnchorB: Vec2(0, 0), localAxisA: Vec2(0, 1), frequencyHz: SUSPENSION_FREQ_HZ, dampingRatio: SUSPENSION_DAMPING_RATIO, enableMotor: true, motorSpeed: MOTOR_SPEED, maxMotorTorque: MOTOR_MAX_TORQUE }));
 world.createJoint(WheelJoint({ bodyA: chassisBody, bodyB: rearWheelBody, localAnchorA: Vec2(-0.9, 0.5), localAnchorB: Vec2(0, 0), localAxisA: Vec2(0, 1), frequencyHz: SUSPENSION_FREQ_HZ, dampingRatio: SUSPENSION_DAMPING_RATIO, enableMotor: true, motorSpeed: MOTOR_SPEED, maxMotorTorque: MOTOR_MAX_TORQUE }));
 
-console.log("Tick | FrontAngVel | ChassisVx | ChassisX  | ChassisAngle");
+console.log("Tick | FrontAngVel | RearAngVel  | ChassisVx | ChassisX  | ChassisAngle");
 for (let t = 0; t < 30; t++) {
   const ra = chassisBody.getAngle(), rv = chassisBody.getAngularVelocity();
   const excess = Math.abs(ra) > threshold ? ra - Math.sign(ra) * threshold : 0;
@@ -41,7 +40,8 @@ for (let t = 0; t < 30; t++) {
   const cp = chassisBody.getPosition();
   const cv = chassisBody.getLinearVelocity();
   const fw = wheelBody.getAngularVelocity();
-  if (t % 5 === 0 || t < 3)
-    console.log(`  ${t.toString().padStart(3)} | ${fw.toFixed(2).padStart(11)} | ${cv.x.toFixed(2).padStart(9)} | ${cp.x.toFixed(3).padStart(9)} | ${(chassisBody.getAngle()*180/Math.PI).toFixed(1)}°`);
+  const rw = rearWheelBody.getAngularVelocity();
+  if (t < 6 || t % 5 === 0)
+    console.log(`  ${t.toString().padStart(3)} | ${fw.toFixed(2).padStart(11)} | ${rw.toFixed(2).padStart(11)} | ${cv.x.toFixed(2).padStart(9)} | ${cp.x.toFixed(3).padStart(9)} | ${(ra*180/Math.PI).toFixed(1)}°`);
 }
 console.log("Final chassisX:", chassisBody.getPosition().x.toFixed(3));
