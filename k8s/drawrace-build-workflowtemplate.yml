@@ -535,9 +535,8 @@ spec:
         args:
           - |
             set -e
-            # Install Python 3 and wabt (includes wat2wasm) for WASM builds
-            apt-get update && apt-get install -y --no-install-recommends python3 wabt && rm -rf /var/lib/apt/lists/*
-            wat2wasm --version
+            # Install Python 3 for WASM builds (wabt will be downloaded by build script if needed)
+            apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
             # Install pnpm (corepack is available in slim images)
             corepack enable
             corepack prepare pnpm@10 --activate
