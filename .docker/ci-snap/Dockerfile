@@ -3,14 +3,15 @@
 #
 # Tag convention: ghcr.io/drawrace/ci-snap:<date>
 
-FROM debian:bookworm-slim-20250410
+FROM debian:bookworm-slim
 
 LABEL org.opencontainers.image.title="DrawRace CI Snapshot Container"
 LABEL org.opencontainers.image.description="Pinned environment for rendering snapshot tests (Playwright + webfonts)"
-LABEL org.opencontainers.image.created="2026-04-24"
+LABEL org.opencontainers.image.created="2026-06-26"
 
 # ── System deps for Playwright Chromium ──────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     libnspr4 \
     libnss3 \
     libatk1.0-0 \
