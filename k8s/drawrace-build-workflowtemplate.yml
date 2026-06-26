@@ -535,6 +535,8 @@ spec:
         args:
           - |
             set -e
+            # Install Python 3 and wabt for WASM builds
+            apk add --no-cache python3 wabt
             corepack enable
             cd /workspace
             {{inputs.parameters.command}}

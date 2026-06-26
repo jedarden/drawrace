@@ -94,16 +94,16 @@ def create_hashed_artifact(wasm_bytes: bytes, physics_version: int) -> dict:
     content_hash = get_content_hash(wasm_bytes)
 
     # Create content-hashed artifact
-    hashed_name = f"resim.{content_hash}.wasm"
+    hashed_name = f"engine-core.{content_hash}.wasm"
     hashed_path = DIST_DIR / hashed_name
     hashed_path.write_bytes(wasm_bytes)
 
-    # Also create a symlink/copy as resim.wasm for validator to find
-    symlink_path = DIST_DIR / "resim.wasm"
+    # Also create a symlink/copy as engine-core.wasm for validator to find
+    symlink_path = DIST_DIR / "engine-core.wasm"
     symlink_path.write_bytes(wasm_bytes)
 
-    # Also copy as resim-test.wasm for fallback
-    test_path = DIST_DIR / "resim-test.wasm"
+    # Also copy as engine-core-test.wasm for fallback
+    test_path = DIST_DIR / "engine-core-test.wasm"
     test_path.write_bytes(wasm_bytes)
 
     # Write metadata file
@@ -114,7 +114,7 @@ def create_hashed_artifact(wasm_bytes: bytes, physics_version: int) -> dict:
         "buildTime": datetime.now().isoformat(),
     }
 
-    metadata_path = DIST_DIR / "resim.wasm.json"
+    metadata_path = DIST_DIR / "engine-core.wasm.json"
     metadata_path.write_text(json.dumps(metadata, indent=2))
 
     log("done", f"Created {hashed_name}")
