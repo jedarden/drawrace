@@ -150,6 +150,7 @@ impl PhysicsEngine {
     /// Create a new racer simulation instance.
     ///
     /// Each racer gets their own WASM instance for independent state tracking.
+    #[allow(clippy::too_many_arguments)]
     pub fn create_racer_sim(
         &self,
         wheels: Vec<WheelEntry>,
@@ -193,6 +194,7 @@ pub struct RacerSim {
 
 impl RacerSim {
     /// Create a new racer simulation.
+    #[allow(clippy::too_many_arguments)]
     fn new(
         engine: Engine,
         module: Module,
@@ -401,6 +403,7 @@ mod wasm_abi {
         pub const SWAP_TICK: u32 = 0;
         pub const VERTEX_COUNT: u32 = 4;
         pub const VERTEX_OFFSET: u32 = 8;
+        #[allow(dead_code)]
         pub const RESERVED: u32 = 12;
     }
 
@@ -518,6 +521,7 @@ mod wasm_abi {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn init_memory(
         memory: &Memory,
         store: &mut wasmtime::Store<()>,
