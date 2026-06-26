@@ -427,7 +427,7 @@ spec:
           - name: ref
       serviceAccountName: argo-workflow-submitter
       container:
-        image: ghcr.io/drawrace/ci-snap:2026-04-21
+        image: ghcr.io/drawrace/ci-snap:2026-04-24
         command: [bash, -lc]
         args:
           - |
