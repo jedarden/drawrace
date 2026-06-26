@@ -122,11 +122,7 @@ fn test_forged_submission_rejected() {
             println!("Forged claimed finish: {}", forged_claimed_finish);
 
             // The server finish tick should be much later than the claimed finish
-            let diff = if server_finish_ticks > forged_claimed_finish {
-                server_finish_ticks - forged_claimed_finish
-            } else {
-                forged_claimed_finish - server_finish_ticks
-            };
+            let diff = server_finish_ticks.abs_diff(forged_claimed_finish);
 
             println!("Tick difference: {}", diff);
 
@@ -208,11 +204,7 @@ fn test_legitimate_submission_accepted() {
             panic!("Legitimate submission with correct claimed_finish should not timeout");
         }
         Some(server_finish_ticks) => {
-            let diff = if server_finish_ticks > actual_finish_ticks {
-                server_finish_ticks - actual_finish_ticks
-            } else {
-                actual_finish_ticks - server_finish_ticks
-            };
+            let diff = server_finish_ticks.abs_diff(actual_finish_ticks);
 
             println!(
                 "Legitimate submission: claimed={}, server={}, diff={}",
