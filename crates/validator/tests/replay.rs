@@ -232,11 +232,7 @@ fn replay_all_reference_ghosts() {
                         failed += 1;
                     }
                     Some(server_finish_ticks) => {
-                        let diff = if server_finish_ticks > expected_finish_ticks {
-                            server_finish_ticks - expected_finish_ticks
-                        } else {
-                            expected_finish_ticks - server_finish_ticks
-                        };
+                        let diff = server_finish_ticks.abs_diff(expected_finish_ticks);
 
                         if diff > FINISH_TICK_TOLERANCE {
                             failures.push(format!(
