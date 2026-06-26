@@ -827,9 +827,9 @@ mod tests {
         const { assert!(HEADER_OFFSET + HEADER_SIZE <= WHEEL_ARRAY_OFFSET) };
         const { assert!(WHEEL_ARRAY_OFFSET + WHEEL_ARRAY_SIZE <= VERTEX_BUFFER_OFFSET) };
         const { assert!(VERTEX_BUFFER_OFFSET + VERTEX_BUFFER_SIZE <= TRACK_DATA_OFFSET) };
-        assert!(TRACK_DATA_OFFSET + TRACK_DATA_SIZE <= STATE_OFFSET);
-        assert!(STATE_OFFSET + STATE_SIZE <= RESULT_OFFSET);
-        assert!(RESULT_OFFSET + RESULT_SIZE <= TOTAL_MEMORY_SIZE);
+        const { assert!(TRACK_DATA_OFFSET + TRACK_DATA_SIZE <= STATE_OFFSET) };
+        const { assert!(STATE_OFFSET + STATE_SIZE <= RESULT_OFFSET) };
+        const { assert!(RESULT_OFFSET + RESULT_SIZE <= TOTAL_MEMORY_SIZE) };
     }
 
     #[test]
@@ -923,56 +923,56 @@ mod tests {
 
         // Magic: "RSIM" = 0x52534D49 (little-endian: 49 4D 53 52)
         assert_eq!(
-            read_u32_slice(&data, (HEADER_OFFSET + header::MAGIC) as usize),
+            read_u32_slice(data, (HEADER_OFFSET + header::MAGIC) as usize),
             ABI_MAGIC
         );
         assert_eq!(
-            read_u32_slice(&data, (HEADER_OFFSET + header::VERSION) as usize),
+            read_u32_slice(data, (HEADER_OFFSET + header::VERSION) as usize),
             1
         );
         assert_eq!(
-            read_u32_slice(&data, (HEADER_OFFSET + header::NUM_WHEELS) as usize),
+            read_u32_slice(data, (HEADER_OFFSET + header::NUM_WHEELS) as usize),
             2
         );
         assert_eq!(
-            read_u32_slice(&data, (HEADER_OFFSET + header::MAX_WHEELS) as usize),
+            read_u32_slice(data, (HEADER_OFFSET + header::MAX_WHEELS) as usize),
             21
         );
         assert_eq!(
-            read_u32_slice(&data, (HEADER_OFFSET + header::TERRAIN_COUNT) as usize),
+            read_u32_slice(data, (HEADER_OFFSET + header::TERRAIN_COUNT) as usize),
             3
         );
         assert_eq!(
-            read_u32_slice(&data, (HEADER_OFFSET + header::OBSTACLE_COUNT) as usize),
+            read_u32_slice(data, (HEADER_OFFSET + header::OBSTACLE_COUNT) as usize),
             1
         );
         assert_eq!(
-            read_f32_slice(&data, (HEADER_OFFSET + header::FINISH_X) as usize),
+            read_f32_slice(data, (HEADER_OFFSET + header::FINISH_X) as usize),
             1000.0
         );
         assert_eq!(
-            read_f32_slice(&data, (HEADER_OFFSET + header::START_X) as usize),
+            read_f32_slice(data, (HEADER_OFFSET + header::START_X) as usize),
             50.0
         );
         assert_eq!(
-            read_f32_slice(&data, (HEADER_OFFSET + header::START_Y) as usize),
+            read_f32_slice(data, (HEADER_OFFSET + header::START_Y) as usize),
             400.0
         );
         assert_eq!(
-            read_u32_slice(&data, (HEADER_OFFSET + header::CLAIMED_FINISH) as usize),
+            read_u32_slice(data, (HEADER_OFFSET + header::CLAIMED_FINISH) as usize),
             1800
         );
         // MAX_TICKS = claimed_finish * 2, but with minimum of 90*60 = 5400
         assert_eq!(
-            read_u32_slice(&data, (HEADER_OFFSET + header::MAX_TICKS) as usize),
+            read_u32_slice(data, (HEADER_OFFSET + header::MAX_TICKS) as usize),
             5400
         );
         assert_eq!(
-            read_u32_slice(&data, (HEADER_OFFSET + header::INITIAL_VCOUNT) as usize),
+            read_u32_slice(data, (HEADER_OFFSET + header::INITIAL_VCOUNT) as usize),
             4
         );
         assert_eq!(
-            read_u32_slice(&data, (HEADER_OFFSET + header::SEED) as usize),
+            read_u32_slice(data, (HEADER_OFFSET + header::SEED) as usize),
             42
         );
 
@@ -980,30 +980,30 @@ mod tests {
         // Wheel 0 (offset 256)
         let wheel0_offset = WHEEL_ARRAY_OFFSET as usize;
         assert_eq!(
-            read_u32_slice(&data, wheel0_offset + wheel_desc::SWAP_TICK as usize),
+            read_u32_slice(data, wheel0_offset + wheel_desc::SWAP_TICK as usize),
             0
         );
         assert_eq!(
-            read_u32_slice(&data, wheel0_offset + wheel_desc::VERTEX_COUNT as usize),
+            read_u32_slice(data, wheel0_offset + wheel_desc::VERTEX_COUNT as usize),
             4
         );
         assert_eq!(
-            read_u32_slice(&data, wheel0_offset + wheel_desc::VERTEX_OFFSET as usize),
+            read_u32_slice(data, wheel0_offset + wheel_desc::VERTEX_OFFSET as usize),
             0
         );
 
         // Wheel 1 (offset 256 + 16 = 272)
         let wheel1_offset = WHEEL_ARRAY_OFFSET as usize + WHEEL_DESC_SIZE as usize;
         assert_eq!(
-            read_u32_slice(&data, wheel1_offset + wheel_desc::SWAP_TICK as usize),
+            read_u32_slice(data, wheel1_offset + wheel_desc::SWAP_TICK as usize),
             100
         );
         assert_eq!(
-            read_u32_slice(&data, wheel1_offset + wheel_desc::VERTEX_COUNT as usize),
+            read_u32_slice(data, wheel1_offset + wheel_desc::VERTEX_COUNT as usize),
             3
         );
         assert_eq!(
-            read_u32_slice(&data, wheel1_offset + wheel_desc::VERTEX_OFFSET as usize),
+            read_u32_slice(data, wheel1_offset + wheel_desc::VERTEX_OFFSET as usize),
             4
         );
 
@@ -1047,48 +1047,48 @@ mod tests {
         let terrain_offset = TRACK_DATA_OFFSET as usize + track_data::TERRAIN_START as usize;
 
         // Terrain point 0: (0.0, 500.0)
-        assert_eq!(read_f32_slice(&data, terrain_offset + 0), 0.0);
-        assert_eq!(read_f32_slice(&data, terrain_offset + 4), 500.0);
+        assert_eq!(read_f32_slice(data, terrain_offset + 0), 0.0);
+        assert_eq!(read_f32_slice(data, terrain_offset + 4), 500.0);
 
         // Terrain point 1: (500.0, 450.0)
-        assert_eq!(read_f32_slice(&data, terrain_offset + 8), 500.0);
-        assert_eq!(read_f32_slice(&data, terrain_offset + 12), 450.0);
+        assert_eq!(read_f32_slice(data, terrain_offset + 8), 500.0);
+        assert_eq!(read_f32_slice(data, terrain_offset + 12), 450.0);
 
         // Terrain point 2: (1000.0, 500.0)
-        assert_eq!(read_f32_slice(&data, terrain_offset + 16), 1000.0);
-        assert_eq!(read_f32_slice(&data, terrain_offset + 20), 500.0);
+        assert_eq!(read_f32_slice(data, terrain_offset + 16), 1000.0);
+        assert_eq!(read_f32_slice(data, terrain_offset + 20), 500.0);
 
         // === Validate Obstacles (offset 24576 + 8192 = 32768) ===
         let obs_offset = TRACK_DATA_OFFSET as usize + track_data::OBSTACLES_START as usize;
 
         // Obstacle 0 (Box) - RADIUS is at same offset as SIZE_X, but we don't write it for Box
         assert_eq!(
-            read_u32_slice(&data, obs_offset + obstacle::TYPE as usize),
+            read_u32_slice(data, obs_offset + obstacle::TYPE as usize),
             0
         ); // Box
         assert_eq!(
-            read_f32_slice(&data, obs_offset + obstacle::POS_X as usize),
+            read_f32_slice(data, obs_offset + obstacle::POS_X as usize),
             200.0
         );
         assert_eq!(
-            read_f32_slice(&data, obs_offset + obstacle::POS_Y as usize),
+            read_f32_slice(data, obs_offset + obstacle::POS_Y as usize),
             470.0
         );
         assert_eq!(
-            read_f32_slice(&data, obs_offset + obstacle::SIZE_X as usize),
+            read_f32_slice(data, obs_offset + obstacle::SIZE_X as usize),
             30.0
         );
         assert_eq!(
-            read_f32_slice(&data, obs_offset + obstacle::SIZE_Y as usize),
+            read_f32_slice(data, obs_offset + obstacle::SIZE_Y as usize),
             20.0
         );
         // For Box obstacles, RADIUS (at same offset as SIZE_X) is not written
         assert_eq!(
-            read_f32_slice(&data, obs_offset + obstacle::ANGLE as usize),
+            read_f32_slice(data, obs_offset + obstacle::ANGLE as usize),
             0.0
         );
         assert_eq!(
-            read_f32_slice(&data, obs_offset + obstacle::FRICTION as usize),
+            read_f32_slice(data, obs_offset + obstacle::FRICTION as usize),
             0.8
         );
 
@@ -1106,15 +1106,15 @@ mod tests {
         // === Validate Result Region (initialized) ===
         let result_offset = RESULT_OFFSET as usize;
         assert_eq!(
-            read_u32_slice(&data, result_offset + result::FINISH_TICKS as usize),
+            read_u32_slice(data, result_offset + result::FINISH_TICKS as usize),
             u32::MAX
         );
         assert_eq!(
-            read_u32_slice(&data, result_offset + result::STUCK as usize),
+            read_u32_slice(data, result_offset + result::STUCK as usize),
             0
         );
         assert_eq!(
-            read_u32_slice(&data, result_offset + result::SWAP_LOG_COUNT as usize),
+            read_u32_slice(data, result_offset + result::SWAP_LOG_COUNT as usize),
             0
         );
     }
