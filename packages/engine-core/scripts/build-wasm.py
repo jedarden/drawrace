@@ -53,25 +53,30 @@ def compile_resim_wat() -> bytes:
     # Check if wat2wasm is available
     if not shutil.which("wat2wasm"):
         log("install", "wat2wasm not found, installing wabt package...")
-        # Try to install via apk if on Alpine Linux (common in CI containers)
-        try:
-            subprocess.run(
-                ["apk", "add", "--no-cache", "wabt"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            log("done", "wabt package installed")
-        except subprocess.CalledProcessError as e:
+        # Try to install via apk (Alpine) or apt-get (Debian/Ubuntu)
+        installed = False
+        for pkg_mgr, install_cmd in [("apk", ["apk", "add", "--no-cache", "wabt"]),
+                                      ("apt-get", ["apt-get", "install", "-y", "wabt"])]:
+            if shutil.which(pkg_mgr):
+                try:
+                    subprocess.run(
+                        install_cmd,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+                    log("done", f"wabt package installed via {pkg_mgr}")
+                    installed = True
+                    break
+                except subprocess.CalledProcessError as e:
+                    # Try next package manager
+                    continue
+
+        if not installed:
             raise RuntimeError(
-                f"Failed to install wabt: {e.stderr}\n"
+                "wat2wasm not found and could not auto-install wabt. "
                 "Please install wabt manually: apk add wabt (Alpine) or "
                 "apt-get install wabt (Debian/Ubuntu)"
-            )
-        except FileNotFoundError:
-            raise RuntimeError(
-                "wat2wasm not found and apk is not available. "
-                "Please install wabt: https://github.com/WebAssembly/wabt"
             )
 
     # Run wat2wasm

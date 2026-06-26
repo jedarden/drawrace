@@ -124,6 +124,8 @@ spec:
           - |
             set -ex
             cd /src
+            # Install dependencies for WASM build
+            apt-get update -qq && apt-get install -y -qq wabt
             # Install pnpm and build the validator WASM first
             npm install -g pnpm@10
             pnpm install
@@ -152,7 +154,7 @@ spec:
         args:
           - |
             set -ex
-            apk add --no-cache git
+            apk add --no-cache git python3 wabt
             npm install -g pnpm@10
             cd /src
             pnpm install --frozen-lockfile
