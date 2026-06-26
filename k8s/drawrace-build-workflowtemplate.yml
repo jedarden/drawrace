@@ -535,8 +535,19 @@ spec:
         args:
           - |
             set -e
-            # Install Python 3 and wabt for WASM builds
-            apk add --no-cache python3 wabt
+            # Install Python 3 for WASM builds
+            apk add --no-cache python3
+            # Install wat2wasm from GitHub releases (Alpine package might not be available)
+            WABT_VERSION=1.0.34
+            WABT_URL="https://github.com/WebAssembly/wabt/releases/download/${WABT_VERSION}/wabt-${WABT_VERSION}-ubuntu-20.04.tar.gz"
+            if ! command -v wat2wasm >/dev/null 2>&1; then
+              echo "Installing wat2wasm from GitHub releases..."
+              wget -qO- "$WABT_URL" | tar -xz -C /tmp/
+              mv /tmp/wabt-${WABT_VERSION}/bin/wat2wasm /usr/local/bin/
+              chmod +x /usr/local/bin/wat2wasm
+              rm -rf /tmp/wabt-${WABT_VERSION}
+            fi
+            wat2wasm --version
             corepack enable
             cd /workspace
             {{inputs.parameters.command}}
