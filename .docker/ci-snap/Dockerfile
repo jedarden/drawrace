@@ -11,6 +11,7 @@ LABEL org.opencontainers.image.created="2026-06-26"
 
 # ── System deps for Playwright Chromium ──────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     curl \
     libnspr4 \
     libnss3 \
