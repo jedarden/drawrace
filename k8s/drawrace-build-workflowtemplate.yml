@@ -254,11 +254,13 @@ spec:
     # previous as "ignore".
     - name: rotate-client-key
       container:
-        image: bitnami/kubectl:1.29
-        command: [bash, -lc]
+        image: alpine:3.19
+        command: [sh, -lc]
         args:
           - |
+            #!/bin/sh
             set -euo pipefail
+            apk add --no-cache kubectl openssl
             OLD=$(kubectl -n drawrace get configmap drawrace-client-key -o jsonpath='{.data.current}')
             NEW=$(openssl rand -hex 16)
             NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
