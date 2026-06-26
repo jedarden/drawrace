@@ -42,6 +42,10 @@ RUN mkdir -p /usr/local/share/fonts/drawrace && \
       "https://github.com/google/fonts/raw/main/ofl/patrickhandsc/PatrickHandSC-Regular.ttf" && \
     fc-cache -f
 
+# ── Python 3 + wabt (for WASM builds) ────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends python3 wabt && \
+    rm -rf /var/lib/apt/lists/*
+
 # ── Node.js 22 ──────────────────────────────────────────────────────────────
 ENV NODE_VERSION=22
 RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg ca-certificates && \
