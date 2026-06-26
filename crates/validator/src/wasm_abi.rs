@@ -503,6 +503,7 @@ pub fn read_i16(
 }
 
 /// Write the header region to WASM memory.
+#[allow(clippy::too_many_arguments)]
 pub fn write_header(
     memory: &Memory,
     store: &mut wasmtime::Store<()>,
@@ -517,7 +518,7 @@ pub fn write_header(
     seed: u32,
 ) -> anyhow::Result<()> {
     let o = HEADER_OFFSET;
-    write_u32(memory, store, o + 0, ABI_MAGIC)?;
+    write_u32(memory, store, o, ABI_MAGIC)?;
     write_u32(memory, store, o + 4, ABI_VERSION)?;
     write_u32(memory, store, o + 8, num_wheels)?;
     write_u32(memory, store, o + 12, MAX_WHEELS)?;
@@ -721,6 +722,7 @@ pub struct SimResult {
 }
 
 /// Initialize all memory regions for a re-simulation.
+#[allow(clippy::too_many_arguments)]
 pub fn init_memory(
     memory: &Memory,
     store: &mut wasmtime::Store<()>,
@@ -822,9 +824,9 @@ mod tests {
     #[test]
     fn test_memory_layout() {
         // Check that regions don't overlap
-        assert!(HEADER_OFFSET + HEADER_SIZE <= WHEEL_ARRAY_OFFSET);
-        assert!(WHEEL_ARRAY_OFFSET + WHEEL_ARRAY_SIZE <= VERTEX_BUFFER_OFFSET);
-        assert!(VERTEX_BUFFER_OFFSET + VERTEX_BUFFER_SIZE <= TRACK_DATA_OFFSET);
+        const { assert!(HEADER_OFFSET + HEADER_SIZE <= WHEEL_ARRAY_OFFSET) };
+        const { assert!(WHEEL_ARRAY_OFFSET + WHEEL_ARRAY_SIZE <= VERTEX_BUFFER_OFFSET) };
+        const { assert!(VERTEX_BUFFER_OFFSET + VERTEX_BUFFER_SIZE <= TRACK_DATA_OFFSET) };
         assert!(TRACK_DATA_OFFSET + TRACK_DATA_SIZE <= STATE_OFFSET);
         assert!(STATE_OFFSET + STATE_SIZE <= RESULT_OFFSET);
         assert!(RESULT_OFFSET + RESULT_SIZE <= TOTAL_MEMORY_SIZE);

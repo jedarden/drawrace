@@ -352,24 +352,33 @@ mod wasm_abi {
     pub const ABI_MAGIC: u32 = 0x52534D49;
     pub const ABI_VERSION: u32 = 1;
     pub const MAX_WHEELS: u32 = 21;
+    #[allow(dead_code)]
     pub const MAX_TERRAIN_POINTS: u32 = 100;
+    #[allow(dead_code)]
     pub const MAX_OBSTACLES: u32 = 50;
+    #[allow(dead_code)]
     pub const MAX_VERTICES_PER_WHEEL: u32 = 32;
+    #[allow(dead_code)]
     pub const MAX_TOTAL_VERTICES: u32 = MAX_WHEELS * MAX_VERTICES_PER_WHEEL;
 
     pub const HEADER_OFFSET: u32 = 0;
     pub const HEADER_SIZE: u32 = 256;
     pub const WHEEL_ARRAY_OFFSET: u32 = HEADER_OFFSET + HEADER_SIZE;
     pub const WHEEL_DESC_SIZE: u32 = 16;
+    #[allow(dead_code)]
     pub const WHEEL_ARRAY_SIZE: u32 = MAX_WHEELS * WHEEL_DESC_SIZE;
     pub const VERTEX_BUFFER_OFFSET: u32 = 8192;
+    #[allow(dead_code)]
     pub const VERTEX_BUFFER_SIZE: u32 = MAX_TOTAL_VERTICES * 4;
     pub const TRACK_DATA_OFFSET: u32 = 24576;
+    #[allow(dead_code)]
     pub const TRACK_DATA_SIZE: u32 = 16384;
     pub const STATE_OFFSET: u32 = 49152;
     pub const STATE_SIZE: u32 = 256;
     pub const RESULT_OFFSET: u32 = 65536;
+    #[allow(dead_code)]
     pub const RESULT_SIZE: u32 = 256;
+    #[allow(dead_code)]
     pub const TOTAL_MEMORY_SIZE: u32 = 131072;
 
     mod header {
