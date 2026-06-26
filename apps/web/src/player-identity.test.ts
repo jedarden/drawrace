@@ -40,6 +40,7 @@ describe("ephemeral detection", () => {
   const STORAGE_KEY = "drawrace-player-uuid";
 
   beforeEach(() => {
+    vi.restoreAllMocks();
     localStorage.clear();
     _resetForTesting();
   });
@@ -57,7 +58,10 @@ describe("ephemeral detection", () => {
   });
 
   it("returns ephemeral when localStorage.setItem throws", () => {
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("The quota has been exceeded", "QuotaExceededError");
+    });
+    vi.spyOn(localStorage, "removeItem").mockImplementation(() => {
       throw new DOMException("The quota has been exceeded", "QuotaExceededError");
     });
 
@@ -67,7 +71,7 @@ describe("ephemeral detection", () => {
   });
 
   it("returns same in-memory UUID on repeated calls when ephemeral", () => {
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
       throw new DOMException("The quota has been exceeded", "QuotaExceededError");
     });
 
@@ -77,7 +81,10 @@ describe("ephemeral detection", () => {
   });
 
   it("detects ephemeral when localStorage.getItem throws", () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+    vi.spyOn(localStorage, "getItem").mockImplementation(() => {
+      throw new DOMException("Security error");
+    });
+    vi.spyOn(localStorage, "removeItem").mockImplementation(() => {
       throw new DOMException("Security error");
     });
 

@@ -9,7 +9,7 @@ function detectStorageAvailable(): boolean {
     localStorage.setItem(testKey, "1");
     localStorage.removeItem(testKey);
     return true;
-  } catch {
+  } catch (e) {
     return false;
   }
 }
@@ -52,6 +52,7 @@ export function getPlayerUuid(): string {
     } catch {
       ephemeral = true;
       memoryUuid = uuid;
+      return memoryUuid;
     }
   }
   return uuid;

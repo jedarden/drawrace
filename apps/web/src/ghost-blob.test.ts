@@ -132,7 +132,10 @@ describe("ghost-blob (Layer 1)", () => {
 
   it("sets flags bit 0x02 when ephemeral", () => {
     _resetForTesting();
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("QuotaExceededError");
+    });
+    vi.spyOn(localStorage, "removeItem").mockImplementation(() => {
       throw new DOMException("QuotaExceededError");
     });
 
