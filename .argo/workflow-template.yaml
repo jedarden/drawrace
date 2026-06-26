@@ -124,7 +124,8 @@ spec:
           - |
             set -ex
             cd /src
-            # Build the validator WASM first
+            # Install pnpm and build the validator WASM first
+            npm install -g pnpm@10
             pnpm install
             pnpm --filter @drawrace/engine-core build
             # Run replay verification tests
