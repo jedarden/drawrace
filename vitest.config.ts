@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["packages/*/src/**/*.test.ts", "apps/*/src/**/*.test.ts"],
-    testTimeout: 60_000,
+    testTimeout: process.env.CI ? 180_000 : 60_000, // 3 minutes in CI for slow golden tests with 500m CPU
     teardownTimeout: 5_000,
     pool: "forks",
     poolOptions: {
