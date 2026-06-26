@@ -1297,7 +1297,7 @@ spec:
     # previous as "ignore".
     - name: rotate-client-key
       container:
-        image: bitnami/kubectl:1.29
+        image: ghcr.io/drawrace/ci-snap:2026-04-21
         command: [bash, -lc]
         args:
           - |
