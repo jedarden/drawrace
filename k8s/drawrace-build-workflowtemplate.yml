@@ -536,7 +536,17 @@ spec:
           - |
             set -e
             # Install Python 3 and wabt (includes wat2wasm) for WASM builds
-            apk add --no-cache python3 wabt
+            # wabt is not in Alpine repos, so install from GitHub releases
+            apk add --no-cache python3 curl
+            WABT_VERSION="1.0.34"
+            ARCH="$(uname -m)"
+            case "$ARCH" in
+              x86_64) WABT_ARCH="ubuntu" ;;
+              aarch64) WABT_ARCH="ubuntu-arm64" ;;
+              *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
+            esac
+            curl -Ls "https://github.com/WebAssembly/wabt/releases/download/${WABT_VERSION}/wabt-${WABT_VERSION}-${WABT_ARCH}.tar.gz" | tar xz
+            install -m755 wabt-${WABT_VERSION}/bin/wat2wasm /usr/local/bin/
             wat2wasm --version
             corepack enable
             cd /workspace
