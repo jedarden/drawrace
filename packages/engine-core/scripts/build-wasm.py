@@ -40,6 +40,7 @@ def extract_physics_version() -> int:
 def compile_resim_wat() -> bytes:
     """Compile resim.wat to WASM using wat2wasm."""
     import subprocess
+    import shutil
 
     wat_path = ROOT_DIR / "src" / "resim.wat"
     wasm_path = DIST_DIR / "resim.wasm"
@@ -48,6 +49,30 @@ def compile_resim_wat() -> bytes:
         raise FileNotFoundError(f"resim.wat not found at {wat_path}")
 
     log("info", f"Compiling {wat_path} to {wasm_path}")
+
+    # Check if wat2wasm is available
+    if not shutil.which("wat2wasm"):
+        log("install", "wat2wasm not found, installing wabt package...")
+        # Try to install via apk if on Alpine Linux (common in CI containers)
+        try:
+            subprocess.run(
+                ["apk", "add", "--no-cache", "wabt"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            log("done", "wabt package installed")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(
+                f"Failed to install wabt: {e.stderr}\n"
+                "Please install wabt manually: apk add wabt (Alpine) or "
+                "apt-get install wabt (Debian/Ubuntu)"
+            )
+        except FileNotFoundError:
+            raise RuntimeError(
+                "wat2wasm not found and apk is not available. "
+                "Please install wabt: https://github.com/WebAssembly/wabt"
+            )
 
     # Run wat2wasm
     result = subprocess.run(
