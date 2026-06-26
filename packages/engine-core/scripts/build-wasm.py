@@ -41,6 +41,7 @@ def compile_resim_wat() -> bytes:
     """Compile resim.wat to WASM using wat2wasm."""
     import subprocess
     import shutil
+    import sys
 
     wat_path = ROOT_DIR / "src" / "resim.wat"
     wasm_path = DIST_DIR / "resim.wasm"
@@ -51,15 +52,17 @@ def compile_resim_wat() -> bytes:
     log("info", f"Compiling {wat_path} to {wasm_path}")
 
     # Check if wat2wasm is available
-    if not shutil.which("wat2wasm"):
-        log("install", "wat2wasm not found, installing wabt package...")
+    wat2wasm_path = shutil.which("wat2wasm")
+    if not wat2wasm_path:
+        log("install", "wat2wasm not found, attempting to install wabt...")
         # Try to install via apk (Alpine) or apt-get (Debian/Ubuntu)
         installed = False
         for pkg_mgr, install_cmd in [("apk", ["apk", "add", "--no-cache", "wabt"]),
                                       ("apt-get", ["apt-get", "install", "-y", "wabt"])]:
             if shutil.which(pkg_mgr):
                 try:
-                    subprocess.run(
+                    log("install", f"Running: {' '.join(install_cmd)}")
+                    result = subprocess.run(
                         install_cmd,
                         capture_output=True,
                         text=True,
@@ -67,19 +70,28 @@ def compile_resim_wat() -> bytes:
                     )
                     log("done", f"wabt package installed via {pkg_mgr}")
                     installed = True
+                    # Check again if wat2wasm is now available
+                    wat2wasm_path = shutil.which("wat2wasm")
+                    if not wat2wasm_path:
+                        log("error", "wabt installed but wat2wasm still not found in PATH")
                     break
                 except subprocess.CalledProcessError as e:
+                    log("error", f"Failed to install via {pkg_mgr}: {e.stderr}")
                     # Try next package manager
                     continue
 
-        if not installed:
+        if not installed or not wat2wasm_path:
             raise RuntimeError(
                 "wat2wasm not found and could not auto-install wabt. "
-                "Please install wabt manually: apk add wabt (Alpine) or "
-                "apt-get install wabt (Debian/Ubuntu)"
+                "Please install wabt manually:\n"
+                "  - Alpine/Linux: apk add wabt\n"
+                "  - Debian/Ubuntu: apt-get install wabt\n"
+                "  - macOS: brew install wabt\n"
+                "  - Or download from: https://github.com/WebAssembly/wabt/releases"
             )
 
     # Run wat2wasm
+    log("info", f"Using wat2wasm at: {wat2wasm_path}")
     result = subprocess.run(
         ["wat2wasm", str(wat_path), "-o", str(wasm_path)],
         capture_output=True,
@@ -87,7 +99,10 @@ def compile_resim_wat() -> bytes:
     )
 
     if result.returncode != 0:
-        raise RuntimeError(f"wat2wasm failed: {result.stderr}")
+        log("error", f"wat2wasm compilation failed")
+        log("error", f"stderr: {result.stderr}")
+        log("error", f"stdout: {result.stdout}")
+        raise RuntimeError(f"wat2wasm failed with exit code {result.returncode}")
 
     log("done", f"WASM compiled to {wasm_path}")
     return wasm_path.read_bytes()
