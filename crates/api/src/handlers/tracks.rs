@@ -5,7 +5,6 @@ use axum::{
     Json as JsonType,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -33,14 +32,17 @@ pub struct TrackSubmission {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorldConfig {
     pub gravity: [f64; 2],
-    pub pixelsPerMeter: i32,
+    #[serde(rename = "pixelsPerMeter")]
+    pub pixels_per_meter: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CameraConfig {
-    pub followAxis: String,
+    #[serde(rename = "followAxis")]
+    pub follow_axis: String,
     pub deadzone: [i32; 2],
-    pub maxZoomOut: f64,
+    #[serde(rename = "maxZoomOut")]
+    pub max_zoom_out: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -81,7 +83,8 @@ pub struct Hazard {
     pub x_start: f64,
     pub x_end: f64,
     pub y: Option<f64>,
-    pub depthMeters: Option<f64>,
+    #[serde(rename = "depthMeters")]
+    pub depth_meters: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -105,8 +108,10 @@ pub struct FinishLine {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TrackMetadata {
-    pub targetTimeSeconds: i32,
-    pub tutorialGhosts: Vec<String>,
+    #[serde(rename = "targetTimeSeconds")]
+    pub target_time_seconds: i32,
+    #[serde(rename = "tutorialGhosts")]
+    pub tutorial_ghosts: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]

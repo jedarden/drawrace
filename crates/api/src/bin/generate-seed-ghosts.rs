@@ -5,7 +5,6 @@
 //! into the Docker image.
 
 use std::fs;
-use std::path::PathBuf;
 use uuid::Uuid;
 
 const PHYSICS_VERSION: u8 = 2;
@@ -534,7 +533,7 @@ fn encode_seed_blob(seed: &SeedGhost, submitted_at: i64) -> Vec<u8> {
     );
 
     // Generate synthetic stroke points matching the polygon outline
-    let stroke_points = generate_stroke(&seed.vertices);
+    let stroke_points = generate_stroke(seed.vertices);
 
     let checkpoint_count: u8 = 0;
     let total_size = HEADER_SIZE
