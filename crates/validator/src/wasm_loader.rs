@@ -171,7 +171,6 @@ mod tests {
                 // If WASM file doesn't exist or fails to load, skip test
                 // This is a separate module from resim.wasm and may not be built
                 println!("Skipping test: Failed to load engine-core WASM: {}", e);
-                return;
             }
         }
     }
@@ -186,7 +185,6 @@ mod tests {
             Err(e) => {
                 // If WASM file doesn't exist or fails to load, skip test
                 println!("Skipping test: Failed to load engine-core WASM: {}", e);
-                return;
             }
         }
     }

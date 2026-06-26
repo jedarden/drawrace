@@ -90,7 +90,6 @@ pub struct TrackData {
 /// Track store - caches loaded tracks by numeric_id
 pub struct TrackStore {
     tracks: HashMap<u16, TrackData>,
-    tracks_dir: PathBuf,
 }
 
 impl TrackStore {
@@ -103,7 +102,6 @@ impl TrackStore {
     pub fn load(tracks_dir: PathBuf) -> Result<Self> {
         let mut store = Self {
             tracks: HashMap::new(),
-            tracks_dir: tracks_dir.clone(),
         };
 
         // Load all track JSON files from the directory

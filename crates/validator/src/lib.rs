@@ -119,8 +119,7 @@ mod tests {
         // Try different configs
         let configs = vec![
             ("default", {
-                let c = Config::new();
-                c
+                Config::new()
             }),
             ("simd", {
                 let mut c = Config::new();

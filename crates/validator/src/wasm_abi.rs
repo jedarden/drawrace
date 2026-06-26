@@ -196,7 +196,7 @@
 /// 2. Host calls `resim_init()`. On failure, abort.
 /// 3. Host calls `resim_step()` in a loop until it returns 0.
 /// 4. Host reads Result region for outcome and swap log.
-
+///
 /// ABI magic number for validation: "RSIM" (Re-SIM)
 pub const ABI_MAGIC: u32 = 0x52534D49;
 
