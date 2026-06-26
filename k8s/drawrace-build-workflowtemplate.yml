@@ -535,8 +535,25 @@ spec:
         args:
           - |
             set -e
-            # Install Python 3 for WASM builds (wabt will be downloaded by build script if needed)
-            apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
+            # Install Python 3 and build dependencies for WASM builds
+            apt-get update && apt-get install -y --no-install-recommends python3 curl ca-certificates && rm -rf /var/lib/apt/lists/*
+            # Install wabt (WebAssembly Binary Toolkit) from GitHub releases
+            # Debian doesn't have wabt in its repos, so we download the binary
+            WABT_VERSION="1.0.36"
+            ARCH="$(uname -m)"
+            case "$ARCH" in
+              x86_64) WABT_ARCH="x86_64" ;;
+              aarch64) WABT_ARCH="aarch64" ;;
+              armv7l) WABT_ARCH="arm" ;;
+              *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
+            esac
+            WABT_URL="https://github.com/WebAssembly/wabt/releases/download/${WABT_VERSION}/wabt-${WABT_VERSION}-${WABT_ARCH}-linux.tar.gz"
+            echo "Installing wabt from ${WABT_URL}..."
+            curl -fsSL "$WABT_URL" | tar xz -C /tmp --strip-components=1
+            chmod +x /tmp/bin/* 2>/dev/null || true
+            mv /tmp/bin/wat2wasm /tmp/bin/wasm-objdump /usr/local/bin/
+            # Verify installation
+            wat2wasm --version || { echo "wat2wasm installation failed" >&2; exit 1; }
             # Install pnpm (corepack is available in slim images)
             corepack enable
             corepack prepare pnpm@10 --activate
