@@ -94,25 +94,25 @@ def compile_resim_wat() -> bytes:
                 system = platform.system().lower()
                 machine = platform.machine().lower()
 
-                # Map machine names
+                # Map machine names to wabt naming convention
                 if machine in ["x86_64", "amd64"]:
-                    arch = "x86_64"
+                    arch = "x64"
                 elif machine in ["aarch64", "arm64"]:
-                    arch = "aarch64"
+                    arch = "arm64"
                 elif machine in ["armv7l", "armv6l"]:
                     arch = "arm"
                 else:
                     raise RuntimeError(f"Unsupported architecture: {machine}")
 
-                # Determine filename based on platform
+                # Determine filename based on platform (wabt uses platform-arch format)
                 if system == "linux":
-                    filename = f"wabt-1.0.36-{arch}-linux.tar.gz"
+                    filename = f"wabt-1.0.41-linux-{arch}.tar.gz"
                 elif system == "darwin":
-                    filename = f"wabt-1.0.36-{arch}-macos.tar.gz"
+                    filename = f"wabt-1.0.41-macos-{arch}.tar.gz"
                 else:
                     raise RuntimeError(f"Unsupported platform: {system}")
 
-                download_url = f"https://github.com/WebAssembly/wabt/releases/download/1.0.36/{filename}"
+                download_url = f"https://github.com/WebAssembly/wabt/releases/download/1.0.41/{filename}"
                 log("download", f"Downloading {download_url}")
 
                 # Download to temp file
@@ -131,10 +131,8 @@ def compile_resim_wat() -> bytes:
                 # Find the extracted wat2wasm binary
                 # Try multiple possible directory names
                 possible_dirs = [
-                    temp_dir / f"wabt-1.0.36-{arch}-linux",  # e.g., wabt-1.0.36-x86_64-linux
-                    temp_dir / f"wabt-1.0.36-{arch}-macos",  # e.g., wabt-1.0.36-aarch64-macos
-                    temp_dir / f"wabt-1.0.36-{system}-{arch}",  # fallback
-                    temp_dir / f"wabt-1.0.36",  # generic fallback
+                    temp_dir / f"wabt-1.0.41-{system}-{arch}",  # e.g., wabt-1.0.41-linux-x64
+                    temp_dir / f"wabt-1.0.41",  # generic fallback
                 ]
 
                 extracted_dir = None
@@ -170,7 +168,7 @@ def compile_resim_wat() -> bytes:
     # Run wat2wasm
     log("info", f"Using wat2wasm at: {wat2wasm_path}")
     result = subprocess.run(
-        ["wat2wasm", str(wat_path), "-o", str(wasm_path)],
+        [wat2wasm_path, str(wat_path), "-o", str(wasm_path)],
         capture_output=True,
         text=True,
     )
