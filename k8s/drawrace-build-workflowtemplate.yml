@@ -252,7 +252,15 @@ spec:
     # main-branch, non-republish builds.  On first-run (previous == ""),
     # still promotes current -> previous; the api verifier treats empty
     # previous as "ignore".
+    #
+    # Uses a kubeconfig secret to target the iad-acb cluster (where drawrace
+    # namespace lives) instead of the in-cluster iad-ci cluster.
     - name: rotate-client-key
+      volumes:
+        - name: drawrace-iad-acb-kubeconfig
+          secret:
+            secretName: drawrace-iad-acb-kubeconfig
+            optional: false
       container:
         image: alpine:3.19
         command: [sh, -lc]
@@ -261,6 +269,7 @@ spec:
             #!/bin/sh
             set -euo pipefail
             apk add --no-cache kubectl openssl
+            export KUBECONFIG=/kubeconfig/config.yaml
             OLD=$(kubectl -n drawrace get configmap drawrace-client-key -o jsonpath='{.data.current}')
             NEW=$(openssl rand -hex 16)
             NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -275,6 +284,13 @@ spec:
               previous: "$OLD"
               rotated_at: "$NOW"
             EOF
+        env:
+          - name: KUBECONFIG
+            value: /kubeconfig/config.yaml
+        volumeMounts:
+          - name: drawrace-iad-acb-kubeconfig
+            mountPath: /kubeconfig
+            readOnly: true
 
     # ── read-expected-physics-version ────────────────────────────────────────
     # Extracts PHYSICS_VERSION from packages/engine-core/src/version.ts.

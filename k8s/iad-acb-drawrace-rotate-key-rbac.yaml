@@ -1,0 +1,48 @@
+# RBAC for drawrace-build rotate-client-key step to update ConfigMap on iad-acb
+#
+# This manifests file should be applied to the iad-acb cluster in the drawrace namespace.
+#
+# After applying this, create a kubeconfig secret in iad-ci argo-workflows namespace:
+#   1. Get the iad-acb cluster endpoint (from kubeconfig or cluster info)
+#   2. Get the drawrace-rotate-key SA token:
+#      kubectl -n drawrace get serviceaccount drawrace-rotate-key \
+#        -o jsonpath='{.secrets[0].name}' \
+#        | xargs kubectl -n drawrace get secret \
+#        -o jsonpath='{.data.token}' | base64 -d
+#   3. Create a kubeconfig file with the cluster endpoint and SA token
+#   4. Create the secret in iad-ci argo-workflows namespace:
+#      kubectl -n argo-workflows create secret generic drawrace-iad-acb-kubeconfig \
+#        --from-file=config.yaml=<kubeconfig-file>
+---
+# ServiceAccount for the rotate-client-key step
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: drawrace-rotate-key
+  namespace: drawrace
+---
+# Role allowing get and apply on configmaps
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: drawrace-rotate-key
+  namespace: drawrace
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "update", "create"]
+---
+# RoleBinding binding the Role to the ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: drawrace-rotate-key
+  namespace: drawrace
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: drawrace-rotate-key
+subjects:
+  - kind: ServiceAccount
+    name: drawrace-rotate-key
+    namespace: drawrace
