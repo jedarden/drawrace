@@ -12,7 +12,7 @@ spec:
       - name: branch
         value: main
       - name: repo
-        value: https://github.com/jedarden/drawrace
+        value: https://git.ardenone.com/jedarden/drawrace.git
       - name: republish_only
         value: "false"
   workflowMetadata:
@@ -270,7 +270,7 @@ spec:
         args:
           - |
             set -eu
-            git clone --depth 1 https://github.com/jedarden/declarative-config /tmp/dc
+            git clone --depth 1 https://git.ardenone.com/jedarden/declarative-config.git /tmp/dc
             cd /tmp/dc
             DIR=k8s/iad-acb/drawrace
             # Patch each deployment's image: field with the built <image>:<semver> ref.
