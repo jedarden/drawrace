@@ -216,6 +216,7 @@ pub const MAX_OBSTACLES: u32 = 50;
 pub const MAX_VERTICES_PER_WHEEL: u32 = 32;
 
 /// Maximum total vertices across all wheels
+#[allow(dead_code)]
 pub const MAX_TOTAL_VERTICES: u32 = MAX_WHEELS * MAX_VERTICES_PER_WHEEL;
 
 /// Header region offset (start of memory)
@@ -231,18 +232,21 @@ pub const WHEEL_ARRAY_OFFSET: u32 = HEADER_OFFSET + HEADER_SIZE;
 pub const WHEEL_DESC_SIZE: u32 = 16;
 
 /// Wheel array size (MAX_WHEELS * WHEEL_DESC_SIZE, aligned)
+#[allow(dead_code)]
 pub const WHEEL_ARRAY_SIZE: u32 = MAX_WHEELS * WHEEL_DESC_SIZE; // 336 bytes, rounded to 512
 
 /// Vertex buffer offset (after wheel array, aligned to 8192)
 pub const VERTEX_BUFFER_OFFSET: u32 = 8192;
 
 /// Vertex buffer size (each vertex is 2 i16 values = 4 bytes)
+#[allow(dead_code)]
 pub const VERTEX_BUFFER_SIZE: u32 = MAX_TOTAL_VERTICES * 4; // 2688 bytes
 
 /// Track data offset (after vertex buffer, aligned to 24576)
 pub const TRACK_DATA_OFFSET: u32 = 24576;
 
 /// Track data size (terrain + obstacles + reserved)
+#[allow(dead_code)]
 pub const TRACK_DATA_SIZE: u32 = 16384;
 
 /// State offset (after track data, aligned to 49152)
@@ -255,6 +259,7 @@ pub const STATE_SIZE: u32 = 256;
 pub const RESULT_OFFSET: u32 = 65536;
 
 /// Result size
+#[allow(dead_code)]
 pub const RESULT_SIZE: u32 = 256;
 
 /// Total required memory size (result + size, aligned to 64KB = 1 page)

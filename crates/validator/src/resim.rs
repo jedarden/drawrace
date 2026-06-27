@@ -15,6 +15,7 @@ pub struct ResimEngine {
     engine: Engine,
     module: Module,
     /// The physics version reported by the WASM module
+    #[allow(dead_code)]
     pub physics_version: u32,
 }
 

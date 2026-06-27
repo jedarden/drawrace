@@ -16,14 +16,18 @@ pub struct TrackJson {
     pub id: String,
     pub numeric_id: u16,
     pub name: String,
+    #[allow(dead_code)]
     pub version: u32,
     pub terrain: Vec<[f32; 2]>,
     pub obstacles: Vec<TrackObstacle>,
+    #[allow(dead_code)]
     pub surfaces: Vec<TrackSurface>,
+    #[allow(dead_code)]
     pub ramps: Vec<TrackRamp>,
     pub start: TrackStart,
     pub finish: TrackFinish,
     #[serde(default)]
+    #[allow(dead_code)]
     pub hazards: Vec<TrackHazard>,
 }
 
@@ -37,36 +41,47 @@ pub struct TrackObstacle {
 
 #[derive(Debug, Deserialize)]
 pub struct TrackSurface {
+    #[allow(dead_code)]
     pub x_range: [f32; 2],
     #[serde(rename = "type")]
+    #[allow(dead_code)]
     pub surface_type: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TrackRamp {
+    #[allow(dead_code)]
     pub zone: String,
+    #[allow(dead_code)]
     pub x_start: f32,
+    #[allow(dead_code)]
     pub x_end: f32,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TrackStart {
     pub pos: [f32; 2],
+    #[allow(dead_code)]
     pub facing: i32,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TrackFinish {
     pub pos: [f32; 2],
+    #[allow(dead_code)]
     pub width: f32,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TrackHazard {
     #[serde(rename = "type")]
+    #[allow(dead_code)]
     pub hazard_type: String,
+    #[allow(dead_code)]
     pub x_start: f32,
+    #[allow(dead_code)]
     pub x_end: f32,
+    #[allow(dead_code)]
     pub y: f32,
 }
 
@@ -84,6 +99,7 @@ pub struct TrackData {
     pub start_y: f32,
     /// Finish position (x, y)
     pub finish_x: f32,
+    #[allow(dead_code)]
     pub finish_y: f32,
 }
 
