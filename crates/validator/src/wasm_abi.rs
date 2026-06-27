@@ -322,6 +322,7 @@ pub mod wheel_desc {
     pub const SWAP_TICK: u32 = 0;
     pub const VERTEX_COUNT: u32 = 4;
     pub const VERTEX_OFFSET: u32 = 8;
+    #[allow(dead_code)]
     pub const RESERVED: u32 = 12;
 }
 
@@ -798,6 +799,7 @@ pub fn init_memory(
 }
 
 /// Read the seed from the header region.
+#[allow(dead_code)]
 pub fn read_seed(memory: &Memory, store: &mut wasmtime::Store<()>) -> anyhow::Result<u32> {
     read_u32(memory, store, HEADER_OFFSET + header::SEED)
 }
