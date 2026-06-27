@@ -623,7 +623,7 @@ mod tests {
 
         buf.push(vertex_counts.len() as u8); // wheel_count
 
-        for (i, (&vc, &st)) in vertex_counts.iter().zip(swap_ticks.iter()).enumerate() {
+        for (&vc, &st) in vertex_counts.iter().zip(swap_ticks.iter()) {
             buf.extend_from_slice(&st.to_le_bytes());
             buf.push(vc);
             // Generate unit circle vertices scaled by 100

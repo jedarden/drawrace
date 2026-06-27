@@ -286,11 +286,7 @@ fn test_boundary_case_exactly_at_tolerance() {
             println!("Boundary case: timeout with claimed_finish = claimed - tolerance");
         }
         Some(server_finish_ticks) => {
-            let diff = if server_finish_ticks > claimed_at_boundary {
-                server_finish_ticks - claimed_at_boundary
-            } else {
-                claimed_at_boundary - server_finish_ticks
-            };
+            let diff = server_finish_ticks.abs_diff(claimed_at_boundary);
 
             println!(
                 "Boundary case: claimed={}, server={}, diff={}, tolerance={}",
