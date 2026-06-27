@@ -278,23 +278,37 @@ pub mod result {
     pub const STUCK: u32 = 4;
     pub const SWAP_LOG_OFFSET: u32 = 8;
     pub const SWAP_LOG_COUNT: u32 = 12;
+    #[allow(dead_code)]
     pub const RESERVED: u32 = 16;
 }
 
 /// Header field offsets within HEADER region
 pub mod header {
+    #[allow(dead_code)]
     pub const MAGIC: u32 = 0;
+    #[allow(dead_code)]
     pub const VERSION: u32 = 4;
+    #[allow(dead_code)]
     pub const NUM_WHEELS: u32 = 8;
+    #[allow(dead_code)]
     pub const MAX_WHEELS: u32 = 12;
+    #[allow(dead_code)]
     pub const TERRAIN_COUNT: u32 = 16;
+    #[allow(dead_code)]
     pub const OBSTACLE_COUNT: u32 = 20;
+    #[allow(dead_code)]
     pub const FINISH_X: u32 = 24;
+    #[allow(dead_code)]
     pub const START_X: u32 = 28;
+    #[allow(dead_code)]
     pub const START_Y: u32 = 32;
+    #[allow(dead_code)]
     pub const CLAIMED_FINISH: u32 = 36;
+    #[allow(dead_code)]
     pub const MAX_TICKS: u32 = 40;
+    #[allow(dead_code)]
     pub const INITIAL_VCOUNT: u32 = 44;
+    #[allow(dead_code)]
     pub const SEED: u32 = 48;
 }
 
@@ -796,6 +810,7 @@ pub fn read_state(memory: &Memory, store: &mut wasmtime::Store<()>) -> anyhow::R
 
 /// Current simulation state snapshot
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct SimState {
     pub sim_tick: u32,
     pub finished: bool,

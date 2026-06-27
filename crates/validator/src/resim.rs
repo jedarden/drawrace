@@ -231,6 +231,7 @@ impl ResimEngine {
 
     /// Run a re-simulation and return the full simulation state.
     #[allow(clippy::too_many_arguments)]
+    #[allow(dead_code)]
     pub fn resim_with_state(
         &self,
         wheels: &[WheelEntry],

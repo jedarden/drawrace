@@ -37,22 +37,26 @@ pub fn inc_resim_mismatch() {
 }
 
 /// Update the current rejection rate gauge (percentage).
+#[allow(dead_code)]
 pub fn set_rejection_rate(rate: f64) {
     gauge!("drawrace_validator_rejection_rate_percent").set(rate);
 }
 
 /// Update the resim rejection rate gauge (percentage of rejections due to resim mismatch).
+#[allow(dead_code)]
 pub fn set_resim_rejection_rate(rate: f64) {
     gauge!("drawrace_validator_resim_rejection_rate_percent").set(rate);
 }
 
 /// Record a resim tick difference (for histogram/distribution analysis).
+#[allow(dead_code)]
 pub fn record_tick_diff(diff: u32) {
     counter!("drawrace_validator_resim_tick_diff", "diff_bucket" => tick_diff_bucket(diff))
         .increment(1);
 }
 
 /// Bucket tick differences for histogram analysis.
+#[allow(dead_code)]
 fn tick_diff_bucket(diff: u32) -> String {
     match diff {
         0..=2 => "0-2".to_string(),

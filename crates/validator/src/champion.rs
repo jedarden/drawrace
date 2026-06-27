@@ -198,11 +198,13 @@ impl ChampionValidator {
     }
 
     /// Get the champion reference for a track, if available.
+    #[allow(dead_code)]
     pub fn get_champion(&self, track_id: u16) -> Option<&ChampionReference> {
         self.data.champions.get(&track_id.to_string())
     }
 
     /// Set a custom quarantine threshold (default is 2.0).
+    #[allow(dead_code)]
     pub fn with_quarantine_threshold(mut self, threshold: f64) -> Self {
         self.quarantine_threshold_percent = threshold;
         self
