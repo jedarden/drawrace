@@ -30,7 +30,7 @@ The drawrace-build WorkflowTemplate on iad-ci uses `rust:1.85-slim`, but depende
 
 **Local template fix:** `./k8s/drawrace-build-workflowtemplate.yml` already uses `rust:1.95-slim` (commit 5f6be6d)
 
-**Required action:** Sync the updated WorkflowTemplate to `jedarden/declarative-config` so ArgoCD picks up the fix.
+**✅ COMPLETED (2026-06-27):** Updated WorkflowTemplate synced to `jedarden/declarative-config` (commit 7e00e2e). ArgoCD will pick up the fix automatically.
 
 ## Infrastructure State ❌
 
@@ -79,7 +79,7 @@ Without infrastructure deployed, cannot verify acceptance criteria:
 
 ## Recommended Next Steps
 
-1. **Sync WorkflowTemplate to declarative-config** (P0):
+1. ~~**Sync WorkflowTemplate to declarative-config** (P0):~~ ✅ COMPLETED
    ```bash
    # Copy updated template to declarative-config repo
    cp /home/coding/drawrace/k8s/drawrace-build-workflowtemplate.yml \
@@ -125,7 +125,7 @@ Without infrastructure deployed, cannot verify acceptance criteria:
 
 ## Conclusion
 
-**PARTIAL BLOCKER IDENTIFIED**: The CI failure is due to Rust version mismatch. Local code passes all checks with rust 1.95. The fix exists locally and needs to be synced to declarative-config.
+**✅ CI LINT FIX COMPLETED**: The CI lint failure has been fixed by updating the WorkflowTemplate from `rust:1.92-slim` to `rust:1.95-slim` with proper rustfmt/clippy component installation (commit 7e00e2e in declarative-config). ArgoCD will sync the template automatically.
 
 Secondary blockers remain:
 1. drawrace infrastructure (namespace, deployments) not yet deployed to production cluster
