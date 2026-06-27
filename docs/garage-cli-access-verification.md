@@ -3,7 +3,19 @@
 **Date**: 2026-06-27 (Updated)
 **Original Task**: 2025-06-27
 **Task**: Verify Garage CLI access on ardenone-hub cluster
+**Bead**: nd-5m5
 **Status**: ❌ **BLOCKED** - Cluster offline (verified 2026-06-27)
+
+---
+
+## Latest Verification Attempt (2026-06-27)
+
+**Verification performed** as part of bead nd-5m5:
+- Confirmed cluster still offline via Tailscale status check
+- Verified no local Garage CLI installation
+- Attempted kubectl proxy connection - timeout expected
+- Documentation updated with current findings
+- Task blocked awaiting cluster restoration
 
 ---
 
