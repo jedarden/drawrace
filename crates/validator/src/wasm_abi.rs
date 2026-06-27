@@ -468,6 +468,7 @@ pub fn read_f32(
 }
 
 /// Read a u32 value from WASM memory at the given offset (offset + 4 bytes).
+#[allow(dead_code)]
 pub fn read_u32_at(
     memory: &Memory,
     store: &mut wasmtime::Store<()>,
@@ -478,6 +479,7 @@ pub fn read_u32_at(
 }
 
 /// Read a i32 value from WASM memory at the given offset.
+#[allow(dead_code)]
 pub fn read_i32(
     memory: &Memory,
     mut store: &mut wasmtime::Store<()>,
@@ -500,6 +502,7 @@ pub fn read_i32(
 }
 
 /// Read a i16 value from WASM memory at the given offset.
+#[allow(dead_code)]
 pub fn read_i16(
     memory: &Memory,
     mut store: &mut wasmtime::Store<()>,
@@ -736,7 +739,9 @@ pub fn read_result(memory: &Memory, store: &mut wasmtime::Store<()>) -> anyhow::
 #[derive(Debug, Clone)]
 pub struct SimResult {
     pub finish_ticks: Option<u32>,
+    #[allow(dead_code)]
     pub stuck: bool,
+    #[allow(dead_code)]
     pub swap_log: Vec<(u32, u8)>,
 }
 
