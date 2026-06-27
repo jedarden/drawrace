@@ -118,9 +118,7 @@ mod tests {
 
         // Try different configs
         let configs = vec![
-            ("default", {
-                Config::new()
-            }),
+            ("default", { Config::new() }),
             ("simd", {
                 let mut c = Config::new();
                 c.wasm_simd(true);

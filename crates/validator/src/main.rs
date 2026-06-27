@@ -412,8 +412,8 @@ async fn validate_ghost(
     let seed = 42u32;
     let resim_result = match engine.resim(
         &ghost.wheels,
-        &terrain,
-        &obstacles,
+        terrain,
+        obstacles,
         finish_x,
         start_x,
         start_y,
@@ -444,11 +444,7 @@ async fn validate_ghost(
         Some(server_finish_ticks) => {
             // Allow 2 tick tolerance for floating-point differences
             const FINISH_TICK_TOLERANCE: u32 = 2;
-            let diff = if server_finish_ticks > client_finish_ticks {
-                server_finish_ticks - client_finish_ticks
-            } else {
-                client_finish_ticks - server_finish_ticks
-            };
+            let diff = server_finish_ticks.abs_diff(client_finish_ticks);
             if diff > FINISH_TICK_TOLERANCE {
                 return Ok(Verdict {
                     status: "rejected".to_string(),
