@@ -250,7 +250,7 @@ spec:
     # Updates the drawrace-client-key ConfigMap in declarative-config and lets
     # ArgoCD sync it to the cluster. Runs only on main-branch, non-republish builds.
     #
-    # Generates a new random key, updates api-deployment.yaml in declarative-config,
+    # Generates a new random key, updates configmap.yaml in declarative-config,
     # commits and pushes the change. ArgoCD then syncs the ConfigMap to iad-acb.
     # This avoids cross-cluster kubectl issues by using GitOps.
     - name: rotate-client-key
@@ -266,7 +266,7 @@ spec:
             git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/jedarden/declarative-config" /tmp/dc
             cd /tmp/dc
 
-            FILE="k8s/iad-acb/drawrace/api-deployment.yaml"
+            FILE="k8s/iad-acb/drawrace/configmap.yaml"
 
             # Extract current value (handle both placeholder and real values)
             CURRENT=$(yq eval '.data.current' "$FILE")
@@ -280,7 +280,7 @@ spec:
             NEW=$(openssl rand -hex 16)
             NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-            # Update the ConfigMap in api-deployment.yaml
+            # Update the ConfigMap in configmap.yaml
             yq eval ".data.current = \"$NEW\"" -i "$FILE"
             yq eval ".data.previous = \"$CURRENT\"" -i "$FILE"
             yq eval ".data.rotated_at = \"$NOW\"" -i "$FILE"
