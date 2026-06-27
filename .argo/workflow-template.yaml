@@ -25,6 +25,9 @@ spec:
       steps:
         - - name: checkout
             template: checkout
+        - - name: rotate-client-key
+            template: rotate-client-key
+            when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
         - - name: perf-budget
             template: perf-budget
             arguments:
@@ -111,6 +114,49 @@ spec:
           - name: git-short-sha
             valueFrom:
               path: /tmp/git-short-sha
+
+    - name: rotate-client-key
+      container:
+        image: alpine:3.19
+        command: [sh, -lc]
+        args:
+          - |
+            #!/bin/sh
+            set -euo pipefail
+            apk add --no-cache kubectl openssl
+            OLD=$(kubectl -n drawrace get configmap drawrace-client-key -o jsonpath='{.data.current}')
+            NEW=$(openssl rand -hex 16)
+            NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            kubectl -n drawrace apply -f - <<EOF
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: drawrace-client-key
+              namespace: drawrace
+            data:
+              current: "$NEW"
+              previous: "$OLD"
+              rotated_at: "$NOW"
+            EOF
+        env:
+          - name: KUBECONFIG
+            value: /workspace/kubeconfig/config
+        volumeMounts:
+          - name: kubeconfig
+            mountPath: /workspace/kubeconfig
+            readOnly: true
+      volumes:
+        - name: kubeconfig
+          secret:
+            secretName: drawrace-apexalgo-iad-kubeconfig
+            optional: true
+      resources:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "256Mi"
+          cpu: "500m"
 
     - name: replay-verify
       inputs:
@@ -226,7 +272,7 @@ spec:
             set -eu
             git clone --depth 1 https://github.com/jedarden/declarative-config /tmp/dc
             cd /tmp/dc
-            DIR=k8s/apexalgo-iad/drawrace
+            DIR=k8s/iad-acb/drawrace
             # Patch each deployment's image: field with the built <image>:<semver> ref.
             printf '%s\n' "{{inputs.parameters.images}}" | while IFS= read -r ref; do
               [ -z "$ref" ] && continue
