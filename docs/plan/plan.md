@@ -1295,13 +1295,18 @@ spec:
     # main-branch, non-republish builds.  On first-run (previous == ""),
     # still promotes current -> previous; the api verifier treats empty
     # previous as "ignore".
+    #
+    # Uses alpine:3.19 with kubectl installed via apk to avoid ImagePullBackOff
+    # issues that affected bitnami/kubectl:1.29.4.
     - name: rotate-client-key
       container:
-        image: ghcr.io/drawrace/ci-snap:2026-04-21
-        command: [bash, -lc]
+        image: alpine:3.19
+        command: [sh, -lc]
         args:
           - |
+            #!/bin/sh
             set -euo pipefail
+            apk add --no-cache kubectl openssl
             OLD=$(kubectl -n drawrace get configmap drawrace-client-key -o jsonpath='{.data.current}')
             NEW=$(openssl rand -hex 16)
             NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
