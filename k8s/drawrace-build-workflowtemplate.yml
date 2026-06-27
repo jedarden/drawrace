@@ -492,12 +492,13 @@ spec:
           - name: crate
       activeDeadlineSeconds: 600
       container:
-        image: rust:1.85-slim
+        image: rust:1.95-slim
         command: [bash, -c]
         args:
           - |
             set -e
             apt-get update -qq && apt-get install -y -qq pkg-config libssl-dev >/dev/null 2>&1
+            rustup component add rustfmt clippy
             cd /workspace/crates/{{inputs.parameters.crate}}
             cargo fmt --all -- --check
             cargo clippy --all-targets -- -D warnings
@@ -519,7 +520,7 @@ spec:
           - name: crate
       activeDeadlineSeconds: 600
       container:
-        image: rust:1.85-slim
+        image: rust:1.95-slim
         command: [bash, -c]
         args:
           - |
