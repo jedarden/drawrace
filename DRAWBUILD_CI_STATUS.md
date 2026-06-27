@@ -16,6 +16,21 @@ All required upstream beads are CLOSED:
 - `cargo test -p drawrace-validator` - PASSING (66 tests)
 - `cargo clippy -p drawrace-validator -- -D warnings` - PASSING
 - `cargo clippy -p drawrace-api -- -D warnings` - PASSING
+- `cargo fmt/clippy in rust:1.95-slim container` - PASSING (both api and validator)
+- `cargo fmt/clippy in rust:1.85-slim container` - FAILING (dependencies require rustc 1.91.1+)
+
+## Root Cause Analysis 🔍
+
+### CI Rust Version Mismatch
+
+The drawrace-build WorkflowTemplate on iad-ci uses `rust:1.85-slim`, but dependencies require rustc 1.91.1+:
+- aws-config, aws-sdk-* crates require rustc 1.91.1
+- icu_* crates require rustc 1.86
+- time crate requires rustc 1.88.0
+
+**Local template fix:** `./k8s/drawrace-build-workflowtemplate.yml` already uses `rust:1.95-slim` (commit 5f6be6d)
+
+**Required action:** Sync the updated WorkflowTemplate to `jedarden/declarative-config` so ArgoCD picks up the fix.
 
 ## Infrastructure State ❌
 
@@ -64,53 +79,61 @@ Without infrastructure deployed, cannot verify acceptance criteria:
 
 ## Recommended Next Steps
 
-1. **Deploy Infrastructure** (P0):
+1. **Sync WorkflowTemplate to declarative-config** (P0):
+   ```bash
+   # Copy updated template to declarative-config repo
+   cp /home/coding/drawrace/k8s/drawrace-build-workflowtemplate.yml \
+      ~/declarative-config/k8s/iad-ci/argo-workflows/drawrace-build.yaml
+   
+   # Commit and push to declarative-config
+   cd ~/declarative-config
+   git add k8s/iad-ci/argo-workflows/drawrace-build.yaml
+   git commit -m "fix(drawrace): update rust:1.85-slim to rust:1.95-slim for compatibility"
+   git push
+   ```
+
+2. **Deploy Infrastructure** (P1):
    ```bash
    # Apply drawrace manifests to iad-acb
    kubectl --kubeconfig=~/kubeconfig-for-iad-acb apply -f \
      <(kubectl-cnpg -n drawrace -f jedarden/declarative-config/k8s/iad-acb/drawrace/)
    ```
 
-2. **Fix CSI Issues** (P0):
-   - Check Rackspace Spot CSI proxy rate limits
-   - Consider adding retry/backoff to volume attachment
-   - May need to file infrastructure ticket
-
 3. **Retry Manual CI** (P1):
-   Once infrastructure is deployed and CSI is stable:
+   Once workflow template is synced:
    ```bash
    kubectl --kubeconfig=/home/coding/.kube/iad-ci.kubeconfig create -f - <<EOF
    apiVersion: argoproj.io/v1alpha1
    kind: Workflow
    metadata:
-     generateName: drawrace-build-manual-
-     namespace: argo-workflows
+   generateName: drawrace-build-manual-
+   namespace: argo-workflows
    spec:
-     workflowTemplateRef:
-       name: drawrace-build
-     arguments:
-       parameters:
-         - name: branch
-           value: main
+   workflowTemplateRef:
+   name: drawrace-build
+   arguments:
+   parameters:
+   - name: branch
+   value: main
    EOF
    ```
 
-4. **Verify Images** (P1):
-   ```bash
-   # Check if images were pushed
-   docker pull ronaldraygun/drawrace-api:latest
-   docker pull ronaldraygun/drawrace-validator:latest
-   ```
+4. **Fix CSI Issues** (P2):
+   - Check Rackspace Spot CSI proxy rate limits
+   - Consider adding retry/backoff to volume attachment
+   - May need to file infrastructure ticket
 
 ## Conclusion
 
-**BLOCKED**: Cannot complete full end-to-end verification because:
+**PARTIAL BLOCKER IDENTIFIED**: The CI failure is due to Rust version mismatch. Local code passes all checks with rust 1.95. The fix exists locally and needs to be synced to declarative-config.
+
+Secondary blockers remain:
 1. drawrace infrastructure (namespace, deployments) not yet deployed to production cluster
 2. Rackspace Spot CSI experiencing rate limiting issues preventing CI workflows from running
 
-The upstream code is ready (lint, tests, clippy all passing), but infrastructure deployment is required before the acceptance criteria can be verified.
+The upstream code is ready (lint, tests, clippy all passing), but infrastructure deployment and CI template sync are required before the acceptance criteria can be verified.
 
 ---
 
 Generated: 2026-06-27
-Task: bf-1fc6i - Trigger manual drawrace-build CI and verify end-to-end
+Task: nd-2dz - Fix CI: cargo fmt/clippy failures for drawrace-api and drawrace-validator
