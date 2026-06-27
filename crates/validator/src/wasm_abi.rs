@@ -1013,41 +1013,41 @@ mod tests {
         let vbuf_offset = VERTEX_BUFFER_OFFSET as usize;
 
         // Vertex 0: (-50, -50)
-        assert_eq!(read_i16_slice(&data, vbuf_offset + 0), -50);
-        assert_eq!(read_i16_slice(&data, vbuf_offset + 2), -50);
+        assert_eq!(read_i16_slice(data, vbuf_offset), -50);
+        assert_eq!(read_i16_slice(data, vbuf_offset + 2), -50);
 
         // Vertex 1: (50, -50)
-        assert_eq!(read_i16_slice(&data, vbuf_offset + 4), 50);
-        assert_eq!(read_i16_slice(&data, vbuf_offset + 6), -50);
+        assert_eq!(read_i16_slice(data, vbuf_offset + 4), 50);
+        assert_eq!(read_i16_slice(data, vbuf_offset + 6), -50);
 
         // Vertex 2: (50, 50)
-        assert_eq!(read_i16_slice(&data, vbuf_offset + 8), 50);
-        assert_eq!(read_i16_slice(&data, vbuf_offset + 10), 50);
+        assert_eq!(read_i16_slice(data, vbuf_offset + 8), 50);
+        assert_eq!(read_i16_slice(data, vbuf_offset + 10), 50);
 
         // Vertex 3: (-50, 50)
-        assert_eq!(read_i16_slice(&data, vbuf_offset + 12), -50);
-        assert_eq!(read_i16_slice(&data, vbuf_offset + 14), 50);
+        assert_eq!(read_i16_slice(data, vbuf_offset + 12), -50);
+        assert_eq!(read_i16_slice(data, vbuf_offset + 14), 50);
 
         // Wheel 1 vertices (3 vertices, starting at offset 8192 + 4*4 = 8208)
         let wheel1_voffset = vbuf_offset + 4 * 4; // After wheel 0's 4 vertices
 
         // Vertex 4: (0, -40)
-        assert_eq!(read_i16_slice(&data, wheel1_voffset + 0), 0);
-        assert_eq!(read_i16_slice(&data, wheel1_voffset + 2), -40);
+        assert_eq!(read_i16_slice(data, wheel1_voffset), 0);
+        assert_eq!(read_i16_slice(data, wheel1_voffset + 2), -40);
 
         // Vertex 5: (35, 20)
-        assert_eq!(read_i16_slice(&data, wheel1_voffset + 4), 35);
-        assert_eq!(read_i16_slice(&data, wheel1_voffset + 6), 20);
+        assert_eq!(read_i16_slice(data, wheel1_voffset + 4), 35);
+        assert_eq!(read_i16_slice(data, wheel1_voffset + 6), 20);
 
         // Vertex 6: (-35, 20)
-        assert_eq!(read_i16_slice(&data, wheel1_voffset + 8), -35);
-        assert_eq!(read_i16_slice(&data, wheel1_voffset + 10), 20);
+        assert_eq!(read_i16_slice(data, wheel1_voffset + 8), -35);
+        assert_eq!(read_i16_slice(data, wheel1_voffset + 10), 20);
 
         // === Validate Terrain (offset 24576) ===
         let terrain_offset = TRACK_DATA_OFFSET as usize + track_data::TERRAIN_START as usize;
 
         // Terrain point 0: (0.0, 500.0)
-        assert_eq!(read_f32_slice(data, terrain_offset + 0), 0.0);
+        assert_eq!(read_f32_slice(data, terrain_offset), 0.0);
         assert_eq!(read_f32_slice(data, terrain_offset + 4), 500.0);
 
         // Terrain point 1: (500.0, 450.0)
