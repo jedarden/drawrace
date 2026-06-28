@@ -164,7 +164,7 @@ mod tests {
     fn load_engine_core_wasm() {
         match EngineCoreWasm::load() {
             Ok(wasm) => {
-                assert_eq!(wasm.physics_version, 4);
+                assert_eq!(wasm.physics_version, 8);
                 assert!(!wasm.content_hash.is_empty());
             }
             Err(e) => {
@@ -179,8 +179,8 @@ mod tests {
     fn physics_version_matches_metadata() {
         match EngineCoreWasm::load() {
             Ok(wasm) => {
-                // Physics version should be 4 as per metadata
-                assert_eq!(wasm.physics_version, 4);
+                // Physics version should be 8 as per metadata (updated from 4)
+                assert_eq!(wasm.physics_version, 8);
             }
             Err(e) => {
                 // If WASM file doesn't exist or fails to load, skip test
