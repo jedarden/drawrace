@@ -788,7 +788,7 @@ mod tests {
             "need at least 20 seeds, got {}",
             SEEDS.len()
         );
-        assert!(SEEDS.len() <= 35, "too many seeds, got {}", SEEDS.len());
+        assert!(SEEDS.len() <= 30, "too many seeds, got {}", SEEDS.len());
     }
 
     #[test]
@@ -823,7 +823,7 @@ mod tests {
         assert_eq!(&blob[0..4], b"DRGH");
         assert_eq!(blob[4], PHYSICS_VERSION);
         let track_id = u16::from_le_bytes([blob[5], blob[6]]);
-        assert_eq!(track_id, TRACK_ID as u16);
+        assert_eq!(track_id, 1u16, "in-memory seeds are hardcoded to track 1");
         let time_ms = u32::from_le_bytes([blob[8], blob[9], blob[10], blob[11]]);
         assert_eq!(time_ms, seed.time_ms);
 
@@ -878,5 +878,74 @@ mod tests {
             5,
             "need coverage of all 5 buckets, got {buckets:?}"
         );
+    }
+
+    #[test]
+    fn all_track_ids_covered() {
+        // Verify ALL_TRACK_IDS includes tracks 1, 2, and 3
+        assert_eq!(ALL_TRACK_IDS, &[1, 2, 3], "ALL_TRACK_IDS must include all three tracks");
+    }
+
+    #[test]
+    fn track_ids_sorted() {
+        // Verify track IDs are sorted for deterministic loading order
+        let mut sorted = ALL_TRACK_IDS.to_vec();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(ALL_TRACK_IDS, &sorted[..], "ALL_TRACK_IDS must be sorted and unique");
+    }
+
+    #[test]
+    fn seeds_span_reasonable_time_range() {
+        // Verify seed times span a reasonable range for matchmaking
+        let min_time = SEEDS.iter().map(|s| s.time_ms).min().unwrap();
+        let max_time = SEEDS.iter().map(|s| s.time_ms).max().unwrap();
+        let ratio = max_time as f64 / min_time as f64;
+
+        // Fastest should be at least 3x faster than slowest for good bucket distribution
+        assert!(
+            ratio >= 2.5,
+            "seed time ratio too narrow: {ratio:.2}x (min={min_time}ms, max={max_time}ms)"
+        );
+
+        // But not more than 6x to keep times in plausible range
+        assert!(
+            ratio <= 8.0,
+            "seed time ratio too wide: {ratio:.2}x (min={min_time}ms, max={max_time}ms)"
+        );
+    }
+
+    #[test]
+    fn seed_bucket_distribution_is_reasonable() {
+        // Verify bucket distribution covers all 5 buckets with reasonable counts
+        let n = SEEDS.len() as f64;
+        let mut bucket_counts = std::collections::HashMap::new();
+        for i in 0..SEEDS.len() {
+            let pr = i as f64 / (n - 1.0);
+            let bucket = if pr <= 0.01 {
+                "elite"
+            } else if pr <= 0.05 {
+                "advanced"
+            } else if pr <= 0.20 {
+                "skilled"
+            } else if pr <= 0.50 {
+                "mid"
+            } else {
+                "novice"
+            };
+            *bucket_counts.entry(bucket).or_insert(0) += 1;
+        }
+
+        // All 5 buckets should be represented
+        assert_eq!(bucket_counts.len(), 5, "all 5 buckets should be represented");
+
+        // Elite and advanced should have at least 1 each
+        assert!(bucket_counts.get("elite").copied().unwrap_or(0) >= 1, "elite bucket should have at least 1 ghost");
+        assert!(bucket_counts.get("advanced").copied().unwrap_or(0) >= 1, "advanced bucket should have at least 1 ghost");
+
+        // Skilled, mid, novice should have several each
+        assert!(bucket_counts.get("skilled").copied().unwrap_or(0) >= 3, "skilled bucket should have at least 3 ghosts");
+        assert!(bucket_counts.get("mid").copied().unwrap_or(0) >= 5, "mid bucket should have at least 5 ghosts");
+        assert!(bucket_counts.get("novice").copied().unwrap_or(0) >= 8, "novice bucket should have at least 8 ghosts");
     }
 }
