@@ -171,12 +171,38 @@ kubectl --server=http://traefik-iad-acb:8001 get secrets -n drawrace
 
 ---
 
-## OpenBao Secret Creation Checklist
+## OpenBao Secret Creation
+
+### Quick Start
+
+**Automated Setup (Recommended):**
+
+1. Set your OpenBao root token:
+   ```bash
+   export OPENBAO_TOKEN="<your-openbao-root-token>"
+   ```
+
+2. Run the setup script:
+   ```bash
+   cd /home/coding/drawrace
+   ./scripts/setup-openbao-secrets.sh
+   ```
+
+3. Verify success:
+   ```bash
+   kubectl --server=http://traefik-iad-acb:8001 get externalsecrets -n drawrace
+   ```
+
+**Manual Setup:** See `docs/openbao-secrets-creation-guide.md` for detailed manual steps.
+
+**Execution Checklist:** See `docs/openbao-secrets-execution-checklist.md` for step-by-step verification.
+
+### Secret Creation Checklist
 
 To create the required secrets in OpenBao:
 
 1. **Docker Hub Registry** (`ardenone-hub/docker/hub-registry`):
-   - [ ] Create `.dockerconfigjson` property with valid Docker Hub auth
+   - [x] ✅ Already synced - no action needed
 
 2. **API S3 Credentials** (`rs-manager/drawrace/s3`):
    - [ ] Create `AWS_ACCESS_KEY_ID` property
