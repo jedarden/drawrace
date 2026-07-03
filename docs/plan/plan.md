@@ -126,7 +126,7 @@ This section specifies the runtime behavior of DrawRace: how the game turns a fi
 
 ### 1. Core Game Loop
 
-A single attempt moves through three states — **Draw → Race → Result** — but unlike a classical "commit once" racer, **drawing continues throughout the race**. The player commits an initial wheel at the Draw→Race transition and may redraw at any moment during the race; each redraw hot-swaps the wheel on the next tick boundary. The core skill tension is *shape adaptation under time pressure* rather than one-shot commitment.
+A single attempt moves through three states — **Draw → Race → Result** — but unlike a classical "commit once" racer, **drawing continues throughout the race**. The player commits an initial wheel at the Draw→Race transition and may redraw at any moment during the race; each redraw hot-swaps **both wheels (front and rear axles)** on the next tick boundary. The core skill tension is *shape adaptation under time pressure* rather than one-shot commitment.
 
 | Phase | Typical Duration | Player Input | State Held |
 |---|---|---|---|
@@ -488,7 +488,7 @@ Mid-race wheel swaps (§Gameplay 3) are also tick-indexed. At `pointerup` the cl
 
 ### 7. Difficulty & Progression
 
-**v1 shipped with three tracks** (`apps/web/public/tracks/hills-01.json`, `canyon-02.json`, `dunes-03.json`, wired into `apps/web/src/App.tsx`). Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded during v1 development (tracks shipped 2026-04) to give players more variety at launch.
+**v1 shipped with three tracks** (`apps/web/public/tracks/hills-01.json`, `apps/web/public/tracks/canyon-02.json`, `apps/web/public/tracks/dunes-03.json`, wired into `apps/web/src/App.tsx`). Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded during v1 development (tracks shipped 2026-04) to give players more variety at launch.
 
 **Post-v1 progression outline** — items shipped as of 2026-04/2026-05:
 
