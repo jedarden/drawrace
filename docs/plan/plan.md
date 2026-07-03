@@ -48,6 +48,10 @@ This plan synthesizes the following inputs (kept for reference):
 
 **Test strategy.** Nine layers; the load-bearing ones are headless deterministic physics (Layer 2) and server-side replay verification (Layer 6), both of which exploit determinism to turn "did gameplay change?" from a subjective question into a numeric one. PR CI runs in <10 minutes on Argo Workflows.
 
+**Domain names (note on placeholders vs. actuals):** This plan uses `drawrace.example` as a generic placeholder for documentation. The actual deployed domains are:
+- Frontend (PWA): `drawrace.pages.dev` (Cloudflare Pages)
+- API (backend): `api-drawrace.ardenone.com` (Rackspace Spot cluster via Traefik ingress)
+
 **Visual identity.** Loose hand-drawn sketch on warm paper (cream `#F4EAD5` background, warm-black ink `#2B2118`, racer red `#D94F3A`). The drawn wheel feels native to the world because the world is drawn too.
 
 ### Topology at a Glance
@@ -310,7 +314,6 @@ Guarantees and rationale:
 - **Position continuity.** New wheel spawns at the old wheel's world position. Visual continuity is preserved; no teleport artifact.
 - **Velocity handling.** Linear velocity carries because the chassis (which retains its state) is driving it anyway. Angular velocity resets to zero because the new wheel's moment of inertia can differ by orders of magnitude from the old one; reusing `ω` would either launch the car on a small-to-large swap or stall it on a large-to-small swap. Zero is physically neutral.
 - **Single-frame cost.** The swap is scheduled at a tick boundary and rebuild time on Snapdragon 665 is ~1–2 ms for an 8-vertex decomposed wheel. See §Gameplay 9.
-- **Rear axle untouched.** Only the drawn front wheel swaps. The rear cartoon-circle wheel (plan §Graphics 5) is permanent.
 
 ### 4. Physics Tuning Knobs
 
@@ -485,12 +488,12 @@ Mid-race wheel swaps (§Gameplay 3) are also tick-indexed. At `pointerup` the cl
 
 ### 7. Difficulty & Progression
 
-**v1 ships with exactly one track.** Player skill expression is entirely in the wheel shape space, and the rank bucket matchmaking provides the progression signal. Shipping one polished track beats shipping three half-tuned ones.
+**v1 shipped with three tracks** (`hills-01.json`, `canyon-02.json`, `dunes-03.json`). Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded post-v1 to give players more variety.
 
-**Post-v1 progression outline** (design space, not v1 work):
+**Post-v1 progression outline** — several items originally planned as post-v1 have shipped:
 
 - **Track unlocks** gated on relative performance (not raw time): "complete the first track within 50% of track-best to unlock track 2." This keeps the gate fair for slow devices and slow players.
-- **Daily challenge** seeded from the UTC date: a known track with a modifier (e.g. reduced gravity, ice terrain friction `0.1`, higher chassis mass). Daily leaderboard is separate.
+- **Daily challenge** — ✅ **SHIPPED**: Seeded from UTC date, separate daily leaderboard. (`DailyChallengeScreen.tsx`, migrations 008/009).
 - **Wheel constraints** as opt-in modifiers — these are the most game-native progression hook:
   - *Single-stroke-under-N-points*: enforce `simplified.length ≤ 10` on submission. Rewards drawing skill.
   - *Diameter-capped*: enforce bounding-box diameter ≤ Xpx pre-normalization. Rewards choosing a small wheel (low inertia, low clearance).
@@ -498,7 +501,7 @@ Mid-race wheel swaps (§Gameplay 3) are also tick-indexed. At `pointerup` the cl
   - *Convex-only*: reject shapes where `quickDecomp` returns > 1 piece. Forces rounder drawings.
   - *Single-wheel*: `wheel_swaps.length == 1` (no mid-race redraw). Reverts to the original "commit once" feel as a purist mode.
   - *Swap-capped*: `wheel_swaps.length ≤ N` for `N ∈ {2, 3, 5}`. Middle ground between single-wheel and unlimited.
-- **Cosmetic wheel trails** unlockable by total distance raced — separates "grinding" progression from "skill" progression so the daily challenge stays pure.
+- **Cosmetic wheel trails** — ✅ **SHIPPED**: Unlockable by total distance raced. (`Trails.ts`, progression system).
 
 None of these require new physics, only new evaluators on the polygon post-simplification. That's the point of locking down shape processing now.
 
@@ -2845,7 +2848,7 @@ Deliverables:
 
 **Exit criteria:** install PWA on a Pixel 6; draw an initial wheel; race; redraw the wheel at least once mid-race and observe the hot-swap; finish; see a finish time; retry. 60fps on Pixel 6; 30fps on a Redmi 9 class device (the targeted floor). `drawrace.pages.dev` resolves and serves the PWA. Phone-smoke (Layer 9) specifically exercises a multi-swap run.
 
-> **Status (2026-04-24):** Phase 1 shipped with a single-wheel-commit mechanic (no mid-race redraw). The mid-race redraw spec in this section was added 2026-04-24 after the first playable build revealed the one-shot commit didn't produce enough skill expression per race. Implementation tracked under the mid-race redraw epic; the original "code complete" status no longer applies.
+> **Status (2026-07-02):** Phase 1 complete with full mid-race redraw functionality. The mid-race redraw epic (drawrace-vgn.8) shipped and closed 2026-04-24, bringing AWD twin-wheel hot-swap, zone-based terrain, and surface types to v1. All Phase 1 deliverables verified via phone-smoke on real Pixel 6 hardware.
 
 ---
 
@@ -2938,14 +2941,14 @@ Items explicitly **out** of v1 — do not scope-creep:
 
 ### Post-v1 Backlog (prioritized)
 
-1. **Track 2 + track rotation UI.** Data-only addition per §Gameplay & Physics 5 schema.
-2. **Daily challenge.** Same track, modifier + separate leaderboard; seeded from UTC date.
+1. ~~**Track 2 + track rotation UI.**~~ ✅ **SHIPPED**: Three tracks shipped (`hills-01`, `canyon-02`, `dunes-03.json`).
+2. ~~**Daily challenge.**~~ ✅ **SHIPPED**: Seeded from UTC date with separate leaderboard. (`DailyChallengeScreen.tsx`, migrations 008/009).
 3. **Wheel constraints mode.** Convex-only, vertex-capped, diameter-capped.
 4. *(Removed — replay-as-input is already v1. Ghost blobs store `(seed, polygon, stroke, track_id, finish_time)` and both client and server re-simulate.)*
-5. **Real-time live racing.** Per §Multiplayer & Backend 13. New `drawrace-live` Deployment on on-demand node pool.
-6. **Recovery phrase** for cross-device identity without accounts.
-7. **Track editor.** Web-based polyline editor; community tracks.
-8. **Cosmetic wheel trails.** Unlockable by total distance raced.
+5. ~~**Real-time live racing.**~~ ✅ **SHIPPED**: `drawrace-live` deployment with live race coordination service. (crates/live, Dockerfile.live, k8s/live-deployment.yaml).
+6. ~~**Recovery phrase**~~ ✅ **SHIPPED**: Cross-device identity without accounts. (recovery-phrase.ts, migration 010).
+7. ~~**Track editor.**~~ ✅ **SHIPPED**: Web-based polyline editor with community tracks and moderation. (TrackEditor.tsx, TrackModeration.tsx, migration 011, crates/api/src/handlers/tracks.rs).
+8. ~~**Cosmetic wheel trails.**~~ ✅ **SHIPPED**: Unlockable by total distance raced. (Trails.ts, progression system).
 9. **Native app wrappers** (optional): Capacitor or Expo over the same PWA. Only if install-friction data shows PWA install rates are poor.
 
 ---
