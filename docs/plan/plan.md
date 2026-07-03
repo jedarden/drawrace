@@ -1947,7 +1947,7 @@ All motion curves via `requestAnimationFrame` + explicit easing; never CSS anima
 | Contact ink-flash | Collision impulse > threshold | 80ms | `easeOutExpo` fade | 12px ink-blot sprite, at contact point |
 | Countdown 3-2-1-GO | Race start | 3s | `easeOutBack` (scale in) + `easeInCubic` (fade out) | 96pt numerals, center-screen, pulses with 1Hz heartbeat |
 | Finish confetti | Cross finish line | 1.2s | Particle physics (gravity 800 px/s²) | 40 particles, palette of 4 accents, rotate random |
-| Wheel commit | Player taps Race | 500ms | `easeOutBack` scale to axle | Drawn polygon morphs/shrinks from preview panel to car front wheel |
+| Wheel commit | Player taps Race | 500ms | `easeOutBack` scale to axle | Drawn polygon morphs/shrinks from preview panel to both car wheels (AWD) |
 | Mid-race wheel swap | `commitSwap()` on overlay | 300ms | `easeOutBack` scale | New polygon overlays the live wheel at full opacity, scales from 120%→100%, then handoff to physics-driven path |
 | Ghost wheel swap | Ghost's `swap_tick` hits during its sim | 200ms | `easeOutCubic` crossfade | Two wheel silhouettes (old → new) crossfade over the ghost's world position |
 | Swap cooldown gauge | Post-swap 500ms | 500ms | linear | Bottom draw-overlay briefly darkens with a thin progress bar across its top edge, clears at cooldown end |
