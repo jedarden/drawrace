@@ -49,8 +49,8 @@ This plan synthesizes the following inputs (kept for reference):
 **Test strategy.** Nine layers; the load-bearing ones are headless deterministic physics (Layer 2) and server-side replay verification (Layer 6), both of which exploit determinism to turn "did gameplay change?" from a subjective question into a numeric one. PR CI runs in <10 minutes on Argo Workflows.
 
 **Domain names (note on placeholders vs. actuals):** This plan uses `drawrace.example` as a generic placeholder for documentation. The actual deployed domains are:
-- Frontend (PWA): `drawrace.pages.dev` (Cloudflare Pages)
-- API (backend): `api-drawrace.ardenone.com` (Rackspace Spot cluster via Traefik ingress)
+- Frontend (PWA): `drawrace.pages.dev` (Cloudflare Pages) — see `apps/web/wrangler.toml`
+- API (backend): `api-drawrace.ardenone.com` (Rackspace Spot cluster via Traefik ingress) — see `k8s/ingress.yaml`
 
 **Visual identity.** Loose hand-drawn sketch on warm paper (cream `#F4EAD5` background, warm-black ink `#2B2118`, racer red `#D94F3A`). The drawn wheel feels native to the world because the world is drawn too.
 
