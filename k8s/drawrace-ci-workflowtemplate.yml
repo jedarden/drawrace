@@ -1,3 +1,10 @@
+# ────────────────────────────────────────────────────────────────────────────────
+# Deploy authority: jedarden/declarative-config k8s/iad-ci/argo-workflows/
+#
+# This in-repo copy must be synced to declarative-config via commit+push on the
+# drawrace repo, then ArgoCD will automatically sync it to the cluster. NEVER apply
+# this manifest directly with kubectl — all cluster changes go through GitOps.
+# ────────────────────────────────────────────────────────────────────────────────
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
