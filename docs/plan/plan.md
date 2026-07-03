@@ -488,14 +488,14 @@ Mid-race wheel swaps (§Gameplay 3) are also tick-indexed. At `pointerup` the cl
 
 ### 7. Difficulty & Progression
 
-**v1 shipped with three tracks** (`hills-01.json`, `canyon-02.json`, `dunes-03.json`, wired into `apps/web/src/App.tsx`). Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded during v1 development (tracks shipped 2026-04) to give players more variety at launch.
+**v1 shipped with three tracks** (`apps/web/public/tracks/hills-01.json`, `canyon-02.json`, `dunes-03.json`, wired into `apps/web/src/App.tsx`). Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded during v1 development (tracks shipped 2026-04) to give players more variety at launch.
 
-**Post-v1 progression outline** — several items originally planned as post-v1 have shipped (as of 2026-04/2026-05):
+**Post-v1 progression outline** — items shipped as of 2026-04/2026-05:
 
 - **Track unlocks** gated on relative performance (not raw time): "complete the first track within 50% of track-best to unlock track 2." This keeps the gate fair for slow devices and slow players.
-- **Daily challenge** — ✅ **SHIPPED 2026-04**: Seeded from UTC date, separate daily leaderboard. (`DailyChallengeScreen.tsx`, migrations 008/009).
-- **Community track editor + moderation** — ✅ **SHIPPED**: Web-based polyline editor for creating and sharing custom tracks with community moderation. (`TrackEditor.tsx`, `TrackModeration.tsx`, migration 011, `crates/api/src/handlers/tracks.rs`).
-- **Recovery phrase** — ✅ **SHIPPED**: Cross-device identity without accounts. Players can generate a 4-word recovery phrase to restore their `player_uuid` on another device. (`recovery-phrase.ts`, migration 010).
+- **Daily challenge** — ✅ **SHIPPED 2026-04**: Seeded from UTC date, separate daily leaderboard (`apps/web/src/DailyChallengeScreen.tsx`, `crates/api/migrations/008_daily_challenges.sql`, `009_submissions_daily_challenge.sql`).
+- **Community track editor + moderation** — ✅ **SHIPPED**: Web-based polyline editor for creating and sharing custom tracks with community moderation (`apps/web/src/TrackEditor.tsx`, `apps/web/src/TrackModeration.tsx`, `crates/api/migrations/011_community_tracks.sql`, `crates/api/src/handlers/tracks.rs`).
+- **Recovery phrase** — ✅ **SHIPPED**: Cross-device identity without accounts. Players can generate a 4-word recovery phrase to restore their `player_uuid` on another device (`apps/web/src/recovery-phrase.ts`, `crates/api/migrations/010_recovery_phrase.sql`).
 - **Wheel constraints** as opt-in modifiers — these are the most game-native progression hook:
   - *Single-stroke-under-N-points*: enforce `simplified.length ≤ 10` on submission. Rewards drawing skill.
   - *Diameter-capped*: enforce bounding-box diameter ≤ Xpx pre-normalization. Rewards choosing a small wheel (low inertia, low clearance).
@@ -503,8 +503,8 @@ Mid-race wheel swaps (§Gameplay 3) are also tick-indexed. At `pointerup` the cl
   - *Convex-only*: reject shapes where `quickDecomp` returns > 1 piece. Forces rounder drawings.
   - *Single-wheel*: `wheel_swaps.length == 1` (no mid-race redraw). Reverts to the original "commit once" feel as a purist mode.
   - *Swap-capped*: `wheel_swaps.length ≤ N` for `N ∈ {2, 3, 5}`. Middle ground between single-wheel and unlimited.
-- **Cosmetic wheel trails** — ✅ **SHIPPED 2026-04**: Unlockable by total distance raced. (`Trails.ts`, progression system).
-- **Real-time live racing service** — ✅ **SHIPPED**: Live race coordination service for real-time multiplayer. (`crates/live`, `Dockerfile.live`, `k8s/live-deployment.yaml`).
+- **Cosmetic wheel trails** — ✅ **SHIPPED 2026-04**: Unlockable by total distance raced (`apps/web/src/Trails.ts`, progression system).
+- **Real-time live racing service** — ✅ **SHIPPED 2026-05**: Live race coordination service for real-time multiplayer (`crates/live`, `Dockerfile.live`, `k8s/live-deployment.yaml`).
 
 None of these require new physics, only new evaluators on the polygon post-simplification. That's the point of locking down shape processing now.
 
@@ -2931,10 +2931,10 @@ Deliverables:
 ### v1 Cut Line (explicit non-goals)
 
 Items explicitly **out** of v1 — do not scope-creep:
-- Multiple tracks ~~(one track launches; track 2 is the first post-v1 feature)~~ ✅ **SHIPPED 2026-04**: Three tracks shipped (`hills-01.json`, `canyon-02.json`, `dunes-03.json`).
+- Multiple tracks ~~(one track launches; track 2 is the first post-v1 feature)~~ ✅ **SHIPPED 2026-04**: Three tracks shipped at `apps/web/public/tracks/` (`hills-01.json`, `canyon-02.json`, `dunes-03.json`), wired into `apps/web/src/App.tsx`.
 - Accounts, login, password, email.
-- Real-time multiplayer ~~(architecture is ready; feature is not v1)~~ ✅ **SHIPPED**: Live racing coordination service (`crates/live`, k8s/live-deployment.yaml).
-- Custom car bodies / cosmetics.
+- Real-time multiplayer ~~(architecture is ready; feature is not v1)~~ ✅ **SHIPPED 2026-05**: Live racing coordination service at `crates/live` with `Dockerfile.live` and `k8s/live-deployment.yaml`.
+- Custom car bodies / cosmetics ~~(basic cosmetic wheel trails shipped, full custom bodies pending)~~ ✅ **SHIPPED 2026-04**: Cosmetic wheel trails (`apps/web/src/Trails.ts`, progression system).
 - Paid features, IAP, ads.
 - Desktop-first UX (desktop works but is not actively designed for).
 - Leaderboard friends / social features.
@@ -2944,14 +2944,14 @@ Items explicitly **out** of v1 — do not scope-creep:
 
 ### Post-v1 Backlog (prioritized)
 
-1. ~~**Track 2 + track rotation UI.**~~ ✅ **SHIPPED**: Three tracks shipped (`hills-01`, `canyon-02`, `dunes-03.json`).
-2. ~~**Daily challenge.**~~ ✅ **SHIPPED**: Seeded from UTC date with separate leaderboard. (`DailyChallengeScreen.tsx`, migrations 008/009).
+1. ~~**Track 2 + track rotation UI.**~~ ✅ **SHIPPED 2026-04**: Three tracks shipped at `apps/web/public/tracks/` (`hills-01.json`, `canyon-02.json`, `dunes-03.json`).
+2. ~~**Daily challenge.**~~ ✅ **SHIPPED 2026-04**: Seeded from UTC date with separate leaderboard (`apps/web/src/DailyChallengeScreen.tsx`, `crates/api/migrations/008_daily_challenges.sql`, `009_submissions_daily_challenge.sql`).
 3. **Wheel constraints mode.** Convex-only, vertex-capped, diameter-capped.
 4. *(Removed — replay-as-input is already v1. Ghost blobs store `(seed, polygon, stroke, track_id, finish_time)` and both client and server re-simulate.)*
-5. ~~**Real-time live racing.**~~ ✅ **SHIPPED**: `drawrace-live` deployment with live race coordination service. (crates/live, Dockerfile.live, k8s/live-deployment.yaml).
-6. ~~**Recovery phrase**~~ ✅ **SHIPPED**: Cross-device identity without accounts. (recovery-phrase.ts, migration 010).
-7. ~~**Track editor.**~~ ✅ **SHIPPED**: Web-based polyline editor with community tracks and moderation. (TrackEditor.tsx, TrackModeration.tsx, migration 011, crates/api/src/handlers/tracks.rs).
-8. ~~**Cosmetic wheel trails.**~~ ✅ **SHIPPED**: Unlockable by total distance raced. (Trails.ts, progression system).
+5. ~~**Real-time live racing.**~~ ✅ **SHIPPED 2026-05**: Live race coordination service at `crates/live` with `Dockerfile.live` and `k8s/live-deployment.yaml`.
+6. ~~**Recovery phrase**~~ ✅ **SHIPPED**: Cross-device identity without accounts (`apps/web/src/recovery-phrase.ts`, `crates/api/migrations/010_recovery_phrase.sql`).
+7. ~~**Track editor.**~~ ✅ **SHIPPED**: Web-based polyline editor with community tracks and moderation (`apps/web/src/TrackEditor.tsx`, `apps/web/src/TrackModeration.tsx`, `crates/api/migrations/011_community_tracks.sql`, `crates/api/src/handlers/tracks.rs`).
+8. ~~**Cosmetic wheel trails.**~~ ✅ **SHIPPED 2026-04**: Unlockable by total distance raced (`apps/web/src/Trails.ts`, progression system).
 9. **Native app wrappers** (optional): Capacitor or Expo over the same PWA. Only if install-friction data shows PWA install rates are poor.
 
 ---
