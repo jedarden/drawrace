@@ -488,12 +488,14 @@ Mid-race wheel swaps (§Gameplay 3) are also tick-indexed. At `pointerup` the cl
 
 ### 7. Difficulty & Progression
 
-**v1 shipped with three tracks** (`hills-01.json`, `canyon-02.json`, `dunes-03.json`). Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded during v1 development (tracks shipped 2026-04) to give players more variety at launch.
+**v1 shipped with three tracks** (`hills-01.json`, `canyon-02.json`, `dunes-03.json`, wired into `apps/web/src/App.tsx`). Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded during v1 development (tracks shipped 2026-04) to give players more variety at launch.
 
-**Post-v1 progression outline** — several items originally planned as post-v1 have shipped:
+**Post-v1 progression outline** — several items originally planned as post-v1 have shipped (as of 2026-04/2026-05):
 
 - **Track unlocks** gated on relative performance (not raw time): "complete the first track within 50% of track-best to unlock track 2." This keeps the gate fair for slow devices and slow players.
-- **Daily challenge** — ✅ **SHIPPED**: Seeded from UTC date, separate daily leaderboard. (`DailyChallengeScreen.tsx`, migrations 008/009).
+- **Daily challenge** — ✅ **SHIPPED 2026-04**: Seeded from UTC date, separate daily leaderboard. (`DailyChallengeScreen.tsx`, migrations 008/009).
+- **Community track editor + moderation** — ✅ **SHIPPED**: Web-based polyline editor for creating and sharing custom tracks with community moderation. (`TrackEditor.tsx`, `TrackModeration.tsx`, migration 011, `crates/api/src/handlers/tracks.rs`).
+- **Recovery phrase** — ✅ **SHIPPED**: Cross-device identity without accounts. Players can generate a 4-word recovery phrase to restore their `player_uuid` on another device. (`recovery-phrase.ts`, migration 010).
 - **Wheel constraints** as opt-in modifiers — these are the most game-native progression hook:
   - *Single-stroke-under-N-points*: enforce `simplified.length ≤ 10` on submission. Rewards drawing skill.
   - *Diameter-capped*: enforce bounding-box diameter ≤ Xpx pre-normalization. Rewards choosing a small wheel (low inertia, low clearance).
@@ -501,7 +503,8 @@ Mid-race wheel swaps (§Gameplay 3) are also tick-indexed. At `pointerup` the cl
   - *Convex-only*: reject shapes where `quickDecomp` returns > 1 piece. Forces rounder drawings.
   - *Single-wheel*: `wheel_swaps.length == 1` (no mid-race redraw). Reverts to the original "commit once" feel as a purist mode.
   - *Swap-capped*: `wheel_swaps.length ≤ N` for `N ∈ {2, 3, 5}`. Middle ground between single-wheel and unlimited.
-- **Cosmetic wheel trails** — ✅ **SHIPPED**: Unlockable by total distance raced. (`Trails.ts`, progression system).
+- **Cosmetic wheel trails** — ✅ **SHIPPED 2026-04**: Unlockable by total distance raced. (`Trails.ts`, progression system).
+- **Real-time live racing service** — ✅ **SHIPPED**: Live race coordination service for real-time multiplayer. (`crates/live`, `Dockerfile.live`, `k8s/live-deployment.yaml`).
 
 None of these require new physics, only new evaluators on the polygon post-simplification. That's the point of locking down shape processing now.
 
