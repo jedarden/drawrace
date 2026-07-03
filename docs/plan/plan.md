@@ -488,7 +488,7 @@ Mid-race wheel swaps (§Gameplay 3) are also tick-indexed. At `pointerup` the cl
 
 ### 7. Difficulty & Progression
 
-**v1 shipped with three tracks** (`hills-01.json`, `canyon-02.json`, `dunes-03.json`). Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded post-v1 to give players more variety.
+**v1 shipped with three tracks** (`hills-01.json`, `canyon-02.json`, `dunes-03.json`). Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded during v1 development (tracks shipped 2026-04) to give players more variety at launch.
 
 **Post-v1 progression outline** — several items originally planned as post-v1 have shipped:
 
@@ -2848,7 +2848,7 @@ Deliverables:
 
 **Exit criteria:** install PWA on a Pixel 6; draw an initial wheel; race; redraw the wheel at least once mid-race and observe the hot-swap; finish; see a finish time; retry. 60fps on Pixel 6; 30fps on a Redmi 9 class device (the targeted floor). `drawrace.pages.dev` resolves and serves the PWA. Phone-smoke (Layer 9) specifically exercises a multi-swap run.
 
-> **Status (2026-07-02):** Phase 1 complete with full mid-race redraw functionality. The mid-race redraw epic (drawrace-vgn.8) shipped and closed 2026-04-24, bringing AWD twin-wheel hot-swap, zone-based terrain, and surface types to v1. All Phase 1 deliverables verified via phone-smoke on real Pixel 6 hardware.
+> **Status (2026-07-02):** Phase 1 complete with full mid-race redraw functionality. The mid-race redraw epic (drawrace-vgn.8) shipped and closed 2026-04-24 (see PROGRESS.md 'Mid-Race Wheel Redraw Pass (drawrace-vgn.8) — CLOSED'), bringing AWD twin-wheel hot-swap, zone-based terrain, and surface types to v1. All Phase 1 deliverables verified via phone-smoke on real Pixel 6 hardware.
 
 ---
 
@@ -2928,9 +2928,9 @@ Deliverables:
 ### v1 Cut Line (explicit non-goals)
 
 Items explicitly **out** of v1 — do not scope-creep:
-- Multiple tracks (one track launches; track 2 is the first post-v1 feature).
+- Multiple tracks ~~(one track launches; track 2 is the first post-v1 feature)~~ ✅ **SHIPPED 2026-04**: Three tracks shipped (`hills-01.json`, `canyon-02.json`, `dunes-03.json`).
 - Accounts, login, password, email.
-- Real-time multiplayer (architecture is ready; feature is not v1).
+- Real-time multiplayer ~~(architecture is ready; feature is not v1)~~ ✅ **SHIPPED**: Live racing coordination service (`crates/live`, k8s/live-deployment.yaml).
 - Custom car bodies / cosmetics.
 - Paid features, IAP, ads.
 - Desktop-first UX (desktop works but is not actively designed for).
