@@ -31,7 +31,7 @@ The game has three screens in sequence:
 2. **Race Screen** — Racer runs the track; ghost racers run simultaneously
 3. **Result Screen** — Time, rank delta, leaderboard preview, option to retry
 
-There is no mid-race redraw. The wheel is committed when the player lifts their finger and taps "Race." This creates a deliberate moment of commitment and makes each attempt feel consequential.
+The player commits an initial wheel at the Draw→Race transition and may redraw at any moment during the race. Each redraw hot-swaps both wheels (front and rear axles) on the next physics tick boundary, enabling players to adapt their wheel shape to changing terrain conditions in real-time. This creates a dynamic skill tension around shape adaptation under time pressure.
 
 ### Drawing Input
 
