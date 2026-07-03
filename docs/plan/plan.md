@@ -2931,7 +2931,7 @@ Deliverables:
 ### v1 Cut Line (explicit non-goals)
 
 Items explicitly **out** of v1 — do not scope-creep:
-- Multiple tracks ~~(one track launches; track 2 is the first post-v1 feature)~~ ✅ **SHIPPED 2026-04**: Three tracks shipped at `apps/web/public/tracks/` (`hills-01.json`, `canyon-02.json`, `dunes-03.json`), wired into `apps/web/src/App.tsx`.
+- Multiple tracks ~~(one track launches; track 2 is the first post-v1 feature)~~ ✅ **SHIPPED 2026-04**: Three tracks shipped (`apps/web/public/tracks/hills-01.json`, `apps/web/public/tracks/canyon-02.json`, `apps/web/public/tracks/dunes-03.json`), wired into `apps/web/src/App.tsx`.
 - Accounts, login, password, email.
 - Real-time multiplayer ~~(architecture is ready; feature is not v1)~~ ✅ **SHIPPED 2026-05**: Live racing coordination service at `crates/live` with `Dockerfile.live` and `k8s/live-deployment.yaml`.
 - Custom car bodies / cosmetics ~~(basic cosmetic wheel trails shipped, full custom bodies pending)~~ ✅ **SHIPPED 2026-04**: Cosmetic wheel trails (`apps/web/src/Trails.ts`, progression system).
@@ -2944,7 +2944,7 @@ Items explicitly **out** of v1 — do not scope-creep:
 
 ### Post-v1 Backlog (prioritized)
 
-1. ~~**Track 2 + track rotation UI.**~~ ✅ **SHIPPED 2026-04**: Three tracks shipped at `apps/web/public/tracks/` (`hills-01.json`, `canyon-02.json`, `dunes-03.json`).
+1. ~~**Track 2 + track rotation UI.**~~ ✅ **SHIPPED 2026-04**: Three tracks shipped (`apps/web/public/tracks/hills-01.json`, `apps/web/public/tracks/canyon-02.json`, `apps/web/public/tracks/dunes-03.json`).
 2. ~~**Daily challenge.**~~ ✅ **SHIPPED 2026-04**: Seeded from UTC date with separate leaderboard (`apps/web/src/DailyChallengeScreen.tsx`, `crates/api/migrations/008_daily_challenges.sql`, `009_submissions_daily_challenge.sql`).
 3. **Wheel constraints mode.** Convex-only, vertex-capped, diameter-capped.
 4. *(Removed — replay-as-input is already v1. Ghost blobs store `(seed, polygon, stroke, track_id, finish_time)` and both client and server re-simulate.)*
