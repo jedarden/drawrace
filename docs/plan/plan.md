@@ -2843,7 +2843,7 @@ Deliverables:
 - Physics integration: Planck.js loaded, wheel attaches to a chassis via revolute joint + motor.
 - Canvas 2D renderer with scene layers (§Graphics & UX 3): sky gradient, single parallax hill, terrain polyline with ink edge, chassis sprite, wheel Path2D.
 - **Race-screen draw overlay + wheel hot-swap pipeline** per §Gameplay 1/2/3: always-on overlay, 500ms cooldown, 20-swap cap, position-continuous hot-swap, ghosts visibly swap at recorded ticks. This is the **core v1 gameplay mechanic**, not post-v1 polish.
-- v1 track JSON authored: `hills-01`, ~40s target. Single track ships.
+- v1 track JSON authored: three tracks shipped (`hills-01`, `canyon-02`, `dunes-03.json`, wired into `apps/web/src/App.tsx`).
 - 3 hand-authored tutorial ghosts bundled as assets, **each with at least one mid-race swap** so players see the mechanic demonstrated on their first run (recorded via a dev tool that saves ghost blobs from runs).
 - Result Screen with time, basic "beat ghost" feedback, Retry.
 - Service Worker caching shell + assets. Web App Manifest. Installable on iOS and Android.
