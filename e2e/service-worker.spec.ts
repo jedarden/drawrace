@@ -88,11 +88,13 @@ test.describe("Service Worker Updates", () => {
     // because skipWaiting is false - the new SW waits for next navigation
 
     // Wait for race to complete (should finish within 40 seconds)
-    const resultScreen = page.getByRole("main", { name: /race result/i });
+    const resultScreen = page.getByRole("main", { name: /race results/i });
     await expect(resultScreen).toBeVisible({ timeout: 45000 });
 
     // Verify we got a result time (race completed normally)
-    const timeText = await page.getByTestId("result-time").textContent({ timeout: 5000 });
+    const timerElement = page.getByRole("timer");
+    await expect(timerElement).toBeVisible({ timeout: 5000 });
+    const timeText = await timerElement.textContent();
     expect(timeText).toBeTruthy();
     expect(timeText).toMatch(/\d+:\d+\.\d+/);
   });
@@ -171,24 +173,35 @@ test.describe("Service Worker Skip Waiting Contract", () => {
 
     await page.goto(getDeterministicTestUrl());
 
-    // Get initial controller
-    const initialController = await page.evaluate(async () => {
-      return navigator.serviceWorker.controller?.scriptURL || null;
-    });
-
-    // If there's no waiting SW, test passes (no forced update)
-    const hasWaiting = await page.evaluate(async () => {
+    // Wait for SW registration
+    const swInfo = await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.getRegistration();
-      return registration?.waiting !== null;
+      return {
+        hasWaiting: registration?.waiting !== null,
+        hasActive: registration?.active !== null,
+        controller: navigator.serviceWorker.controller?.scriptURL || null
+      };
     });
 
-    // The test passes if either:
-    // 1. There's no waiting SW (normal case), or
-    // 2. The current controller hasn't changed (waiting SW didn't force itself)
-    const controllerUnchanged = await page.evaluate(async () => {
-      return navigator.serviceWorker.controller?.scriptURL === initialController;
-    });
+    // The test passes if there's no waiting SW (normal case)
+    // If there IS a waiting SW, verify it doesn't auto-claim the client
+    if (!swInfo.hasWaiting) {
+      // No waiting SW means no risk of forced update - test passes
+      expect(swInfo.hasWaiting).toBe(false);
+    } else {
+      // If there's a waiting SW, the page should still be controlled by the active SW
+      // (waiting SW should NOT auto-claim without explicit skipWaiting)
+      const stillControlledByActive = await page.evaluate(async () => {
+        const registration = await navigator.serviceWorker.getRegistration();
+        const controllerUrl = navigator.serviceWorker.controller?.scriptURL || null;
+        const activeUrl = registration?.active?.scriptURL || null;
+        const waitingUrl = registration?.waiting?.scriptURL || null;
 
-    expect(controllerUnchanged).toBe(true);
+        // Controller should be the active SW, NOT the waiting SW
+        return controllerUrl === activeUrl && controllerUrl !== waitingUrl;
+      });
+
+      expect(stillControlledByActive).toBe(true);
+    }
   });
 });
