@@ -63,7 +63,8 @@ pub async fn get_top(
         "SELECT g.ghost_id, n.name, g.time_ms
          FROM ghosts g
          LEFT JOIN names n ON n.player_uuid = g.player_uuid
-         WHERE g.track_id = $1 AND g.is_pb = true AND g.is_legacy = false
+         INNER JOIN players p ON p.player_uuid = g.player_uuid
+         WHERE g.track_id = $1 AND g.is_pb = true AND g.is_legacy = false AND p.shadowbanned = false
          ORDER BY g.time_ms ASC
          LIMIT $2",
     )
@@ -123,8 +124,9 @@ pub async fn get_context(
     let player_rank = match player_best_time {
         Some(best) => {
             let rank: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) + 1 FROM ghosts
-                 WHERE track_id = $1 AND is_pb = true AND is_legacy = false AND time_ms < $2",
+                "SELECT COUNT(*) + 1 FROM ghosts g
+                 INNER JOIN players p ON p.player_uuid = g.player_uuid
+                 WHERE g.track_id = $1 AND g.is_pb = true AND g.is_legacy = false AND p.shadowbanned = false AND g.time_ms < $2",
             )
             .bind(track_id)
             .bind(best)
@@ -154,7 +156,8 @@ pub async fn get_context(
                 (g.player_uuid = $2) AS is_self
          FROM ghosts g
          LEFT JOIN names n ON n.player_uuid = g.player_uuid
-         WHERE g.track_id = $1 AND g.is_pb = true AND g.is_legacy = false
+         INNER JOIN players p ON p.player_uuid = g.player_uuid
+         WHERE g.track_id = $1 AND g.is_pb = true AND g.is_legacy = false AND p.shadowbanned = false
          ORDER BY g.time_ms ASC
          LIMIT $3 OFFSET $4",
     )

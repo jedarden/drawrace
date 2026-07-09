@@ -68,3 +68,8 @@ fn tick_diff_bucket(diff: u32) -> String {
         _ => "100+".to_string(),
     }
 }
+
+/// Increment shadowban counter (player exceeded 20% rejection rate).
+pub fn inc_shadowban() {
+    counter!("drawrace_shadowbans_total").increment(1);
+}

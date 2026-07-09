@@ -218,10 +218,12 @@ async fn fetch_ghosts_from_bucket(
          FROM leaderboard_buckets lb
          JOIN ghosts g ON g.ghost_id = lb.ghost_id
          LEFT JOIN names n ON n.player_uuid = g.player_uuid
+         INNER JOIN players p ON p.player_uuid = g.player_uuid
          WHERE lb.track_id = $1
            AND lb.pr > $2 AND lb.pr <= $3
            AND g.player_uuid != $4
            AND g.is_legacy = false
+           AND p.shadowbanned = false
          ORDER BY RANDOM()
          LIMIT $5",
     )
