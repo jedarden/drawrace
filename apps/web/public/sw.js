@@ -18,7 +18,10 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS))
   );
-  self.skipWaiting();
+  // DELIBERATELY NO skipWaiting() here — new SW waits until next navigation.
+  // This prevents mid-race disruption when a new bundle is deployed.
+  // Clients can manually trigger activation via postMessage({ type: 'SKIP_WAITING' })
+  // after detecting an update and deciding it's safe to reload.
 });
 
 self.addEventListener("activate", (event) => {
@@ -29,7 +32,16 @@ self.addEventListener("activate", (event) => {
       )
     )
   );
-  self.clients.claim();
+  // DELIBERATELY NO clients.claim() here — we don't want to force all open
+  // clients to start using the new SW immediately. Let each client claim on
+  // its next navigation.
+});
+
+// Handle manual SKIP_WAITING requests from clients
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("fetch", (event) => {
