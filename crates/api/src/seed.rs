@@ -3,8 +3,10 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 const PHYSICS_VERSION: u8 = 2;
-const TRACK_ID: i16 = 1;
 const HEADER_SIZE: usize = 36;
+
+/// All track IDs that require seed ghosts.
+const ALL_TRACK_IDS: &[i16] = &[1, 2, 3];
 
 /// Fixed UUID for the seed player — all seed ghosts belong to this identity.
 pub const SEED_PLAYER_UUID: &str = "00000000-0000-4000-8000-000000000001";
@@ -527,10 +529,11 @@ const SEEDS: &[SeedGhost] = &[
 /// Idempotent — safe to call on every startup.
 ///
 /// This function will:
-/// 1. Check if local seed files exist at `/app/seeds/track_1/` (Docker) or `seeds/track_1/` (dev)
-/// 2. If local files exist, read them from disk
-/// 3. Otherwise, generate blobs in-memory from the SEEDS array
-/// 4. Upload blobs to S3 and create database records
+/// 1. Check if any seed ghosts already exist for the seed player
+/// 2. For each track (1, 2, 3), check if local seed files exist at `/app/seeds/track_N/` (Docker) or `seeds/track_N/` (dev)
+/// 3. If local files exist, read them from disk
+/// 4. Otherwise, generate blobs in-memory from the SEEDS array (track 1 only)
+/// 5. Upload blobs to S3 and create database records
 pub async fn load_seeds_if_empty(
     pool: &PgPool,
     s3: &S3Client,
@@ -538,7 +541,7 @@ pub async fn load_seeds_if_empty(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let seed_uuid = Uuid::parse_str(SEED_PLAYER_UUID)?;
 
-    // Check if seeds already loaded
+    // Check if seeds already loaded for any track
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM ghosts WHERE player_uuid = $1")
         .bind(seed_uuid)
         .fetch_one(pool)
@@ -565,88 +568,120 @@ pub async fn load_seeds_if_empty(
     .execute(pool)
     .await?;
 
-    // Try to load from local seed files first
-    let seeds_dir = std::path::Path::new("/app/seeds/track_1");
-    let use_local_files = seeds_dir.exists();
+    let mut total_loaded = 0u32;
 
-    if use_local_files {
-        tracing::info!(path = %seeds_dir.display(), "loading seed ghosts from local files");
-    } else {
-        tracing::info!("loading seed ghosts from in-memory generation");
-    }
+    // Iterate over all tracks
+    for &track_id in ALL_TRACK_IDS {
+        let track_dir = format!("track_{}", track_id);
+        let seeds_path = std::path::Path::new("/app/seeds").join(&track_dir);
+        let dev_seeds_path = std::path::Path::new("seeds").join(&track_dir);
 
-    let mut loaded = 0u32;
-    let mut i = 0;
+        // Try to load from local seed files first
+        let seeds_dir = if seeds_path.exists() {
+            seeds_path
+        } else if dev_seeds_path.exists() {
+            dev_seeds_path
+        } else {
+            tracing::warn!(
+                track_id,
+                "no seed directory found for track {} (tried {:?} and {:?}), skipping",
+                track_id,
+                seeds_path,
+                dev_seeds_path
+            );
+            continue;
+        };
 
-    loop {
-        let s3_key = format!("seeds/track_1/seed-{:03}", i);
+        tracing::info!(
+            track_id,
+            path = %seeds_dir.display(),
+            "loading seed ghosts from local files"
+        );
 
-        let blob: Vec<u8> = if use_local_files {
+        let mut loaded = 0u32;
+        let mut i = 0;
+
+        loop {
+            let s3_key = format!("seeds/{}/seed-{:03}.blob", track_dir, i);
             let seed_path = seeds_dir.join(format!("seed-{:03}.blob", i));
-            match std::fs::read(&seed_path) {
+
+            let blob: Vec<u8> = match std::fs::read(&seed_path) {
                 Ok(data) => data,
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    // No more seed files
+                    // No more seed files for this track
                     break;
                 }
                 Err(e) => {
-                    return Err(format!("failed to read seed file {:?}: {}", seed_path, e).into());
+                    tracing::error!(
+                        track_id,
+                        path = %seed_path.display(),
+                        error = %e,
+                        "failed to read seed file"
+                    );
+                    break;
                 }
-            }
-        } else {
-            // Fall back to in-memory generation
-            if i >= SEEDS.len() {
-                break;
-            }
-            let seed = &SEEDS[i];
-            let now_millis = chrono::Utc::now().timestamp_millis();
-            encode_seed_blob(seed, now_millis - (SEEDS.len() - i) as i64 * 1000)
-        };
+            };
 
-        // Upload blob to S3
-        s3.put_object()
-            .bucket(s3_bucket)
-            .key(&s3_key)
-            .body(blob.clone().into())
-            .content_type("application/octet-stream")
-            .send()
+            // Upload blob to S3
+            s3.put_object()
+                .bucket(s3_bucket)
+                .key(&s3_key)
+                .body(blob.clone().into())
+                .content_type("application/octet-stream")
+                .send()
+                .await
+                .map_err(|e| {
+                    tracing::error!(
+                        track_id,
+                        seed = i,
+                        error = %e,
+                        "failed to upload seed ghost to S3"
+                    );
+                    e
+                })?;
+
+            // Get time_ms from the blob for database record
+            let time_ms = u32::from_le_bytes([blob[8], blob[9], blob[10], blob[11]]) as i32;
+
+            // Insert ghost row with is_pb = true so it appears in leaderboard_buckets
+            sqlx::query(
+                "INSERT INTO ghosts (ghost_id, player_uuid, track_id, physics_version, time_ms, is_pb, s3_key)
+                 VALUES (gen_random_uuid(), $1, $2, $3, $4, true, $5)",
+            )
+            .bind(seed_uuid)
+            .bind(track_id)
+            .bind(PHYSICS_VERSION as i16)
+            .bind(time_ms)
+            .bind(&s3_key)
+            .execute(pool)
             .await
             .map_err(|e| {
-                tracing::error!(seed = i, error = %e, "failed to upload seed ghost to S3");
+                tracing::error!(
+                    track_id,
+                    seed = i,
+                    error = %e,
+                    "failed to insert seed ghost"
+                );
                 e
             })?;
 
-        // Get time_ms from the blob for database record
-        let time_ms = u32::from_le_bytes([blob[8], blob[9], blob[10], blob[11]]) as i32;
+            loaded += 1;
+            i += 1;
+        }
 
-        // Insert ghost row with is_pb = true so it appears in leaderboard_buckets
-        sqlx::query(
-            "INSERT INTO ghosts (ghost_id, player_uuid, track_id, physics_version, time_ms, is_pb, s3_key)
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, true, $5)",
-        )
-        .bind(seed_uuid)
-        .bind(TRACK_ID)
-        .bind(PHYSICS_VERSION as i16)
-        .bind(time_ms)
-        .bind(&s3_key)
-        .execute(pool)
-        .await
-        .map_err(|e| {
-            tracing::error!(seed = i, error = %e, "failed to insert seed ghost");
-            e
-        })?;
-
-        loaded += 1;
-        i += 1;
+        tracing::info!(track_id, count = loaded, "loaded seed ghosts for track");
+        total_loaded += loaded;
     }
 
     // Refresh the materialized view so matchmaking picks up new ghosts
-    sqlx::query("REFRESH MATERIALIZED VIEW CONCURRENTLY leaderboard_buckets")
-        .execute(pool)
-        .await
-        .ok(); // Non-fatal
+    if total_loaded > 0 {
+        sqlx::query("REFRESH MATERIALIZED VIEW CONCURRENTLY leaderboard_buckets")
+            .execute(pool)
+            .await
+            .ok(); // Non-fatal
+    }
 
-    tracing::info!(count = loaded, "seed ghosts loaded successfully");
+    tracing::info!(total = total_loaded, "seed ghosts loaded successfully");
     Ok(())
 }
 
@@ -675,7 +710,7 @@ fn encode_seed_blob(seed: &SeedGhost, submitted_at: i64) -> Vec<u8> {
     // Magic "DRGH"
     buf[0..4].copy_from_slice(b"DRGH");
     buf[4] = PHYSICS_VERSION;
-    buf[5..7].copy_from_slice(&(TRACK_ID as u16).to_le_bytes());
+    buf[5..7].copy_from_slice(&1u16.to_le_bytes()); // track_id = 1 for in-memory seeds
     buf[7] = 0; // flags
     buf[8..12].copy_from_slice(&seed.time_ms.to_le_bytes());
     buf[12..20].copy_from_slice(&submitted_at.to_le_bytes());
@@ -753,7 +788,7 @@ mod tests {
             "need at least 20 seeds, got {}",
             SEEDS.len()
         );
-        assert!(SEEDS.len() <= 35, "too many seeds, got {}", SEEDS.len());
+        assert!(SEEDS.len() <= 30, "too many seeds, got {}", SEEDS.len());
     }
 
     #[test]
@@ -788,7 +823,7 @@ mod tests {
         assert_eq!(&blob[0..4], b"DRGH");
         assert_eq!(blob[4], PHYSICS_VERSION);
         let track_id = u16::from_le_bytes([blob[5], blob[6]]);
-        assert_eq!(track_id, TRACK_ID as u16);
+        assert_eq!(track_id, 1u16, "in-memory seeds are hardcoded to track 1");
         let time_ms = u32::from_le_bytes([blob[8], blob[9], blob[10], blob[11]]);
         assert_eq!(time_ms, seed.time_ms);
 
@@ -843,5 +878,74 @@ mod tests {
             5,
             "need coverage of all 5 buckets, got {buckets:?}"
         );
+    }
+
+    #[test]
+    fn all_track_ids_covered() {
+        // Verify ALL_TRACK_IDS includes tracks 1, 2, and 3
+        assert_eq!(ALL_TRACK_IDS, &[1, 2, 3], "ALL_TRACK_IDS must include all three tracks");
+    }
+
+    #[test]
+    fn track_ids_sorted() {
+        // Verify track IDs are sorted for deterministic loading order
+        let mut sorted = ALL_TRACK_IDS.to_vec();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(ALL_TRACK_IDS, &sorted[..], "ALL_TRACK_IDS must be sorted and unique");
+    }
+
+    #[test]
+    fn seeds_span_reasonable_time_range() {
+        // Verify seed times span a reasonable range for matchmaking
+        let min_time = SEEDS.iter().map(|s| s.time_ms).min().unwrap();
+        let max_time = SEEDS.iter().map(|s| s.time_ms).max().unwrap();
+        let ratio = max_time as f64 / min_time as f64;
+
+        // Fastest should be at least 3x faster than slowest for good bucket distribution
+        assert!(
+            ratio >= 2.5,
+            "seed time ratio too narrow: {ratio:.2}x (min={min_time}ms, max={max_time}ms)"
+        );
+
+        // But not more than 6x to keep times in plausible range
+        assert!(
+            ratio <= 8.0,
+            "seed time ratio too wide: {ratio:.2}x (min={min_time}ms, max={max_time}ms)"
+        );
+    }
+
+    #[test]
+    fn seed_bucket_distribution_is_reasonable() {
+        // Verify bucket distribution covers all 5 buckets with reasonable counts
+        let n = SEEDS.len() as f64;
+        let mut bucket_counts = std::collections::HashMap::new();
+        for i in 0..SEEDS.len() {
+            let pr = i as f64 / (n - 1.0);
+            let bucket = if pr <= 0.01 {
+                "elite"
+            } else if pr <= 0.05 {
+                "advanced"
+            } else if pr <= 0.20 {
+                "skilled"
+            } else if pr <= 0.50 {
+                "mid"
+            } else {
+                "novice"
+            };
+            *bucket_counts.entry(bucket).or_insert(0) += 1;
+        }
+
+        // All 5 buckets should be represented
+        assert_eq!(bucket_counts.len(), 5, "all 5 buckets should be represented");
+
+        // Elite and advanced should have at least 1 each
+        assert!(bucket_counts.get("elite").copied().unwrap_or(0) >= 1, "elite bucket should have at least 1 ghost");
+        assert!(bucket_counts.get("advanced").copied().unwrap_or(0) >= 1, "advanced bucket should have at least 1 ghost");
+
+        // Skilled, mid, novice should have several each
+        assert!(bucket_counts.get("skilled").copied().unwrap_or(0) >= 3, "skilled bucket should have at least 3 ghosts");
+        assert!(bucket_counts.get("mid").copied().unwrap_or(0) >= 5, "mid bucket should have at least 5 ghosts");
+        assert!(bucket_counts.get("novice").copied().unwrap_or(0) >= 8, "novice bucket should have at least 8 ghosts");
     }
 }

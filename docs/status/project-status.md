@@ -1,5 +1,15 @@
 # DrawRace Project Status
 
+**⚠️ SUPERSEDED DOCUMENT:** This status document is dated 2026-04-23 and contains information that has been superseded by later developments. For current project status, see `PROGRESS.md` at the repo root.
+
+**Known inaccuracies in this document:**
+- Claims "no real-time multiplayer" — live racing service shipped (crates/live)
+- Claims "no wheel constraints" — progression system shipped
+- Claims "single track only" — three tracks shipped (hills-01.json, canyon-02.json, dunes-03.json)
+- Lists PRNG as mulberry32 — code uses sfc32 (packages/engine-core/src/prng.ts)
+
+---
+
 **Last Updated:** 2026-04-23
 **Current Phase:** Phase 5 (Launch) — Code Complete, All Phases Finished
 

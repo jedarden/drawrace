@@ -332,7 +332,7 @@ mod tests {
     fn load_resim_wasm() {
         match ResimEngine::load() {
             Ok(engine) => {
-                assert_eq!(engine.physics_version, 4);
+                assert_eq!(engine.physics_version, 8);
             }
             Err(e) => {
                 if e.to_string().contains("No such file")

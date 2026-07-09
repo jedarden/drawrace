@@ -37,7 +37,21 @@ def extract_physics_version() -> int:
         raise ValueError("Could not find PHYSICS_VERSION in version.ts")
     return int(match.group(1))
 
-def compile_resim_wat() -> bytes:
+def patch_wat_physics_version(wat_path: Path, physics_version: int) -> Path:
+    """Patch the physics version in the WAT file."""
+    content = wat_path.read_text()
+    # Replace the hardcoded physics version
+    updated = content.replace(
+        '(global $PHYSICS_VERSION i32 (i32.const 4))',
+        f'(global $PHYSICS_VERSION i32 (i32.const {physics_version}))'
+    )
+    # Write to a temporary file
+    patched_path = wat_path.parent / f"{wat_path.name}.patched"
+    patched_path.write_text(updated)
+    log("patch", f"Patched physics_version to {physics_version} in {patched_path}")
+    return patched_path
+
+def compile_resim_wat(physics_version: int) -> bytes:
     """Compile resim.wat to WASM using wat2wasm."""
     import subprocess
     import shutil
@@ -54,7 +68,10 @@ def compile_resim_wat() -> bytes:
     if not wat_path.exists():
         raise FileNotFoundError(f"resim.wat not found at {wat_path}")
 
-    log("info", f"Compiling {wat_path} to {wasm_path}")
+    # Patch physics version before compiling
+    patched_wat_path = patch_wat_physics_version(wat_path, physics_version)
+
+    log("info", f"Compiling {patched_wat_path} to {wasm_path}")
 
     # Check if wat2wasm is available
     wat2wasm_path = shutil.which("wat2wasm")
@@ -94,25 +111,25 @@ def compile_resim_wat() -> bytes:
                 system = platform.system().lower()
                 machine = platform.machine().lower()
 
-                # Map machine names
+                # Map machine names to wabt naming convention
                 if machine in ["x86_64", "amd64"]:
-                    arch = "x86_64"
+                    arch = "x64"
                 elif machine in ["aarch64", "arm64"]:
-                    arch = "aarch64"
+                    arch = "arm64"
                 elif machine in ["armv7l", "armv6l"]:
                     arch = "arm"
                 else:
                     raise RuntimeError(f"Unsupported architecture: {machine}")
 
-                # Determine filename based on platform
+                # Determine filename based on platform (wabt uses platform-arch format)
                 if system == "linux":
-                    filename = f"wabt-1.0.36-{arch}-linux.tar.gz"
+                    filename = f"wabt-1.0.41-linux-{arch}.tar.gz"
                 elif system == "darwin":
-                    filename = f"wabt-1.0.36-{arch}-macos.tar.gz"
+                    filename = f"wabt-1.0.41-macos-{arch}.tar.gz"
                 else:
                     raise RuntimeError(f"Unsupported platform: {system}")
 
-                download_url = f"https://github.com/WebAssembly/wabt/releases/download/1.0.36/{filename}"
+                download_url = f"https://github.com/WebAssembly/wabt/releases/download/1.0.41/{filename}"
                 log("download", f"Downloading {download_url}")
 
                 # Download to temp file
@@ -131,10 +148,8 @@ def compile_resim_wat() -> bytes:
                 # Find the extracted wat2wasm binary
                 # Try multiple possible directory names
                 possible_dirs = [
-                    temp_dir / f"wabt-1.0.36-{arch}-linux",  # e.g., wabt-1.0.36-x86_64-linux
-                    temp_dir / f"wabt-1.0.36-{arch}-macos",  # e.g., wabt-1.0.36-aarch64-macos
-                    temp_dir / f"wabt-1.0.36-{system}-{arch}",  # fallback
-                    temp_dir / f"wabt-1.0.36",  # generic fallback
+                    temp_dir / f"wabt-1.0.41-{system}-{arch}",  # e.g., wabt-1.0.41-linux-x64
+                    temp_dir / f"wabt-1.0.41",  # generic fallback
                 ]
 
                 extracted_dir = None
@@ -170,7 +185,7 @@ def compile_resim_wat() -> bytes:
     # Run wat2wasm
     log("info", f"Using wat2wasm at: {wat2wasm_path}")
     result = subprocess.run(
-        ["wat2wasm", str(wat_path), "-o", str(wasm_path)],
+        [wat2wasm_path, str(patched_wat_path), "-o", str(wasm_path)],
         capture_output=True,
         text=True,
     )
@@ -180,6 +195,9 @@ def compile_resim_wat() -> bytes:
         log("error", f"stderr: {result.stderr}")
         log("error", f"stdout: {result.stdout}")
         raise RuntimeError(f"wat2wasm failed with exit code {result.returncode}")
+
+    # Clean up temporary patched file
+    patched_wat_path.unlink()
 
     log("done", f"WASM compiled to {wasm_path}")
     return wasm_path.read_bytes()
@@ -232,8 +250,8 @@ def main() -> dict:
     physics_version = extract_physics_version()
     log("version", f"PHYSICS_VERSION = {physics_version}")
 
-    # Step 2: Compile resim.wat to WASM
-    wasm_bytes = compile_resim_wat()
+    # Step 2: Compile resim.wat to WASM (with patched physics version)
+    wasm_bytes = compile_resim_wat(physics_version)
 
     # Step 3: Create content-hashed artifacts
     result = create_hashed_artifact(wasm_bytes, physics_version)
