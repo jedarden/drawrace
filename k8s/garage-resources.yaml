@@ -1,0 +1,106 @@
+---
+# GarageCluster for Garage S3 on ardenone-hub
+# References the external Garage cluster via Tailscale
+apiVersion: garage.rajsingh.info/v1alpha1
+kind: GarageCluster
+metadata:
+  name: ardenone-hub
+  namespace: garage-operator
+spec:
+  # External Garage cluster endpoint (via Tailscale)
+  # garage.ardenone-hub.svc:3900 is the S3 API endpoint
+  endpoint: http://garage.ardenone-hub.svc:3900
+
+  # Admin API configuration
+  admin:
+    # Reference to secret containing admin token
+    adminTokenSecretRef:
+      name: garage-admin-token
+      key: token
+
+  # Garage cluster configuration
+  # This references the Garage deployment on ardenone-hub
+---
+# GarageBucket for ghost blob storage
+# Bucket: drawrace-ghosts
+# Quota: 50Gi
+apiVersion: garage.rajsingh.info/v1alpha1
+kind: GarageBucket
+metadata:
+  name: drawrace-ghosts
+  namespace: garage-operator
+spec:
+  # Reference to the GarageCluster
+  clusterRef:
+    name: ardenone-hub
+    namespace: garage-operator
+
+  # Optional global alias (if not set, metadata.name is used)
+  globalAlias: drawrace-ghosts
+
+  # Quota limit (50Gi as per acceptance criteria)
+  quotas:
+    maxSize: 50Gi
+
+  # Enable versioning on the bucket
+  versioning:
+    enabled: true
+
+  # Grant permissions to keys
+  keyPermissions:
+    # API key access
+    - keyRef: drawrace-api-key
+      read: true
+      write: true
+    # Backup key access
+    - keyRef: drawrace-postgres-backup-key
+      read: true
+      write: true
+
+---
+# GarageKey for API S3 access
+# Grants access to drawrace-ghosts bucket for the drawrace-api pod
+apiVersion: garage.rajsingh.info/v1alpha1
+kind: GarageKey
+metadata:
+  name: drawrace-api-key
+  namespace: garage-operator
+spec:
+  # Reference to the GarageCluster
+  clusterRef:
+    name: ardenone-hub
+    namespace: garage-operator
+
+  # Secret name where S3 credentials will be stored
+  secretName: drawrace-api-s3-credentials
+
+  # Bucket permissions can also be defined here (alternative to GarageBucket.keyPermissions)
+  bucketPermissions:
+    - bucketName: drawrace-ghosts
+      permissions:
+        read: true
+        write: true
+
+---
+# GarageKey for Postgres backup S3 access
+# Grants access to drawrace-ghosts bucket for Postgres backups
+apiVersion: garage.rajsingh.info/v1alpha1
+kind: GarageKey
+metadata:
+  name: drawrace-postgres-backup-key
+  namespace: garage-operator
+spec:
+  # Reference to the GarageCluster
+  clusterRef:
+    name: ardenone-hub
+    namespace: garage-operator
+
+  # Secret name where S3 credentials will be stored
+  secretName: drawrace-postgres-backup-s3-credentials
+
+  # Bucket permissions
+  bucketPermissions:
+    - bucketName: drawrace-ghosts
+      permissions:
+        read: true
+        write: true

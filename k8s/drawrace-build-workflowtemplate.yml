@@ -1,3 +1,10 @@
+# ────────────────────────────────────────────────────────────────────────────────
+# Deploy authority: jedarden/declarative-config k8s/iad-ci/argo-workflows/
+#
+# This in-repo copy must be synced to declarative-config via commit+push on the
+# drawrace repo, then ArgoCD will automatically sync it to the cluster. NEVER apply
+# this manifest directly with kubectl — all cluster changes go through GitOps.
+# ────────────────────────────────────────────────────────────────────────────────
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
@@ -22,6 +29,10 @@ spec:
         # checked-out git ref with the CURRENT production ConfigMap key.
         # This is the rollback path.
         value: "false"
+      - name: git_short_sha
+        # Passed from the Argo Events sensor or computed during workflow run.
+        # This is the immutable SHA tag we'll push to Docker Hub.
+        value: ""
   volumes:
     - name: docker-config
       secret:
@@ -48,6 +59,10 @@ spec:
         tasks:
           - name: checkout
             template: git-checkout
+
+          - name: get-git-sha
+            template: get-git-sha
+            dependencies: [checkout]
 
           - name: rotate-client-key
             template: rotate-client-key
@@ -122,7 +137,7 @@ spec:
 
           - name: build-api
             template: docker-build
-            dependencies: [lint-api, test-api, test-js, lint-js]
+            dependencies: [lint-api, test-api, test-js, lint-js, get-git-sha]
             when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
@@ -130,10 +145,12 @@ spec:
                   value: drawrace-api
                 - name: image
                   value: ronaldraygun/drawrace-api
+                - name: git_short_sha
+                  value: "{{tasks.get-git-sha.outputs.parameters.git_short_sha}}"
 
           - name: build-validator
             template: docker-build
-            dependencies: [lint-validator, test-validator, test-js, lint-js]
+            dependencies: [lint-validator, test-validator, test-js, lint-js, get-git-sha]
             when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
@@ -141,10 +158,12 @@ spec:
                   value: drawrace-validator
                 - name: image
                   value: ronaldraygun/drawrace-validator
+                - name: git_short_sha
+                  value: "{{tasks.get-git-sha.outputs.parameters.git_short_sha}}"
 
           - name: build-live
             template: docker-build
-            dependencies: [lint-live, test-live, test-js, lint-js]
+            dependencies: [lint-live, test-live, test-js, lint-js, get-git-sha]
             when: "'{{workflow.parameters.branch}}' == 'main' && '{{workflow.parameters.republish_only}}' != 'true'"
             arguments:
               parameters:
@@ -152,6 +171,8 @@ spec:
                   value: drawrace-live
                 - name: image
                   value: ronaldraygun/drawrace-live
+                - name: git_short_sha
+                  value: "{{tasks.get-git-sha.outputs.parameters.git_short_sha}}"
 
           - name: bump-manifest
             template: update-declarative-config
@@ -161,6 +182,8 @@ spec:
               parameters:
                 - name: path
                   value: k8s/iad-acb/drawrace
+                - name: git_short_sha
+                  value: "{{tasks.get-git-sha.outputs.parameters.git_short_sha}}"
 
           - name: read-expected-physics-version
             template: read-expected-physics-version
@@ -223,14 +246,8 @@ spec:
           - |
             set -e
             git clone --depth 1 --branch "{{workflow.parameters.branch}}" \
-              "https://x-access-token:${GH_TOKEN}@github.com/{{workflow.parameters.repo}}.git" \
+              "https://git.ardenone.com/{{workflow.parameters.repo}}.git" \
               /workspace
-        env:
-          - name: GH_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: github-webhook-secret
-                key: token
         volumeMounts:
           - name: workspace
             mountPath: /workspace
@@ -245,6 +262,27 @@ spec:
         artifacts:
           - name: workspace
             path: /workspace
+
+    # ── get-git-sha ─────────────────────────────────────────────────────────
+    # Extracts the git short SHA from the checked-out workspace.
+    # This SHA is used as the immutable Docker image tag.
+    - name: get-git-sha
+      container:
+        image: alpine/git:2.43.0
+        command: [sh, -c]
+        args:
+          - |
+            set -e
+            cd /workspace
+            SHA=$(git rev-parse --short HEAD)
+            echo -n "$SHA" > /tmp/git_short_sha
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      outputs:
+        parameters:
+          - name: git_short_sha
+            valueFrom: { path: /tmp/git_short_sha }
 
     # ── rotate-client-key ────────────────────────────────────────────────────
     # Updates the drawrace-client-key ConfigMap in declarative-config and lets
@@ -286,8 +324,8 @@ spec:
             yq eval ".data.rotated_at = \"$NOW\"" -i "$FILE"
 
             # Configure git
-            git config user.name "DrawRace CI"
-            git config user.email "ci@drawrace.ardenone.com"
+            git config user.name "jedarden"
+            git config user.email "github@jedarden.com"
 
             # Commit and push
             git add "$FILE"
@@ -482,29 +520,47 @@ spec:
       inputs:
         parameters:
           - name: path
+          - name: git_short_sha
       container:
         image: alpine/git:2.43.0
         command: [sh, -c]
         args:
           - |
-            set -ex
+            set -euo pipefail
+            # Clone declarative-config with authentication
             git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/jedarden/declarative-config" /tmp/dc
             cd /tmp/dc
-            # Update image tags in the declarative-config path
-            echo "ronaldraygun/drawrace-api:latest" > {{inputs.parameters.path}}/images.txt
-            echo "ronaldraygun/drawrace-validator:latest" >> {{inputs.parameters.path}}/images.txt
-            echo "ronaldraygun/drawrace-live:latest" >> {{inputs.parameters.path}}/images.txt
-            git config user.name "DrawRace CI"
-            git config user.email "ci@drawrace.ardenone.com"
+
+            SHA="{{inputs.parameters.git_short_sha}}"
+
+            # Update image tags in the declarative-config path with SHA tags
+            echo "ronaldraygun/drawrace-api:${SHA}" > {{inputs.parameters.path}}/images.txt
+            echo "ronaldraygun/drawrace-validator:${SHA}" >> {{inputs.parameters.path}}/images.txt
+            echo "ronaldraygun/drawrace-live:${SHA}" >> {{inputs.parameters.path}}/images.txt
+
+            # Configure git identity
+            git config user.name "jedarden"
+            git config user.email "github@jedarden.com"
+
+            # Commit and push
             git add {{inputs.parameters.path}}/images.txt
-            git diff --cached --quiet || git commit -m "drawrace: update images"
+            git diff --cached --quiet || git commit -m "drawrace: update images to ${SHA}"
             git push
+
+            echo "Updated declarative-config images.txt to git SHA ${SHA}"
         env:
           - name: GH_TOKEN
             valueFrom:
               secretKeyRef:
                 name: github-webhook-secret
                 key: token
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
 
     # ── cargo-lint ───────────────────────────────────────────────────────────
     - name: cargo-lint
@@ -614,6 +670,7 @@ spec:
         parameters:
           - name: binary
           - name: image
+          - name: git_short_sha
       retryStrategy:
         limit: "2"
         retryPolicy: OnError
@@ -626,7 +683,7 @@ spec:
         args:
           - --context=git://github.com/{{workflow.parameters.repo}}.git#refs/heads/{{workflow.parameters.branch}}
           - --dockerfile=Dockerfile.{{inputs.parameters.binary}}
-          - --destination={{inputs.parameters.image}}:latest
+          - --destination={{inputs.parameters.image}}:{{inputs.parameters.git_short_sha}}
           - --cache=true
           - --cache-repo=ronaldraygun/cache
           - --snapshot-mode=redo

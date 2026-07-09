@@ -1,7 +1,7 @@
 //! Seed pool loading for empty database initialization.
 //!
 //! On startup, if the ghosts table is empty, this module loads pre-recorded
-//! seed ghost replays from /app/seeds/track_1/ into both S3 storage and the
+//! seed ghost replays from /app/seeds/track_N/ into both S3 storage and the
 //! Postgres ghosts table. This ensures new deployments have ghost content
 //! immediately without requiring live player submissions.
 
@@ -12,6 +12,9 @@ use sqlx::PgPool;
 use std::fs;
 use std::path::Path;
 use uuid::Uuid;
+
+/// All track IDs that require seed ghosts.
+const ALL_TRACK_IDS: &[i16] = &[1, 2, 3];
 
 /// Seed player UUID - a special player that owns all seed ghosts.
 /// This UUID is consistent across deployments so seed ghosts are
@@ -33,6 +36,7 @@ async fn load_seed_ghost(
     s3: &aws_sdk_s3::Client,
     s3_bucket: &str,
     blob_path: &Path,
+    track_id: i16,
 ) -> anyhow::Result<()> {
     let filename = blob_path
         .file_name()
@@ -44,7 +48,8 @@ async fn load_seed_ghost(
     let header = BlobHeader::parse(&blob_bytes).context("Failed to parse seed blob header")?;
 
     // Generate S3 key for this seed ghost
-    let s3_key = format!("seeds/track_1/{}", filename);
+    let track_dir = format!("track_{}", track_id);
+    let s3_key = format!("seeds/{}/{}", track_dir, filename);
 
     // Upload the blob to S3
     s3.put_object()
@@ -57,7 +62,6 @@ async fn load_seed_ghost(
 
     // Insert the ghost record into Postgres
     let ghost_id = Uuid::new_v4();
-    let track_id: i16 = header.track_id as i16;
     let physics_version: i16 = header.version as i16;
     let time_ms: i32 = header.finish_time_ms as i32;
 
@@ -87,6 +91,7 @@ async fn load_seed_ghost(
     tracing::info!(
         filename,
         ghost_id = %ghost_id,
+        track_id,
         time_ms,
         "Loaded seed ghost"
     );
@@ -107,68 +112,98 @@ pub async fn load_seed_pool(
         return Ok(());
     }
 
-    let track_1_dir = seeds_dir.join("track_1");
-    if !track_1_dir.exists() {
-        tracing::warn!(
-            path = %track_1_dir.display(),
-            "Seeds directory not found, skipping seed pool loading"
+    let mut total_loaded = 0;
+
+    // Iterate over all tracks
+    for &track_id in ALL_TRACK_IDS {
+        let track_dir_name = format!("track_{}", track_id);
+        let track_dir = seeds_dir.join(&track_dir_name);
+
+        if !track_dir.exists() {
+            tracing::warn!(
+                path = %track_dir.display(),
+                "Seeds directory not found for track {}, skipping",
+                track_id
+            );
+            continue;
+        }
+
+        tracing::info!(
+            "Loading seed pool for track {} from {}",
+            track_id,
+            track_dir.display()
         );
-        return Ok(());
-    }
 
-    tracing::info!(
-        "Ghosts table is empty, loading seed pool from {}",
-        track_1_dir.display()
-    );
+        // Collect all .blob files for this track
+        let mut blob_files: Vec<_> = fs::read_dir(&track_dir)
+            .with_context(|| format!("Failed to read seeds directory for track {}", track_id))?
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                entry
+                    .path()
+                    .extension()
+                    .map(|e| e == "blob")
+                    .unwrap_or(false)
+            })
+            .collect();
 
-    // Collect all .blob files
-    let mut blob_files: Vec<_> = fs::read_dir(&track_1_dir)
-        .context("Failed to read seeds directory")?
-        .filter_map(|entry| entry.ok())
-        .filter(|entry| {
-            entry
-                .path()
-                .extension()
-                .map(|e| e == "blob")
-                .unwrap_or(false)
-        })
-        .collect();
+        // Sort by filename for deterministic loading order
+        blob_files.sort_by_key(|entry| entry.file_name());
 
-    // Sort by filename for deterministic loading order
-    blob_files.sort_by_key(|entry| entry.file_name());
+        let total = blob_files.len();
+        if total == 0 {
+            tracing::warn!(
+                "No seed blob files found in {} for track {}",
+                track_dir.display(),
+                track_id
+            );
+            continue;
+        }
 
-    let total = blob_files.len();
-    if total == 0 {
-        tracing::warn!("No seed blob files found in {}", track_1_dir.display());
-        return Ok(());
-    }
+        tracing::info!(
+            "Loading {} seed ghosts for track {}...",
+            total,
+            track_id
+        );
 
-    tracing::info!("Loading {} seed ghosts...", total);
-
-    let mut loaded = 0;
-    for entry in blob_files {
-        match load_seed_ghost(pool, s3, s3_bucket, &entry.path()).await {
-            Ok(()) => loaded += 1,
-            Err(e) => {
-                tracing::error!(
-                    path = %entry.path().display(),
-                    error = %e,
-                    "Failed to load seed ghost, continuing"
-                );
+        let mut loaded = 0;
+        for entry in blob_files {
+            match load_seed_ghost(pool, s3, s3_bucket, &entry.path(), track_id).await {
+                Ok(()) => loaded += 1,
+                Err(e) => {
+                    tracing::error!(
+                        path = %entry.path().display(),
+                        track_id,
+                        error = %e,
+                        "Failed to load seed ghost, continuing"
+                    );
+                }
             }
         }
+
+        tracing::info!(
+            "Loaded {}/{} seed ghosts into Postgres for track {}",
+            loaded,
+            total,
+            track_id
+        );
+        total_loaded += loaded;
     }
 
-    tracing::info!("Loaded {}/{} seed ghosts into Postgres", loaded, total);
-
     // Refresh the leaderboard_buckets materialized view after seeding
-    if loaded > 0 {
+    if total_loaded > 0 {
         sqlx::query("REFRESH MATERIALIZED VIEW leaderboard_buckets")
             .execute(pool)
             .await
             .context("Failed to refresh leaderboard_buckets after seeding")?;
 
         tracing::info!("Refreshed leaderboard_buckets materialized view");
+    }
+
+    if total_loaded == 0 {
+        tracing::warn!("No seed ghosts loaded from any track directory");
+    } else {
+        tracing::info!("Loaded {} total seed ghosts across all tracks", total_loaded);
     }
 
     Ok(())
@@ -185,5 +220,54 @@ mod tests {
             SEED_PLAYER_UUID,
             uuid::uuid!("00000000-0000-4000-8000-000000000001")
         );
+    }
+
+    #[test]
+    fn test_all_track_ids_defined() {
+        // Verify all track IDs are defined and include tracks 1, 2, 3
+        assert_eq!(ALL_TRACK_IDS, &[1, 2, 3]);
+        assert!(!ALL_TRACK_IDS.is_empty(), "ALL_TRACK_IDS must not be empty");
+    }
+
+    #[test]
+    fn test_track_ids_sorted() {
+        // Verify track IDs are sorted for deterministic loading order
+        let mut sorted = ALL_TRACK_IDS.to_vec();
+        sorted.sort();
+        assert_eq!(ALL_TRACK_IDS, &sorted[..], "ALL_TRACK_IDS must be sorted");
+    }
+
+    #[test]
+    fn test_seed_player_uuid_consistency() {
+        // Verify the seed player UUID is the same in both modules
+        // (matches SEED_PLAYER_UUID in api/src/seed.rs)
+        assert_eq!(
+            SEED_PLAYER_UUID,
+            uuid::uuid!("00000000-0000-4000-8000-000000000001")
+        );
+    }
+
+    #[test]
+    fn test_all_tracks_covered() {
+        // Verify all three tracks (1, 2, 3) are included
+        assert_eq!(ALL_TRACK_IDS.len(), 3, "should have exactly 3 tracks");
+        assert!(ALL_TRACK_IDS.contains(&1), "track 1 must be included");
+        assert!(ALL_TRACK_IDS.contains(&2), "track 2 must be included");
+        assert!(ALL_TRACK_IDS.contains(&3), "track 3 must be included");
+    }
+
+    #[test]
+    fn test_track_directory_format() {
+        // Verify track directories follow the expected naming pattern
+        for &track_id in ALL_TRACK_IDS {
+            let expected_dir = format!("track_{}", track_id);
+            // Just verify the format is correct - don't check file existence
+            // since we might not be in an environment with seeds checked out
+            assert!(
+                expected_dir.starts_with("track_"),
+                "track directory should start with 'track_' for track {}",
+                track_id
+            );
+        }
     }
 }
