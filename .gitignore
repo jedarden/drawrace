@@ -18,6 +18,10 @@ dist/
 target/
 Cargo.lock.bak
 
+# Python
+__pycache__/
+*.pyc
+
 # Playwright
 playwright-report/
 test-results/
