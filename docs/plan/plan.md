@@ -2981,3 +2981,58 @@ Tracked from launch day on the `DrawRace / Quality` Grafana dashboard:
 - **Bucket distribution within 10% of design percentiles.** Matchmaking is working.
 - **Zero P0/P1 incidents in first 30 days.**
 
+---
+
+## ADR-1: 2026-07-20 — Serverless Ghost Sharing via URL (Client-Only Async Racing)
+
+**Status:** Proposed
+
+### Context
+
+This ADR comes out of a fleet-wide "improve what's already shipped" review, distinct from the 2026-07-19 plan-vs-code gap audit (81 beads filed that day covering deployment/infra gaps — not repeated here).
+
+Verifying the actual live surface as of 2026-07-20:
+
+- **Frontend:** `https://drawrace.pages.dev` returns `200`, serves a working PWA (confirmed via a real Pixel 6 screenshot over ADB — Draw screen, track switcher, Daily Challenge button, gear/settings icon all render). The shipped JS bundle (`apps/web/dist/assets/index-DKreyELW.js`, same content hash as the live site) is **150KB gzipped**, well inside the 400KB budget.
+- **Backend:** `api-drawrace.ardenone.com` does **not resolve** (`NXDOMAIN` at the authoritative Cloudflare zone, confirmed via `dig` from this tailnet). `BLOCKER_SUMMARY.md` and `DRAWBUILD_CI_STATUS.md` (dated 2026-07-03 and 2026-06-27) show the `drawrace` namespace has never existed on any checked cluster, blocked on OpenBao token + GarageBucket permissions. This matches still-open beads `bf-5ft` (genesis: deployment to production), `nd-xjnv` (deploy backend on iad-acb), and `nd-639` (populate OpenBao secrets) — i.e. this is a known, already-tracked gap, not new information.
+- **Consequence for the live build:** `VITE_API_URL` was empty at build time, so `isOnline()` is `false` in production and `apps/web/src/api.ts` correctly short-circuits every backend call to its bundled-ghost / null fallback (verified: the live bundle contains zero references to `ardenone.com`). The app does **not** silently fail — it is, by construction, a fully offline single-player experience today: draw a wheel, race 3 bundled tutorial ghosts, get a time. There is no way to race a specific other human's run, because ghost fetch, matchmaking, and the leaderboard all require the backend that isn't live.
+
+Separately, `docs/plan/plan.md` §Multiplayer & Backend 2 already has an ADR-style section ("Why Rackspace Spot over Cloudflare Workers") explaining why the *official*, anti-cheat-verified, persistent leaderboard backend belongs on Rackspace Spot rather than Cloudflare Workers. That reasoning (WASM re-sim needs a native host, v2 needs long-lived WebSockets, private Tailscale networking to Garage/Postgres) still holds and this ADR does not revisit it — the official backend should still get built on Spot once unblocked. What that section's "sunk cost, an additional namespace is effectively free" argument did *not* anticipate is that the namespace would still not exist 3+ weeks later. This ADR proposes a decision for the gap in between: how to make the *already-live, already-working* frontend more useful **today**, without depending on that backend at all.
+
+The codebase already contains two pieces of proven, shipped machinery that combine naturally to close this gap:
+
+1. **`apps/web/src/ghost-blob.ts`** — a binary encode/decode format for a full ghost run: track id, finish time, the initial wheel polygon, every mid-race `wheel_swaps[]` entry at its exact `swap_tick`, and the deterministic seed. This is exactly what the backend stores and what `crates/validator` re-simulates. It's already used client-side to decode bundled and fetched ghosts for playback.
+2. **`?wheel=<base64>` share links** (`apps/web/src/ResultScreen.tsx` `encodeWheelForShare`/`decodeWheelFromShare`, wired in `apps/web/src/App.tsx`) — already shipped, already live. Tapping "Share" on the Result screen copies a URL encoding *only the drawn wheel shape* so a friend can try the same starting wheel. It proves the share-link pattern works end-to-end (App.tsx already parses `?wheel=` on load and jumps straight into a race) but stops short of sharing an actual run to race against — no finish time, no swap sequence, no "did I beat them."
+
+### Decision
+
+Extend the existing share-link pattern from "share a wheel shape" to "share a full ghost run," entirely client-side:
+
+- Add a `?ghost=<base64url>` URL parameter that carries a `ghost-blob.ts`-encoded run (track id, seed, wheel + all `wheel_swaps[]`, finish time), with the **raw cosmetic stroke points omitted** from the share payload (they're preview-only per the existing wire format and roughly double the payload for zero replay value) to keep links short.
+- On the Result screen, alongside the existing "Share wheel" action, add "Challenge a friend" — encodes the just-finished run (including any mid-race swaps) into `?ghost=`, and uses `navigator.share()` (native OS share sheet) with the existing clipboard-copy as fallback.
+- On load, `App.tsx` decodes `?ghost=`, loads the correct track, and adds the decoded run as an extra ghost alongside the normal bundled/fetched ghosts for that race — the recipient races against their friend's actual recorded run, with the same client-side re-simulation already used for every other ghost in the game.
+- Add a `PHYSICS_VERSION` check on decode: if the link's embedded version doesn't match the running build's, show a short "this challenge was made with an older version of the game and may not replay exactly" notice rather than silently mis-simulating.
+- These are explicitly **unverified "challenge" ghosts** — not submitted to any server leaderboard, no anti-cheat re-sim, visually/contextually distinct from ranked ghosts (matches the existing distinction the game already draws between bundled tutorial ghosts and server-verified ones).
+
+### Alternatives Considered
+
+- **Wait for the Rackspace Spot backend to unblock, then ship real multiplayer/leaderboard.** Rejected as the *only* plan — it's already the plan (tracked by `bf-5ft`/`nd-xjnv`/`nd-639`) and has been stalled 3+ weeks with no clear ETA. This ADR doesn't replace that work, it ships something real in the meantime using only what's already live.
+- **Keep `?wheel=` shape-only sharing as-is and tell people to compare times by eye.** Rejected — it has no "race against them" payoff, which is the actual hook (the game's own success metric is "median session = 3+ runs"; racing a friend's ghost is a stronger repeat-play driver than racing strangers' bundled ghosts a second time).
+- **Full binary ghost blob including raw stroke points in the URL.** Rejected on size grounds — stroke points are cosmetic-preview-only per the existing format comment in `ghost-blob.ts` and can be ~4-8x the size of the swap data itself for a typical draw stroke.
+- **Backend-hosted short links (e.g. a URL-shortener Worker) instead of raw query params.** Rejected — reintroduces a server dependency (however small) for a feature whose entire value proposition here is "ships today, no infra." A raw `?ghost=` param keeps this purely static-site-compatible.
+- **Migrate the whole backend to Cloudflare Workers/KV/D1** (the option `docs/plan/plan.md` §Multiplayer & Backend 2 already rejected). Not revisited here — still the wrong call for the *persistent, anti-cheat-verified* leaderboard for the reasons already documented there (native WASM re-sim host, v2 WebSockets). This ADR is scoped to something Workers-vs-Spot doesn't even need to answer: a client-only feature with no server component at all.
+
+### Consequences
+
+**Positive:**
+- Ships without touching any of the blocked infrastructure — buildable and deployable by a single frontend-only change through the existing Cloudflare Pages pipeline.
+- Reuses ~90% already-built, already-tested machinery (`ghost-blob.ts` encode/decode, swap-tick replay, the `?wheel=` share pattern) rather than inventing a new mechanism.
+- Gives the live site an actual "beat my time" loop today, which is the core retention hook the plan's own Success Metrics section is built around.
+- Fits inside the existing 400KB gzip budget — no new dependencies, `navigator.share()` and `btoa`/base64url are platform APIs.
+
+**Negative / tradeoffs:**
+- No anti-cheat: a `?ghost=` link's claimed finish time is client-asserted, same trust level as any other unverified local data. Must stay visually/functionally separate from the ranked leaderboard so it's never confused with a verified time.
+- No persistence beyond the link itself — if a player loses the URL, the challenge is gone (acceptable for a "send this to a friend" feature, unlike the real leaderboard).
+- Link length grows with swap count — a run using the full 20-swap cap could still produce a multi-KB URL even after stripping stroke points; worth capping or warning above a threshold during implementation rather than assuming the common case (1-3 swaps) generalizes.
+- Physics-version drift between sender and receiver builds needs the explicit guard above; without it a stale link could silently replay wrong.
+
