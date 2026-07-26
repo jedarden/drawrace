@@ -1,13 +1,13 @@
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
-use redis::AsyncCommands;
 use rustrict::CensorStr;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::handlers::submissions::ApiError;
+use crate::ratelimit::check_rate_limit;
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -55,7 +55,7 @@ pub async fn post_name(
         });
     }
 
-    // Rate limit: 3 name attempts per UUID per hour
+    // Rate limit: 3 name attempts per UUID per hour (rl:name:{uuid})
     {
         let mut conn = state.redis.get().await.map_err(|e| {
             tracing::error!(error = %e, "Redis pool get failed");
@@ -65,22 +65,13 @@ pub async fn post_name(
                 ..Default::default()
             }
         })?;
-        let rl_key = format!("rl:name:{}", body.player_uuid);
-        let count: i64 = redis::cmd("INCR")
-            .arg(&rl_key)
-            .query_async(&mut conn)
-            .await
-            .unwrap_or(0);
-
-        if count == 1 {
-            let _: () = conn.expire(&rl_key, 3600).await.unwrap_or(());
-        }
-
-        if count > 3 {
+        let outcome =
+            check_rate_limit(&mut conn, "rl:name", &body.player_uuid.to_string(), 3, 3600).await;
+        if !outcome.allowed {
             return Err(ApiError {
                 status: StatusCode::TOO_MANY_REQUESTS,
                 message: "rate limit exceeded".into(),
-                ..Default::default()
+                retry_after: Some(outcome.retry_after_secs),
             });
         }
     }
