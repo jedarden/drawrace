@@ -47,7 +47,11 @@
 #     confirmed today — and it is still EMPTY (no deploy/svc/secret, only
 #     kube-root-ca.crt, age 82d). Net: the full unblock-probe checklist below
 #     was re-run this retry with the SAME blocked result as the prior runs —
-#     deployment has still not landed anywhere reachable.
+#     deployment has still not landed anywhere reachable. (This retry also
+#     caught that the documented cnpg probe below ERRORS via the observer SA
+#     and split it out — see "HOW TO TELL WHEN DEPLOYMENT LANDS".) The offline
+#     self-check was re-run this retry too → exit 0, so the decode pipeline is
+#     still green; the ONLY open blocker remains the external nd-1fkb grant set.
 #
 # ── DEPLOYMENT TRACKER (resolves the "find the real tracker" question) ──────
 #
@@ -85,8 +89,13 @@
 #
 #   getent hosts api-drawrace.ardenone.com                       # must RESOLVE
 #   curl -sf https://api-drawrace.ardenone.com/v1/health | jq .  # must 200
-#   kubectl --server=http://traefik-rs-manager:8001 get deploy,svc,cluster.postgresql.cnpg.io -n drawrace
-#   kubectl --server=http://traefik-rs-manager:8001 get secrets -n drawrace   # must list >0
+#   kubectl --server=http://traefik-rs-manager:8001 get deploy,svc,secret -n drawrace   # AUTHORITATIVE — must list drawrace-api/validator + >0 secrets
+#   # CloudNativePG Postgres Cluster is BEST-EFFORT and MUST be queried separately.
+#   # The postgresql.cnpg.io API group is NOT discoverable via the devpod-observer
+#   # SA this box uses (RBAC scopes api-resources discovery), so a comma-joined
+#   # `get deploy,svc,cluster.postgresql.cnpg.io` ERRORS with "server doesn't have
+#   # a resource type 'cluster'" and masks the real (empty) result. Query it alone:
+#   kubectl --server=http://traefik-rs-manager:8001 get cluster.postgresql.cnpg.io -n drawrace
 #
 # When ALL of those succeed, a DATABASE_URL + S3 creds exist in the namespace
 # and this script's --prod path (below) can do the real extraction (80
