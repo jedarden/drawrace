@@ -4,10 +4,18 @@
 /// to detect physics drift. Any divergence from the expected finish times
 /// fails CI, serving as a determinism regression gate.
 ///
-/// Ghosts are stored in crates/validator/reference-ghosts.json. Initially
-/// this file contains a small set of synthetic test ghosts; it should be
-/// populated with 200 real-player ghosts from production to serve as the
-/// full regression suite.
+/// Ghosts are stored in crates/validator/reference-ghosts.json — a corpus of
+/// >=200 real, drivable ghosts spanning tracks 1/2/3. Every `finish_time_ms` is
+/// physics-derived (produced by running each wheel through the same resim WASM
+/// this test re-simulates with, seed 42), not a hand-picked constant, so the
+/// gate actually tests that shapes still produce the *right* finish under the
+/// current physics.
+///
+/// The corpus is regenerated deterministically from source — never hand-edited:
+///
+/// ```bash
+/// cargo run -p drawrace-validator --bin generate-reference-ghosts
+/// ```
 ///
 /// See plan.md §Testing Layer 6 for details.
 use anyhow::{Context, Result};
