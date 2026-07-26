@@ -35,8 +35,19 @@
 #     TERMINATES/times out; nothing is deployed there either.
 #   * ardenone-hub (where Garage S3 lives) kubectl-proxy times out; and no API
 #     was ever deployed to write blobs anyway.
-#   * No kubeconfig for rs-manager or ardenone-manager on disk, so the read-only
-#     proxy above is the only inspection path from this box.
+#   * Kubeconfig inventory (corrected this run, 2026-07-26): /home/coding/.kube/
+#     now holds ardenone-manager-24h.kubeconfig (fresh 24h cluster-admin token),
+#     iad-acb.kubeconfig, and iad-ci.kubeconfig — but still NO rs-manager
+#     kubeconfig (rs-manager stays proxy-only via traefik-rs-manager:8001). The
+#     ardenone-manager admin kubeconfig was exercised this run: it connects, but
+#     there is NO `drawrace` namespace on ardenone-manager either. iad-acb's API
+#     server still hangs on `kubectl get ns` (>10s, times out), so its contents
+#     remain uninspectable from this box. The read-only rs-manager proxy is
+#     therefore still the only cluster on which the `drawrace` namespace can be
+#     confirmed today — and it is still EMPTY (no deploy/svc/secret, only
+#     kube-root-ca.crt, age 82d). Net: the full unblock-probe checklist below
+#     was re-run this retry with the SAME blocked result as the prior runs —
+#     deployment has still not landed anywhere reachable.
 #
 # ── DEPLOYMENT TRACKER (resolves the "find the real tracker" question) ──────
 #
