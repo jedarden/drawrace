@@ -5,6 +5,7 @@ pub mod handlers;
 pub mod hmac_mod;
 pub mod ip;
 pub mod rate_limit_bypass;
+pub mod ratelimit;
 pub mod seed;
 pub mod shadowban;
 
