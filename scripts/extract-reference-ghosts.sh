@@ -16,6 +16,15 @@
 #
 # ── PRODUCTION CONNECTIVITY (re-verified STILL-UNREACHABLE 2026-07-26) ──────
 #
+# [bf-65pk8 retry, 2026-07-26: full unblock-probe checklist re-run from this
+#  box — api-drawrace.ardenone.com NXDOMAIN (getent+curl), rs-manager `drawrace`
+#  ns still `No resources found` for deploy/svc/secret, all 6 other reachable
+#  clusters NotFound, iad-acb proxy times out, ArgoCD RO proxy still shows no
+#  drawrace Application. Byte-identical to every prior run; deployment still not
+#  landed. Bead stays OPEN — externally blocked on nd-1fkb; nothing actionable
+#  in-repo. Read-only observer here cannot obtain DATABASE_URL/S3 creds, which
+#  ARE the nd-1fkb grant set themselves.]
+#
 # Production drawrace is NOT deployed, so the literal "extract >=200 real
 # production ghosts" criterion cannot be satisfied today. There is NO working
 # connectivity path to document yet — this section records the blocked state
