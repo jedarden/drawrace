@@ -24,6 +24,29 @@ async fn main() {
     let hmac_current = std::env::var("HMAC_CURRENT_KEY").expect("HMAC_CURRENT_KEY must be set");
     let hmac_previous = std::env::var("HMAC_PREVIOUS_KEY").unwrap_or_default();
 
+    // Staging-only per-IP rate-limit bypass allowlist (plan §Multiplayer & Backend
+    // 8 Layer 2). The CIDR var is read ONLY when `DRAWRACE_ENV == "staging"`, so
+    // there is no env-read effect in production; even if it were read,
+    // `from_env`'s staging gate makes the bypass inert for any other env value.
+    // The deployment manifest hardcodes `DRAWRACE_ENV` from the namespace
+    // (production → `drawrace`, staging → `drawrace-staging`).
+    let drawrace_env = std::env::var("DRAWRACE_ENV").ok();
+    let rate_limit_bypass = if drawrace_env.as_deref() == Some(drawrace_api::rate_limit_bypass::STAGING_ENV) {
+        let cidr_var = std::env::var("DRAWRACE_RATE_LIMIT_BYPASS_CIDR").ok();
+        drawrace_api::rate_limit_bypass::RateLimitBypass::from_env(drawrace_env, cidr_var)
+    } else {
+        // Non-staging: never consult the CIDR var. `from_env` would return an
+        // empty allowlist anyway, but skipping the read keeps the production
+        // path free of any env-read effect from the bypass var.
+        drawrace_api::rate_limit_bypass::RateLimitBypass::empty()
+    };
+    if !rate_limit_bypass.is_empty() {
+        tracing::info!(
+            cidr_count = rate_limit_bypass.len(),
+            "staging per-IP rate-limit bypass active"
+        );
+    }
+
     let pool = drawrace_api::db::create_pool(&database_url)
         .await
         .expect("failed to create Postgres pool");
@@ -72,6 +95,7 @@ async fn main() {
             boot_instant: std::time::Instant::now(),
         },
         metrics_handle,
+        rate_limit_bypass,
     });
 
     let app = drawrace_api::app::app(Arc::clone(&state));

@@ -1523,6 +1523,7 @@ dependencies = [
  "deadpool-redis",
  "hex",
  "hmac 0.12.1",
+ "ipnet",
  "metrics 0.24.6",
  "metrics-exporter-prometheus 0.16.2",
  "redis 0.27.6",
