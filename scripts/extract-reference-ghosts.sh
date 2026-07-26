@@ -54,6 +54,37 @@
 #  CloudNativePG Postgres + Secrets present, or a reachable DATABASE_URL/S3
 #  cred) remain unmet, so the bead stays OPEN — per task rule, NOT closed.]
 #
+# [bf-65pk8 retry #4, 2026-07-26: full unblock-probe checklist re-run AGAIN from
+#  this box — byte-identical to retry #3. Confirmed this run:
+#  api-drawrace.ardenone.com still NXDOMAIN (curl exit 6 could-not-resolve);
+#  rs-manager `drawrace` ns still `No resources found` for deploy/svc/secret with
+#  only `kube-root-ca.crt` (still 82d old); cnpg `cluster` still "server doesn't
+#  have a resource type"; `drawrace` ns NotFound on all 6 other reachable clusters
+#  (apexalgo-iad/ardenone-cluster/ardenone-manager/ord-devimprint/iad-kalshi/
+#  iad-options); iad-acb proxy still times out (>12s); ArgoCD RO proxy still
+#  shows no drawrace Application; ardenone-manager-24h admin kc still returns
+#  NotFound for the drawrace ns; kubeconfig inventory unchanged
+#  (ardenone-manager-24h + iad-acb + iad-ci; still no rs-manager kc); offline
+#  self-check re-run → exit 0. Deployment STILL not landed anywhere reachable;
+#  ALL acceptance criteria still unmet. Bead stays OPEN — externally blocked on
+#  nd-1fkb (the grant set IS the missing DATABASE_URL/S3 source, which a
+#  read-only observer here cannot create); per task rule, NOT closed.]
+#
+# [bf-65pk8 retry #5, 2026-07-26: full unblock-probe checklist re-run AGAIN from
+#  this box — byte-identical to retry #4. Confirmed this run:
+#  api-drawrace.ardenone.com NXDOMAIN (getent exit 2; curl exit 6
+#  could-not-resolve); rs-manager `drawrace` ns `No resources found` for
+#  deploy/svc/secret and only `kube-root-ca.crt` cm (still 82d old); cnpg
+#  `cluster` still "server doesn't have a resource type" (observer SA
+#  RBAC-discovery-limited); ArgoCD RO proxy still no drawrace Application
+#  (empty body / no match); offline self-check re-run → exit 0. Deployment
+#  STILL not landed anywhere reachable; ALL acceptance criteria still unmet
+#  (no Deployments + CloudNativePG Postgres + Secrets; no reachable
+#  DATABASE_URL/S3 cred; --prod path cannot connect). Bead stays OPEN —
+#  externally blocked on nd-1fkb (the grant set IS the missing DATABASE_URL/S3
+#  source, which a read-only observer here cannot create); per task rule, NOT
+#  closed.]
+#
 # Production drawrace is NOT deployed, so the literal "extract >=200 real
 # production ghosts" criterion cannot be satisfied today. There is NO working
 # connectivity path to document yet — this section records the blocked state
