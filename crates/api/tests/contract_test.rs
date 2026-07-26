@@ -43,7 +43,11 @@ const TEST_PLAYER_B_UUID: &str = "660e8400-e29b-41d4-a716-446655440001";
 async fn make_state(pool: PgPool) -> Arc<drawrace_api::AppState> {
     // Inert by default — mirrors production (non-staging). Tests that need the
     // bypass active build state via `make_state_with_bypass`.
-    make_state_with_bypass(pool, drawrace_api::rate_limit_bypass::RateLimitBypass::empty()).await
+    make_state_with_bypass(
+        pool,
+        drawrace_api::rate_limit_bypass::RateLimitBypass::empty(),
+    )
+    .await
 }
 
 /// Like [`make_state`], but with an explicit per-IP rate-limit bypass
@@ -1475,7 +1479,10 @@ async fn bypass_active_in_staging_skips_per_ip_limit() {
         Some("staging".into()),
         Some(BYPASS_CIDR.into()),
     );
-    assert!(!bypass.is_empty(), "staging + CIDR must populate the allowlist");
+    assert!(
+        !bypass.is_empty(),
+        "staging + CIDR must populate the allowlist"
+    );
     let peer: SocketAddr = ([198, 51, 100, 9], 0).into();
     assert!(bypass.should_bypass(&peer.ip()));
 
@@ -1513,7 +1520,10 @@ async fn bypass_inert_in_production_still_trips_per_ip() {
         Some("production".into()),
         Some(BYPASS_CIDR.into()),
     );
-    assert!(bypass.is_empty(), "production must yield an empty allowlist");
+    assert!(
+        bypass.is_empty(),
+        "production must yield an empty allowlist"
+    );
     let peer: SocketAddr = ([198, 51, 100, 10], 0).into();
 
     let app = test_app_with_bypass_peer(peer, bypass).await;

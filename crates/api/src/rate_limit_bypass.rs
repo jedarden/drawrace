@@ -141,10 +141,7 @@ mod tests {
 
     #[test]
     fn from_env_staging_populates_allowlist() {
-        let b = RateLimitBypass::from_env(
-            Some("staging".into()),
-            Some("198.51.100.0/24".into()),
-        );
+        let b = RateLimitBypass::from_env(Some("staging".into()), Some("198.51.100.0/24".into()));
         // IP inside the CIDR → bypass active.
         assert!(b.should_bypass(&v4(7)));
         assert!(!b.is_empty());
@@ -155,10 +152,8 @@ mod tests {
         // Acceptance criterion: DRAWRACE_ENV=production → DRAWRACE_RATE_LIMIT_BYPASS_CIDR
         // is not consulted; the allowlist is empty and nothing is bypassed,
         // even though the CIDR var is set and *would* match the IP.
-        let b = RateLimitBypass::from_env(
-            Some("production".into()),
-            Some("198.51.100.0/24".into()),
-        );
+        let b =
+            RateLimitBypass::from_env(Some("production".into()), Some("198.51.100.0/24".into()));
         assert!(b.is_empty());
         assert!(!b.should_bypass(&v4(7)));
     }
@@ -167,16 +162,20 @@ mod tests {
     fn from_env_non_staging_values_are_all_inert() {
         let cidr = Some("198.51.100.0/24".into());
         let cases: [Option<&str>; 6] = [
-            None,            // unset
-            Some(""),        // empty
+            None,     // unset
+            Some(""), // empty
             Some("development"),
-            Some("Staging"), // wrong case
+            Some("Staging"),  // wrong case
             Some("staging "), // trailing space
             Some("prod"),
         ];
         for env in cases {
             let b = RateLimitBypass::from_env(env.map(str::to_owned), cidr.clone());
-            assert!(b.is_empty(), "env {:?} must be inert (exact 'staging' match only)", env);
+            assert!(
+                b.is_empty(),
+                "env {:?} must be inert (exact 'staging' match only)",
+                env
+            );
             assert!(!b.should_bypass(&v4(7)), "env {:?} must not bypass", env);
         }
     }

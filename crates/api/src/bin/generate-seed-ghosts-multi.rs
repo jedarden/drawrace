@@ -655,18 +655,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|_| format!("Invalid target_time_ms '{}': must be an integer", args[2]))?
     } else {
         match track_id {
-            1 => 38_000,  // hills-01 target
-            2 => 50_000,  // canyon-02 target
-            3 => 55_000,  // dunes-03 target
+            1 => 38_000, // hills-01 target
+            2 => 50_000, // canyon-02 target
+            3 => 55_000, // dunes-03 target
             _ => unreachable!(),
         }
     };
 
     println!("Generating seed ghost blob files for track {}...", track_id);
-    println!("Target time: {}ms ({}s)", target_time_ms, target_time_ms / 1000);
+    println!(
+        "Target time: {}ms ({}s)",
+        target_time_ms,
+        target_time_ms / 1000
+    );
 
     let workspace_root = std::env::current_dir()?;
-    let seeds_dir = workspace_root.join("seeds").join(format!("track_{}", track_id));
+    let seeds_dir = workspace_root
+        .join("seeds")
+        .join(format!("track_{}", track_id));
 
     // Create output directory
     fs::create_dir_all(&seeds_dir)?;

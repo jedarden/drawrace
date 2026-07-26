@@ -31,15 +31,16 @@ async fn main() {
     // The deployment manifest hardcodes `DRAWRACE_ENV` from the namespace
     // (production → `drawrace`, staging → `drawrace-staging`).
     let drawrace_env = std::env::var("DRAWRACE_ENV").ok();
-    let rate_limit_bypass = if drawrace_env.as_deref() == Some(drawrace_api::rate_limit_bypass::STAGING_ENV) {
-        let cidr_var = std::env::var("DRAWRACE_RATE_LIMIT_BYPASS_CIDR").ok();
-        drawrace_api::rate_limit_bypass::RateLimitBypass::from_env(drawrace_env, cidr_var)
-    } else {
-        // Non-staging: never consult the CIDR var. `from_env` would return an
-        // empty allowlist anyway, but skipping the read keeps the production
-        // path free of any env-read effect from the bypass var.
-        drawrace_api::rate_limit_bypass::RateLimitBypass::empty()
-    };
+    let rate_limit_bypass =
+        if drawrace_env.as_deref() == Some(drawrace_api::rate_limit_bypass::STAGING_ENV) {
+            let cidr_var = std::env::var("DRAWRACE_RATE_LIMIT_BYPASS_CIDR").ok();
+            drawrace_api::rate_limit_bypass::RateLimitBypass::from_env(drawrace_env, cidr_var)
+        } else {
+            // Non-staging: never consult the CIDR var. `from_env` would return an
+            // empty allowlist anyway, but skipping the read keeps the production
+            // path free of any env-read effect from the bypass var.
+            drawrace_api::rate_limit_bypass::RateLimitBypass::empty()
+        };
     if !rate_limit_bypass.is_empty() {
         tracing::info!(
             cidr_count = rate_limit_bypass.len(),
