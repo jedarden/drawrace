@@ -1,0 +1,5759 @@
+{
+  "extracted_at": "2026-07-26T12:39:46.560141414Z",
+  "source": {
+    "kind": "self-check (committed seed blobs) — NOT production",
+    "database": "n/a (offline)",
+    "s3_bucket": "n/a (filesystem seeds/)",
+    "s3_endpoint": null
+  },
+  "filter": {
+    "physics_version": 0,
+    "tracks": [
+      1,
+      2,
+      3
+    ],
+    "is_legacy": false,
+    "per_track_limit": 0
+  },
+  "count": 72,
+  "decode_failures": [],
+  "ghosts": [
+    {
+      "ghost_id": "6dafc3dc-e5b3-43f0-bc96-e957275a242b",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 25400,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-000.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 25400,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              48,
+              0
+            ],
+            [
+              44,
+              19
+            ],
+            [
+              34,
+              34
+            ],
+            [
+              19,
+              44
+            ],
+            [
+              0,
+              48
+            ],
+            [
+              -19,
+              44
+            ],
+            [
+              -34,
+              34
+            ],
+            [
+              -44,
+              19
+            ],
+            [
+              -48,
+              0
+            ],
+            [
+              -44,
+              -19
+            ],
+            [
+              -34,
+              -34
+            ],
+            [
+              -19,
+              -44
+            ],
+            [
+              0,
+              -48
+            ],
+            [
+              19,
+              -44
+            ],
+            [
+              34,
+              -34
+            ],
+            [
+              44,
+              -19
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "d10653ef-a137-4286-be3b-34c066af1b73",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 29800,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-001.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 29800,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              55,
+              0
+            ],
+            [
+              51,
+              21
+            ],
+            [
+              39,
+              39
+            ],
+            [
+              21,
+              51
+            ],
+            [
+              0,
+              55
+            ],
+            [
+              -21,
+              51
+            ],
+            [
+              -39,
+              39
+            ],
+            [
+              -51,
+              21
+            ],
+            [
+              -55,
+              0
+            ],
+            [
+              -51,
+              -21
+            ],
+            [
+              -39,
+              -39
+            ],
+            [
+              -21,
+              -51
+            ],
+            [
+              0,
+              -55
+            ],
+            [
+              21,
+              -51
+            ],
+            [
+              39,
+              -39
+            ],
+            [
+              51,
+              -21
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "c857318f-01fd-4c18-b781-1f1e53a5640b",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 32100,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-002.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 32100,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              50,
+              0
+            ],
+            [
+              46,
+              19
+            ],
+            [
+              35,
+              35
+            ],
+            [
+              19,
+              46
+            ],
+            [
+              0,
+              50
+            ],
+            [
+              -19,
+              46
+            ],
+            [
+              -35,
+              35
+            ],
+            [
+              -46,
+              19
+            ],
+            [
+              -50,
+              0
+            ],
+            [
+              -46,
+              -19
+            ],
+            [
+              -35,
+              -35
+            ],
+            [
+              -19,
+              -46
+            ],
+            [
+              0,
+              -50
+            ],
+            [
+              19,
+              -46
+            ],
+            [
+              35,
+              -35
+            ],
+            [
+              46,
+              -19
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "4590c322-b84d-4785-b8b8-d9de03a972f0",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 33500,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-003.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 33500,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              60,
+              0
+            ],
+            [
+              55,
+              25
+            ],
+            [
+              42,
+              42
+            ],
+            [
+              25,
+              55
+            ],
+            [
+              0,
+              60
+            ],
+            [
+              -25,
+              55
+            ],
+            [
+              -42,
+              42
+            ],
+            [
+              -55,
+              25
+            ],
+            [
+              -60,
+              0
+            ],
+            [
+              -55,
+              -25
+            ],
+            [
+              -42,
+              -42
+            ],
+            [
+              -25,
+              -55
+            ],
+            [
+              0,
+              -60
+            ],
+            [
+              25,
+              -55
+            ],
+            [
+              42,
+              -42
+            ],
+            [
+              55,
+              -25
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "5390e8bb-19a3-4d6e-a741-b0382798c281",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 35200,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-004.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 35200,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 10,
+          "polygon_vertices": [
+            [
+              65,
+              0
+            ],
+            [
+              55,
+              35
+            ],
+            [
+              30,
+              56
+            ],
+            [
+              0,
+              65
+            ],
+            [
+              -30,
+              56
+            ],
+            [
+              -55,
+              35
+            ],
+            [
+              -65,
+              0
+            ],
+            [
+              -55,
+              -35
+            ],
+            [
+              -30,
+              -56
+            ],
+            [
+              0,
+              -65
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "9f3b0415-a0b1-4a26-b6d2-c8b8a12c0c6b",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 37800,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-005.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 37800,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 18,
+          "polygon_vertices": [
+            [
+              52,
+              0
+            ],
+            [
+              49,
+              15
+            ],
+            [
+              42,
+              30
+            ],
+            [
+              30,
+              42
+            ],
+            [
+              15,
+              49
+            ],
+            [
+              0,
+              52
+            ],
+            [
+              -15,
+              49
+            ],
+            [
+              -30,
+              42
+            ],
+            [
+              -42,
+              30
+            ],
+            [
+              -49,
+              15
+            ],
+            [
+              -52,
+              0
+            ],
+            [
+              -49,
+              -15
+            ],
+            [
+              -42,
+              -30
+            ],
+            [
+              -30,
+              -42
+            ],
+            [
+              -15,
+              -49
+            ],
+            [
+              0,
+              -52
+            ],
+            [
+              15,
+              -49
+            ],
+            [
+              30,
+              -42
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "16209726-7fe8-4c09-8ee6-566a3da98992",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 40100,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-006.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 40100,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              45,
+              0
+            ],
+            [
+              42,
+              17
+            ],
+            [
+              32,
+              32
+            ],
+            [
+              17,
+              42
+            ],
+            [
+              0,
+              45
+            ],
+            [
+              -17,
+              42
+            ],
+            [
+              -32,
+              32
+            ],
+            [
+              -42,
+              17
+            ],
+            [
+              -45,
+              0
+            ],
+            [
+              -42,
+              -17
+            ],
+            [
+              -32,
+              -32
+            ],
+            [
+              -17,
+              -42
+            ],
+            [
+              0,
+              -45
+            ],
+            [
+              17,
+              -42
+            ],
+            [
+              32,
+              -32
+            ],
+            [
+              42,
+              -17
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "b5e15e75-7826-4ad9-ae62-f67103f25b7e",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 42600,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-007.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 42600,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              70,
+              0
+            ],
+            [
+              65,
+              27
+            ],
+            [
+              49,
+              49
+            ],
+            [
+              27,
+              65
+            ],
+            [
+              0,
+              70
+            ],
+            [
+              -27,
+              65
+            ],
+            [
+              -49,
+              49
+            ],
+            [
+              -65,
+              27
+            ],
+            [
+              -70,
+              0
+            ],
+            [
+              -65,
+              -27
+            ],
+            [
+              -49,
+              -49
+            ],
+            [
+              -27,
+              -65
+            ],
+            [
+              0,
+              -70
+            ],
+            [
+              27,
+              -65
+            ],
+            [
+              49,
+              -49
+            ],
+            [
+              65,
+              -27
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "c086d778-7a4d-47db-9165-3a3aff8505ac",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 44300,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-008.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 44300,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              55,
+              0
+            ],
+            [
+              48,
+              28
+            ],
+            [
+              28,
+              48
+            ],
+            [
+              0,
+              55
+            ],
+            [
+              -28,
+              48
+            ],
+            [
+              -48,
+              28
+            ],
+            [
+              -55,
+              0
+            ],
+            [
+              -48,
+              -28
+            ],
+            [
+              -28,
+              -48
+            ],
+            [
+              0,
+              -55
+            ],
+            [
+              28,
+              -48
+            ],
+            [
+              48,
+              -28
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "bc0b37df-78c0-4d4e-95d3-3c1c9d452ce8",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 46900,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-009.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 46900,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              58,
+              0
+            ],
+            [
+              50,
+              30
+            ],
+            [
+              30,
+              50
+            ],
+            [
+              0,
+              58
+            ],
+            [
+              -30,
+              50
+            ],
+            [
+              -50,
+              30
+            ],
+            [
+              -58,
+              0
+            ],
+            [
+              -50,
+              -30
+            ],
+            [
+              -30,
+              -50
+            ],
+            [
+              0,
+              -58
+            ],
+            [
+              30,
+              -50
+            ],
+            [
+              50,
+              -30
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "9545db40-00b4-4799-bebf-e6c62890c970",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 49200,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-010.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 49200,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              40,
+              0
+            ],
+            [
+              35,
+              20
+            ],
+            [
+              20,
+              35
+            ],
+            [
+              0,
+              40
+            ],
+            [
+              -20,
+              35
+            ],
+            [
+              -35,
+              20
+            ],
+            [
+              -40,
+              0
+            ],
+            [
+              -35,
+              -20
+            ],
+            [
+              -20,
+              -35
+            ],
+            [
+              0,
+              -40
+            ],
+            [
+              20,
+              -35
+            ],
+            [
+              35,
+              -20
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "b9fee789-549f-4fe4-b6a0-bbaedd78f425",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 51700,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-011.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 51700,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              62,
+              0
+            ],
+            [
+              57,
+              24
+            ],
+            [
+              44,
+              44
+            ],
+            [
+              24,
+              57
+            ],
+            [
+              0,
+              62
+            ],
+            [
+              -24,
+              57
+            ],
+            [
+              -44,
+              44
+            ],
+            [
+              -57,
+              24
+            ],
+            [
+              -62,
+              0
+            ],
+            [
+              -57,
+              -24
+            ],
+            [
+              -44,
+              -44
+            ],
+            [
+              -24,
+              -57
+            ],
+            [
+              0,
+              -62
+            ],
+            [
+              24,
+              -57
+            ],
+            [
+              44,
+              -44
+            ],
+            [
+              57,
+              -24
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "090fb8de-67e3-40f7-8072-9e1ba6e9021d",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 53400,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-012.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 53400,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              48,
+              0
+            ],
+            [
+              43,
+              18
+            ],
+            [
+              34,
+              34
+            ],
+            [
+              18,
+              43
+            ],
+            [
+              0,
+              48
+            ],
+            [
+              -18,
+              43
+            ],
+            [
+              -34,
+              34
+            ],
+            [
+              -43,
+              18
+            ],
+            [
+              -48,
+              0
+            ],
+            [
+              -43,
+              -18
+            ],
+            [
+              -34,
+              -34
+            ],
+            [
+              -18,
+              -43
+            ],
+            [
+              0,
+              -48
+            ],
+            [
+              18,
+              -43
+            ],
+            [
+              34,
+              -34
+            ],
+            [
+              43,
+              -18
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "1f077f7d-091e-48ea-9729-3d16fb76ac03",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 56100,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-013.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 56100,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              50,
+              0
+            ],
+            [
+              46,
+              19
+            ],
+            [
+              35,
+              35
+            ],
+            [
+              19,
+              46
+            ],
+            [
+              0,
+              50
+            ],
+            [
+              -19,
+              46
+            ],
+            [
+              -35,
+              35
+            ],
+            [
+              -46,
+              19
+            ],
+            [
+              -50,
+              0
+            ],
+            [
+              -46,
+              -19
+            ],
+            [
+              -35,
+              -35
+            ],
+            [
+              -19,
+              -46
+            ],
+            [
+              0,
+              -50
+            ],
+            [
+              19,
+              -46
+            ],
+            [
+              35,
+              -35
+            ],
+            [
+              46,
+              -19
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "28e1a14e-cdc6-40e8-acd2-041eae5dcb61",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 59800,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-014.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 59800,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 10,
+          "polygon_vertices": [
+            [
+              80,
+              0
+            ],
+            [
+              62,
+              48
+            ],
+            [
+              22,
+              76
+            ],
+            [
+              -22,
+              76
+            ],
+            [
+              -62,
+              48
+            ],
+            [
+              -80,
+              0
+            ],
+            [
+              -62,
+              -48
+            ],
+            [
+              -22,
+              -76
+            ],
+            [
+              22,
+              -76
+            ],
+            [
+              62,
+              -48
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "77779e6a-5050-4959-a7f9-53d46e49c8ed",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 63200,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-015.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 63200,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              42,
+              0
+            ],
+            [
+              38,
+              16
+            ],
+            [
+              28,
+              28
+            ],
+            [
+              16,
+              38
+            ],
+            [
+              0,
+              42
+            ],
+            [
+              -16,
+              38
+            ],
+            [
+              -28,
+              28
+            ],
+            [
+              -38,
+              16
+            ],
+            [
+              -42,
+              0
+            ],
+            [
+              -38,
+              -16
+            ],
+            [
+              -28,
+              -28
+            ],
+            [
+              -16,
+              -38
+            ],
+            [
+              0,
+              -42
+            ],
+            [
+              16,
+              -38
+            ],
+            [
+              28,
+              -28
+            ],
+            [
+              38,
+              -16
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "d3322b17-c43c-4964-a062-cdc8bc969f3a",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 67500,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-016.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 67500,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 14,
+          "polygon_vertices": [
+            [
+              66,
+              0
+            ],
+            [
+              58,
+              32
+            ],
+            [
+              38,
+              55
+            ],
+            [
+              12,
+              65
+            ],
+            [
+              -12,
+              65
+            ],
+            [
+              -38,
+              55
+            ],
+            [
+              -58,
+              32
+            ],
+            [
+              -66,
+              0
+            ],
+            [
+              -58,
+              -32
+            ],
+            [
+              -38,
+              -55
+            ],
+            [
+              -12,
+              -65
+            ],
+            [
+              12,
+              -65
+            ],
+            [
+              38,
+              -55
+            ],
+            [
+              58,
+              -32
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "17070385-d3be-4efb-a703-ec7c88a9dda8",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 72300,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-017.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 72300,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              36,
+              0
+            ],
+            [
+              33,
+              14
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              14,
+              33
+            ],
+            [
+              0,
+              36
+            ],
+            [
+              -14,
+              33
+            ],
+            [
+              -25,
+              25
+            ],
+            [
+              -33,
+              14
+            ],
+            [
+              -36,
+              0
+            ],
+            [
+              -33,
+              -14
+            ],
+            [
+              -25,
+              -25
+            ],
+            [
+              -14,
+              -33
+            ],
+            [
+              0,
+              -36
+            ],
+            [
+              14,
+              -33
+            ],
+            [
+              25,
+              -25
+            ],
+            [
+              33,
+              -14
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "9bf419bc-6e7d-4843-b336-2d607b479eb5",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 78600,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-018.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 78600,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              75,
+              0
+            ],
+            [
+              68,
+              32
+            ],
+            [
+              48,
+              55
+            ],
+            [
+              22,
+              72
+            ],
+            [
+              0,
+              75
+            ],
+            [
+              -22,
+              72
+            ],
+            [
+              -48,
+              55
+            ],
+            [
+              -68,
+              32
+            ],
+            [
+              -75,
+              0
+            ],
+            [
+              -68,
+              -32
+            ],
+            [
+              -48,
+              -55
+            ],
+            [
+              -22,
+              -72
+            ],
+            [
+              0,
+              -75
+            ],
+            [
+              22,
+              -72
+            ],
+            [
+              48,
+              -55
+            ],
+            [
+              68,
+              -32
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "bbf11ff8-53d4-4e83-928f-548324ac8651",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 85400,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-019.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 85400,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              38,
+              0
+            ],
+            [
+              35,
+              15
+            ],
+            [
+              27,
+              27
+            ],
+            [
+              15,
+              35
+            ],
+            [
+              0,
+              38
+            ],
+            [
+              -15,
+              35
+            ],
+            [
+              -27,
+              27
+            ],
+            [
+              -35,
+              15
+            ],
+            [
+              -38,
+              0
+            ],
+            [
+              -35,
+              -15
+            ],
+            [
+              -27,
+              -27
+            ],
+            [
+              -15,
+              -35
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "3ebc9be5-68ee-4f72-b1ed-f0e1cd885d4c",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 92700,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-020.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 92700,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              55,
+              0
+            ],
+            [
+              52,
+              17
+            ],
+            [
+              44,
+              32
+            ],
+            [
+              32,
+              44
+            ],
+            [
+              17,
+              52
+            ],
+            [
+              0,
+              55
+            ],
+            [
+              -17,
+              52
+            ],
+            [
+              -32,
+              44
+            ],
+            [
+              -44,
+              32
+            ],
+            [
+              -52,
+              17
+            ],
+            [
+              -55,
+              0
+            ],
+            [
+              -52,
+              -17
+            ],
+            [
+              -44,
+              -32
+            ],
+            [
+              -32,
+              -44
+            ],
+            [
+              -17,
+              -52
+            ],
+            [
+              0,
+              -55
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "70ceb4f7-4d6a-4146-9885-df873dd8857a",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 101600,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-021.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 101600,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              80,
+              0
+            ],
+            [
+              74,
+              15
+            ],
+            [
+              57,
+              28
+            ],
+            [
+              31,
+              37
+            ],
+            [
+              0,
+              40
+            ],
+            [
+              -31,
+              37
+            ],
+            [
+              -57,
+              28
+            ],
+            [
+              -74,
+              15
+            ],
+            [
+              -80,
+              0
+            ],
+            [
+              -74,
+              -15
+            ],
+            [
+              -57,
+              -28
+            ],
+            [
+              -31,
+              -37
+            ],
+            [
+              0,
+              -40
+            ],
+            [
+              31,
+              -37
+            ],
+            [
+              57,
+              -28
+            ],
+            [
+              74,
+              -15
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "81039994-73db-4ea7-911c-7392265b1d1a",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 112000,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-022.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 112000,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 10,
+          "polygon_vertices": [
+            [
+              44,
+              0
+            ],
+            [
+              38,
+              22
+            ],
+            [
+              22,
+              38
+            ],
+            [
+              0,
+              44
+            ],
+            [
+              -22,
+              38
+            ],
+            [
+              -38,
+              22
+            ],
+            [
+              -44,
+              0
+            ],
+            [
+              -38,
+              -22
+            ],
+            [
+              -22,
+              -38
+            ],
+            [
+              0,
+              -44
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "5f4f1c72-5a42-480b-be1a-29647906c80e",
+      "track_id": 1,
+      "physics_version": 2,
+      "time_ms": 124500,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_1/seed-023.blob",
+      "blob_version": 2,
+      "blob_track_id": 1,
+      "blob_finish_time_ms": 124500,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              60,
+              0
+            ],
+            [
+              52,
+              31
+            ],
+            [
+              31,
+              52
+            ],
+            [
+              0,
+              60
+            ],
+            [
+              -31,
+              52
+            ],
+            [
+              -52,
+              31
+            ],
+            [
+              -60,
+              0
+            ],
+            [
+              -52,
+              -31
+            ],
+            [
+              -31,
+              -52
+            ],
+            [
+              0,
+              -60
+            ],
+            [
+              31,
+              -52
+            ],
+            [
+              52,
+              -31
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "6cd3f43d-73c3-4135-9600-fd122d6d83c9",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 27500,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-000.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 27500,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              48,
+              0
+            ],
+            [
+              44,
+              19
+            ],
+            [
+              34,
+              34
+            ],
+            [
+              19,
+              44
+            ],
+            [
+              0,
+              48
+            ],
+            [
+              -19,
+              44
+            ],
+            [
+              -34,
+              34
+            ],
+            [
+              -44,
+              19
+            ],
+            [
+              -48,
+              0
+            ],
+            [
+              -44,
+              -19
+            ],
+            [
+              -34,
+              -34
+            ],
+            [
+              -19,
+              -44
+            ],
+            [
+              0,
+              -48
+            ],
+            [
+              19,
+              -44
+            ],
+            [
+              34,
+              -34
+            ],
+            [
+              44,
+              -19
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "cca8a389-2b45-44e4-92b0-ca463cd4cf89",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 32500,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-001.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 32500,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              55,
+              0
+            ],
+            [
+              51,
+              21
+            ],
+            [
+              39,
+              39
+            ],
+            [
+              21,
+              51
+            ],
+            [
+              0,
+              55
+            ],
+            [
+              -21,
+              51
+            ],
+            [
+              -39,
+              39
+            ],
+            [
+              -51,
+              21
+            ],
+            [
+              -55,
+              0
+            ],
+            [
+              -51,
+              -21
+            ],
+            [
+              -39,
+              -39
+            ],
+            [
+              -21,
+              -51
+            ],
+            [
+              0,
+              -55
+            ],
+            [
+              21,
+              -51
+            ],
+            [
+              39,
+              -39
+            ],
+            [
+              51,
+              -21
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "650f24e5-23c5-438b-8ee9-194ec6238d60",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 35000,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-002.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 35000,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              50,
+              0
+            ],
+            [
+              46,
+              19
+            ],
+            [
+              35,
+              35
+            ],
+            [
+              19,
+              46
+            ],
+            [
+              0,
+              50
+            ],
+            [
+              -19,
+              46
+            ],
+            [
+              -35,
+              35
+            ],
+            [
+              -46,
+              19
+            ],
+            [
+              -50,
+              0
+            ],
+            [
+              -46,
+              -19
+            ],
+            [
+              -35,
+              -35
+            ],
+            [
+              -19,
+              -46
+            ],
+            [
+              0,
+              -50
+            ],
+            [
+              19,
+              -46
+            ],
+            [
+              35,
+              -35
+            ],
+            [
+              46,
+              -19
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "3e21a1be-58f3-454d-9af9-a77746c36b93",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 36500,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-003.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 36500,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              60,
+              0
+            ],
+            [
+              55,
+              25
+            ],
+            [
+              42,
+              42
+            ],
+            [
+              25,
+              55
+            ],
+            [
+              0,
+              60
+            ],
+            [
+              -25,
+              55
+            ],
+            [
+              -42,
+              42
+            ],
+            [
+              -55,
+              25
+            ],
+            [
+              -60,
+              0
+            ],
+            [
+              -55,
+              -25
+            ],
+            [
+              -42,
+              -42
+            ],
+            [
+              -25,
+              -55
+            ],
+            [
+              0,
+              -60
+            ],
+            [
+              25,
+              -55
+            ],
+            [
+              42,
+              -42
+            ],
+            [
+              55,
+              -25
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "76a70352-4d97-42bc-bbfd-c43c437ef039",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 38000,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-004.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 38000,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 10,
+          "polygon_vertices": [
+            [
+              65,
+              0
+            ],
+            [
+              55,
+              35
+            ],
+            [
+              30,
+              56
+            ],
+            [
+              0,
+              65
+            ],
+            [
+              -30,
+              56
+            ],
+            [
+              -55,
+              35
+            ],
+            [
+              -65,
+              0
+            ],
+            [
+              -55,
+              -35
+            ],
+            [
+              -30,
+              -56
+            ],
+            [
+              0,
+              -65
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "c77d2d5e-5670-42c2-9998-89e6296cf810",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 39500,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-005.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 39500,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 18,
+          "polygon_vertices": [
+            [
+              52,
+              0
+            ],
+            [
+              49,
+              15
+            ],
+            [
+              42,
+              30
+            ],
+            [
+              30,
+              42
+            ],
+            [
+              15,
+              49
+            ],
+            [
+              0,
+              52
+            ],
+            [
+              -15,
+              49
+            ],
+            [
+              -30,
+              42
+            ],
+            [
+              -42,
+              30
+            ],
+            [
+              -49,
+              15
+            ],
+            [
+              -52,
+              0
+            ],
+            [
+              -49,
+              -15
+            ],
+            [
+              -42,
+              -30
+            ],
+            [
+              -30,
+              -42
+            ],
+            [
+              -15,
+              -49
+            ],
+            [
+              0,
+              -52
+            ],
+            [
+              15,
+              -49
+            ],
+            [
+              30,
+              -42
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "9df4b320-e83b-4c5a-a726-f5dfe375ecc4",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 42500,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-006.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 42500,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              45,
+              0
+            ],
+            [
+              42,
+              17
+            ],
+            [
+              32,
+              32
+            ],
+            [
+              17,
+              42
+            ],
+            [
+              0,
+              45
+            ],
+            [
+              -17,
+              42
+            ],
+            [
+              -32,
+              32
+            ],
+            [
+              -42,
+              17
+            ],
+            [
+              -45,
+              0
+            ],
+            [
+              -42,
+              -17
+            ],
+            [
+              -32,
+              -32
+            ],
+            [
+              -17,
+              -42
+            ],
+            [
+              0,
+              -45
+            ],
+            [
+              17,
+              -42
+            ],
+            [
+              32,
+              -32
+            ],
+            [
+              42,
+              -17
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "42585180-aca7-485a-8031-6f74d9ec2fa8",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 44000,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-007.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 44000,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              70,
+              0
+            ],
+            [
+              65,
+              27
+            ],
+            [
+              49,
+              49
+            ],
+            [
+              27,
+              65
+            ],
+            [
+              0,
+              70
+            ],
+            [
+              -27,
+              65
+            ],
+            [
+              -49,
+              49
+            ],
+            [
+              -65,
+              27
+            ],
+            [
+              -70,
+              0
+            ],
+            [
+              -65,
+              -27
+            ],
+            [
+              -49,
+              -49
+            ],
+            [
+              -27,
+              -65
+            ],
+            [
+              0,
+              -70
+            ],
+            [
+              27,
+              -65
+            ],
+            [
+              49,
+              -49
+            ],
+            [
+              65,
+              -27
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "048494b4-cebd-4270-b93a-96c6cdafdf5a",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 45500,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-008.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 45500,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              55,
+              0
+            ],
+            [
+              48,
+              28
+            ],
+            [
+              28,
+              48
+            ],
+            [
+              0,
+              55
+            ],
+            [
+              -28,
+              48
+            ],
+            [
+              -48,
+              28
+            ],
+            [
+              -55,
+              0
+            ],
+            [
+              -48,
+              -28
+            ],
+            [
+              -28,
+              -48
+            ],
+            [
+              0,
+              -55
+            ],
+            [
+              28,
+              -48
+            ],
+            [
+              48,
+              -28
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "637d64d0-5648-4160-b845-b067b8102813",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 47000,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-009.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 47000,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              58,
+              0
+            ],
+            [
+              50,
+              30
+            ],
+            [
+              30,
+              50
+            ],
+            [
+              0,
+              58
+            ],
+            [
+              -30,
+              50
+            ],
+            [
+              -50,
+              30
+            ],
+            [
+              -58,
+              0
+            ],
+            [
+              -50,
+              -30
+            ],
+            [
+              -30,
+              -50
+            ],
+            [
+              0,
+              -58
+            ],
+            [
+              30,
+              -50
+            ],
+            [
+              50,
+              -30
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "24a41f47-f54d-4ce3-b45c-33fafc8f07cf",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 48500,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-010.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 48500,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              40,
+              0
+            ],
+            [
+              35,
+              20
+            ],
+            [
+              20,
+              35
+            ],
+            [
+              0,
+              40
+            ],
+            [
+              -20,
+              35
+            ],
+            [
+              -35,
+              20
+            ],
+            [
+              -40,
+              0
+            ],
+            [
+              -35,
+              -20
+            ],
+            [
+              -20,
+              -35
+            ],
+            [
+              0,
+              -40
+            ],
+            [
+              20,
+              -35
+            ],
+            [
+              35,
+              -20
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "d159afa8-5458-4784-ad33-0084cc4d9174",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 50000,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-011.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 50000,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              62,
+              0
+            ],
+            [
+              57,
+              24
+            ],
+            [
+              44,
+              44
+            ],
+            [
+              24,
+              57
+            ],
+            [
+              0,
+              62
+            ],
+            [
+              -24,
+              57
+            ],
+            [
+              -44,
+              44
+            ],
+            [
+              -57,
+              24
+            ],
+            [
+              -62,
+              0
+            ],
+            [
+              -57,
+              -24
+            ],
+            [
+              -44,
+              -44
+            ],
+            [
+              -24,
+              -57
+            ],
+            [
+              0,
+              -62
+            ],
+            [
+              24,
+              -57
+            ],
+            [
+              44,
+              -44
+            ],
+            [
+              57,
+              -24
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "17f2e3a8-af32-4e3d-b64b-dabe29f3095c",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 51500,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-012.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 51500,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              48,
+              0
+            ],
+            [
+              43,
+              18
+            ],
+            [
+              34,
+              34
+            ],
+            [
+              18,
+              43
+            ],
+            [
+              0,
+              48
+            ],
+            [
+              -18,
+              43
+            ],
+            [
+              -34,
+              34
+            ],
+            [
+              -43,
+              18
+            ],
+            [
+              -48,
+              0
+            ],
+            [
+              -43,
+              -18
+            ],
+            [
+              -34,
+              -34
+            ],
+            [
+              -18,
+              -43
+            ],
+            [
+              0,
+              -48
+            ],
+            [
+              18,
+              -43
+            ],
+            [
+              34,
+              -34
+            ],
+            [
+              43,
+              -18
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "23ea125e-b12e-4257-a121-211606416052",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 57499,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-013.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 57499,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              50,
+              0
+            ],
+            [
+              46,
+              19
+            ],
+            [
+              35,
+              35
+            ],
+            [
+              19,
+              46
+            ],
+            [
+              0,
+              50
+            ],
+            [
+              -19,
+              46
+            ],
+            [
+              -35,
+              35
+            ],
+            [
+              -46,
+              19
+            ],
+            [
+              -50,
+              0
+            ],
+            [
+              -46,
+              -19
+            ],
+            [
+              -35,
+              -35
+            ],
+            [
+              -19,
+              -46
+            ],
+            [
+              0,
+              -50
+            ],
+            [
+              19,
+              -46
+            ],
+            [
+              35,
+              -35
+            ],
+            [
+              46,
+              -19
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "52ce64d7-c9fa-4222-86bd-f027f14fd0f1",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 59999,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-014.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 59999,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 10,
+          "polygon_vertices": [
+            [
+              80,
+              0
+            ],
+            [
+              62,
+              48
+            ],
+            [
+              22,
+              76
+            ],
+            [
+              -22,
+              76
+            ],
+            [
+              -62,
+              48
+            ],
+            [
+              -80,
+              0
+            ],
+            [
+              -62,
+              -48
+            ],
+            [
+              -22,
+              -76
+            ],
+            [
+              22,
+              -76
+            ],
+            [
+              62,
+              -48
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "f6f1591a-4ee7-4f21-9f58-855802812cc4",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 62499,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-015.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 62499,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              42,
+              0
+            ],
+            [
+              38,
+              16
+            ],
+            [
+              28,
+              28
+            ],
+            [
+              16,
+              38
+            ],
+            [
+              0,
+              42
+            ],
+            [
+              -16,
+              38
+            ],
+            [
+              -28,
+              28
+            ],
+            [
+              -38,
+              16
+            ],
+            [
+              -42,
+              0
+            ],
+            [
+              -38,
+              -16
+            ],
+            [
+              -28,
+              -28
+            ],
+            [
+              -16,
+              -38
+            ],
+            [
+              0,
+              -42
+            ],
+            [
+              16,
+              -38
+            ],
+            [
+              28,
+              -28
+            ],
+            [
+              38,
+              -16
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "7a8795e5-ed34-4f64-825f-c57197d8f952",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 64999,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-016.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 64999,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 14,
+          "polygon_vertices": [
+            [
+              66,
+              0
+            ],
+            [
+              58,
+              32
+            ],
+            [
+              38,
+              55
+            ],
+            [
+              12,
+              65
+            ],
+            [
+              -12,
+              65
+            ],
+            [
+              -38,
+              55
+            ],
+            [
+              -58,
+              32
+            ],
+            [
+              -66,
+              0
+            ],
+            [
+              -58,
+              -32
+            ],
+            [
+              -38,
+              -55
+            ],
+            [
+              -12,
+              -65
+            ],
+            [
+              12,
+              -65
+            ],
+            [
+              38,
+              -55
+            ],
+            [
+              58,
+              -32
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "67965a36-89f1-4d8f-af03-f8aef9213f2a",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 67499,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-017.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 67499,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              36,
+              0
+            ],
+            [
+              33,
+              14
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              14,
+              33
+            ],
+            [
+              0,
+              36
+            ],
+            [
+              -14,
+              33
+            ],
+            [
+              -25,
+              25
+            ],
+            [
+              -33,
+              14
+            ],
+            [
+              -36,
+              0
+            ],
+            [
+              -33,
+              -14
+            ],
+            [
+              -25,
+              -25
+            ],
+            [
+              -14,
+              -33
+            ],
+            [
+              0,
+              -36
+            ],
+            [
+              14,
+              -33
+            ],
+            [
+              25,
+              -25
+            ],
+            [
+              33,
+              -14
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "94bdb228-8fc8-43d9-a871-d06fb261e863",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 69999,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-018.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 69999,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              75,
+              0
+            ],
+            [
+              68,
+              32
+            ],
+            [
+              48,
+              55
+            ],
+            [
+              22,
+              72
+            ],
+            [
+              0,
+              75
+            ],
+            [
+              -22,
+              72
+            ],
+            [
+              -48,
+              55
+            ],
+            [
+              -68,
+              32
+            ],
+            [
+              -75,
+              0
+            ],
+            [
+              -68,
+              -32
+            ],
+            [
+              -48,
+              -55
+            ],
+            [
+              -22,
+              -72
+            ],
+            [
+              0,
+              -75
+            ],
+            [
+              22,
+              -72
+            ],
+            [
+              48,
+              -55
+            ],
+            [
+              68,
+              -32
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "7597b719-e026-4a02-ac8f-32d89b712b87",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 72499,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-019.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 72499,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              38,
+              0
+            ],
+            [
+              35,
+              15
+            ],
+            [
+              27,
+              27
+            ],
+            [
+              15,
+              35
+            ],
+            [
+              0,
+              38
+            ],
+            [
+              -15,
+              35
+            ],
+            [
+              -27,
+              27
+            ],
+            [
+              -35,
+              15
+            ],
+            [
+              -38,
+              0
+            ],
+            [
+              -35,
+              -15
+            ],
+            [
+              -27,
+              -27
+            ],
+            [
+              -15,
+              -35
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "5152537b-34d6-4d29-ba74-926d02e874bf",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 74999,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-020.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 74999,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              55,
+              0
+            ],
+            [
+              52,
+              17
+            ],
+            [
+              44,
+              32
+            ],
+            [
+              32,
+              44
+            ],
+            [
+              17,
+              52
+            ],
+            [
+              0,
+              55
+            ],
+            [
+              -17,
+              52
+            ],
+            [
+              -32,
+              44
+            ],
+            [
+              -44,
+              32
+            ],
+            [
+              -52,
+              17
+            ],
+            [
+              -55,
+              0
+            ],
+            [
+              -52,
+              -17
+            ],
+            [
+              -44,
+              -32
+            ],
+            [
+              -32,
+              -44
+            ],
+            [
+              -17,
+              -52
+            ],
+            [
+              0,
+              -55
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "af96f740-4902-4daa-ace3-175a02c004a1",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 77499,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-021.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 77499,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              80,
+              0
+            ],
+            [
+              74,
+              15
+            ],
+            [
+              57,
+              28
+            ],
+            [
+              31,
+              37
+            ],
+            [
+              0,
+              40
+            ],
+            [
+              -31,
+              37
+            ],
+            [
+              -57,
+              28
+            ],
+            [
+              -74,
+              15
+            ],
+            [
+              -80,
+              0
+            ],
+            [
+              -74,
+              -15
+            ],
+            [
+              -57,
+              -28
+            ],
+            [
+              -31,
+              -37
+            ],
+            [
+              0,
+              -40
+            ],
+            [
+              31,
+              -37
+            ],
+            [
+              57,
+              -28
+            ],
+            [
+              74,
+              -15
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "77bedf4b-6a82-4106-8f61-a653ba942d8a",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 79999,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-022.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 79999,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 10,
+          "polygon_vertices": [
+            [
+              44,
+              0
+            ],
+            [
+              38,
+              22
+            ],
+            [
+              22,
+              38
+            ],
+            [
+              0,
+              44
+            ],
+            [
+              -22,
+              38
+            ],
+            [
+              -38,
+              22
+            ],
+            [
+              -44,
+              0
+            ],
+            [
+              -38,
+              -22
+            ],
+            [
+              -22,
+              -38
+            ],
+            [
+              0,
+              -44
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "5839896d-b387-4655-acc8-eb3be8eee93d",
+      "track_id": 2,
+      "physics_version": 8,
+      "time_ms": 84999,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_2/seed-023.blob",
+      "blob_version": 8,
+      "blob_track_id": 2,
+      "blob_finish_time_ms": 84999,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              60,
+              0
+            ],
+            [
+              52,
+              31
+            ],
+            [
+              31,
+              52
+            ],
+            [
+              0,
+              60
+            ],
+            [
+              -31,
+              52
+            ],
+            [
+              -52,
+              31
+            ],
+            [
+              -60,
+              0
+            ],
+            [
+              -52,
+              -31
+            ],
+            [
+              -31,
+              -52
+            ],
+            [
+              0,
+              -60
+            ],
+            [
+              31,
+              -52
+            ],
+            [
+              52,
+              -31
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "ba50a50a-111f-4ec0-bf39-6c1aaecfd468",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 30250,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-000.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 30250,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              48,
+              0
+            ],
+            [
+              44,
+              19
+            ],
+            [
+              34,
+              34
+            ],
+            [
+              19,
+              44
+            ],
+            [
+              0,
+              48
+            ],
+            [
+              -19,
+              44
+            ],
+            [
+              -34,
+              34
+            ],
+            [
+              -44,
+              19
+            ],
+            [
+              -48,
+              0
+            ],
+            [
+              -44,
+              -19
+            ],
+            [
+              -34,
+              -34
+            ],
+            [
+              -19,
+              -44
+            ],
+            [
+              0,
+              -48
+            ],
+            [
+              19,
+              -44
+            ],
+            [
+              34,
+              -34
+            ],
+            [
+              44,
+              -19
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "bd496162-c619-43ae-b0b2-51c128cc2985",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 35750,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-001.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 35750,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              55,
+              0
+            ],
+            [
+              51,
+              21
+            ],
+            [
+              39,
+              39
+            ],
+            [
+              21,
+              51
+            ],
+            [
+              0,
+              55
+            ],
+            [
+              -21,
+              51
+            ],
+            [
+              -39,
+              39
+            ],
+            [
+              -51,
+              21
+            ],
+            [
+              -55,
+              0
+            ],
+            [
+              -51,
+              -21
+            ],
+            [
+              -39,
+              -39
+            ],
+            [
+              -21,
+              -51
+            ],
+            [
+              0,
+              -55
+            ],
+            [
+              21,
+              -51
+            ],
+            [
+              39,
+              -39
+            ],
+            [
+              51,
+              -21
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "6e5708a7-47c4-4a7b-8b2c-ceb6ce06221a",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 38500,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-002.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 38500,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              50,
+              0
+            ],
+            [
+              46,
+              19
+            ],
+            [
+              35,
+              35
+            ],
+            [
+              19,
+              46
+            ],
+            [
+              0,
+              50
+            ],
+            [
+              -19,
+              46
+            ],
+            [
+              -35,
+              35
+            ],
+            [
+              -46,
+              19
+            ],
+            [
+              -50,
+              0
+            ],
+            [
+              -46,
+              -19
+            ],
+            [
+              -35,
+              -35
+            ],
+            [
+              -19,
+              -46
+            ],
+            [
+              0,
+              -50
+            ],
+            [
+              19,
+              -46
+            ],
+            [
+              35,
+              -35
+            ],
+            [
+              46,
+              -19
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "c76f6485-fbfd-42cf-a89f-6b9349e0a9ed",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 40150,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-003.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 40150,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              60,
+              0
+            ],
+            [
+              55,
+              25
+            ],
+            [
+              42,
+              42
+            ],
+            [
+              25,
+              55
+            ],
+            [
+              0,
+              60
+            ],
+            [
+              -25,
+              55
+            ],
+            [
+              -42,
+              42
+            ],
+            [
+              -55,
+              25
+            ],
+            [
+              -60,
+              0
+            ],
+            [
+              -55,
+              -25
+            ],
+            [
+              -42,
+              -42
+            ],
+            [
+              -25,
+              -55
+            ],
+            [
+              0,
+              -60
+            ],
+            [
+              25,
+              -55
+            ],
+            [
+              42,
+              -42
+            ],
+            [
+              55,
+              -25
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "91d4c801-8b4b-4ffe-b464-707f2f928ffc",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 41800,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-004.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 41800,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 10,
+          "polygon_vertices": [
+            [
+              65,
+              0
+            ],
+            [
+              55,
+              35
+            ],
+            [
+              30,
+              56
+            ],
+            [
+              0,
+              65
+            ],
+            [
+              -30,
+              56
+            ],
+            [
+              -55,
+              35
+            ],
+            [
+              -65,
+              0
+            ],
+            [
+              -55,
+              -35
+            ],
+            [
+              -30,
+              -56
+            ],
+            [
+              0,
+              -65
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "5c82a202-0241-4f8a-affa-368c31d60104",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 43450,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-005.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 43450,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 18,
+          "polygon_vertices": [
+            [
+              52,
+              0
+            ],
+            [
+              49,
+              15
+            ],
+            [
+              42,
+              30
+            ],
+            [
+              30,
+              42
+            ],
+            [
+              15,
+              49
+            ],
+            [
+              0,
+              52
+            ],
+            [
+              -15,
+              49
+            ],
+            [
+              -30,
+              42
+            ],
+            [
+              -42,
+              30
+            ],
+            [
+              -49,
+              15
+            ],
+            [
+              -52,
+              0
+            ],
+            [
+              -49,
+              -15
+            ],
+            [
+              -42,
+              -30
+            ],
+            [
+              -30,
+              -42
+            ],
+            [
+              -15,
+              -49
+            ],
+            [
+              0,
+              -52
+            ],
+            [
+              15,
+              -49
+            ],
+            [
+              30,
+              -42
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "67c9dca3-6462-473f-92c5-718faf911b40",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 46750,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-006.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 46750,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              45,
+              0
+            ],
+            [
+              42,
+              17
+            ],
+            [
+              32,
+              32
+            ],
+            [
+              17,
+              42
+            ],
+            [
+              0,
+              45
+            ],
+            [
+              -17,
+              42
+            ],
+            [
+              -32,
+              32
+            ],
+            [
+              -42,
+              17
+            ],
+            [
+              -45,
+              0
+            ],
+            [
+              -42,
+              -17
+            ],
+            [
+              -32,
+              -32
+            ],
+            [
+              -17,
+              -42
+            ],
+            [
+              0,
+              -45
+            ],
+            [
+              17,
+              -42
+            ],
+            [
+              32,
+              -32
+            ],
+            [
+              42,
+              -17
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "057d1f22-71f2-4f89-b942-a25fe75d40d5",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 48400,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-007.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 48400,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              70,
+              0
+            ],
+            [
+              65,
+              27
+            ],
+            [
+              49,
+              49
+            ],
+            [
+              27,
+              65
+            ],
+            [
+              0,
+              70
+            ],
+            [
+              -27,
+              65
+            ],
+            [
+              -49,
+              49
+            ],
+            [
+              -65,
+              27
+            ],
+            [
+              -70,
+              0
+            ],
+            [
+              -65,
+              -27
+            ],
+            [
+              -49,
+              -49
+            ],
+            [
+              -27,
+              -65
+            ],
+            [
+              0,
+              -70
+            ],
+            [
+              27,
+              -65
+            ],
+            [
+              49,
+              -49
+            ],
+            [
+              65,
+              -27
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "0e23e11d-a260-4104-9cac-f01e1e7e653d",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 50050,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-008.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 50050,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              55,
+              0
+            ],
+            [
+              48,
+              28
+            ],
+            [
+              28,
+              48
+            ],
+            [
+              0,
+              55
+            ],
+            [
+              -28,
+              48
+            ],
+            [
+              -48,
+              28
+            ],
+            [
+              -55,
+              0
+            ],
+            [
+              -48,
+              -28
+            ],
+            [
+              -28,
+              -48
+            ],
+            [
+              0,
+              -55
+            ],
+            [
+              28,
+              -48
+            ],
+            [
+              48,
+              -28
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "c71b570f-79c4-43e6-8005-dcf6e7fd2820",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 51700,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-009.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 51700,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              58,
+              0
+            ],
+            [
+              50,
+              30
+            ],
+            [
+              30,
+              50
+            ],
+            [
+              0,
+              58
+            ],
+            [
+              -30,
+              50
+            ],
+            [
+              -50,
+              30
+            ],
+            [
+              -58,
+              0
+            ],
+            [
+              -50,
+              -30
+            ],
+            [
+              -30,
+              -50
+            ],
+            [
+              0,
+              -58
+            ],
+            [
+              30,
+              -50
+            ],
+            [
+              50,
+              -30
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "9ee0fc91-3ce5-439e-aad1-36fb35a91e0f",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 53350,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-010.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 53350,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              40,
+              0
+            ],
+            [
+              35,
+              20
+            ],
+            [
+              20,
+              35
+            ],
+            [
+              0,
+              40
+            ],
+            [
+              -20,
+              35
+            ],
+            [
+              -35,
+              20
+            ],
+            [
+              -40,
+              0
+            ],
+            [
+              -35,
+              -20
+            ],
+            [
+              -20,
+              -35
+            ],
+            [
+              0,
+              -40
+            ],
+            [
+              20,
+              -35
+            ],
+            [
+              35,
+              -20
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "a8eb649f-58cf-4523-888e-f87cfc054bb1",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 55000,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-011.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 55000,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              62,
+              0
+            ],
+            [
+              57,
+              24
+            ],
+            [
+              44,
+              44
+            ],
+            [
+              24,
+              57
+            ],
+            [
+              0,
+              62
+            ],
+            [
+              -24,
+              57
+            ],
+            [
+              -44,
+              44
+            ],
+            [
+              -57,
+              24
+            ],
+            [
+              -62,
+              0
+            ],
+            [
+              -57,
+              -24
+            ],
+            [
+              -44,
+              -44
+            ],
+            [
+              -24,
+              -57
+            ],
+            [
+              0,
+              -62
+            ],
+            [
+              24,
+              -57
+            ],
+            [
+              44,
+              -44
+            ],
+            [
+              57,
+              -24
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "9a6eeaad-df4a-40c9-bfa7-5bd65af54ded",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 56650,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-012.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 56650,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              48,
+              0
+            ],
+            [
+              43,
+              18
+            ],
+            [
+              34,
+              34
+            ],
+            [
+              18,
+              43
+            ],
+            [
+              0,
+              48
+            ],
+            [
+              -18,
+              43
+            ],
+            [
+              -34,
+              34
+            ],
+            [
+              -43,
+              18
+            ],
+            [
+              -48,
+              0
+            ],
+            [
+              -43,
+              -18
+            ],
+            [
+              -34,
+              -34
+            ],
+            [
+              -18,
+              -43
+            ],
+            [
+              0,
+              -48
+            ],
+            [
+              18,
+              -43
+            ],
+            [
+              34,
+              -34
+            ],
+            [
+              43,
+              -18
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "e20d2d48-4483-409f-aa3c-86afaf183c0c",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 63249,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-013.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 63249,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              50,
+              0
+            ],
+            [
+              46,
+              19
+            ],
+            [
+              35,
+              35
+            ],
+            [
+              19,
+              46
+            ],
+            [
+              0,
+              50
+            ],
+            [
+              -19,
+              46
+            ],
+            [
+              -35,
+              35
+            ],
+            [
+              -46,
+              19
+            ],
+            [
+              -50,
+              0
+            ],
+            [
+              -46,
+              -19
+            ],
+            [
+              -35,
+              -35
+            ],
+            [
+              -19,
+              -46
+            ],
+            [
+              0,
+              -50
+            ],
+            [
+              19,
+              -46
+            ],
+            [
+              35,
+              -35
+            ],
+            [
+              46,
+              -19
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "855543e0-f175-4164-a8b8-121125016a2a",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 65999,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-014.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 65999,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 10,
+          "polygon_vertices": [
+            [
+              80,
+              0
+            ],
+            [
+              62,
+              48
+            ],
+            [
+              22,
+              76
+            ],
+            [
+              -22,
+              76
+            ],
+            [
+              -62,
+              48
+            ],
+            [
+              -80,
+              0
+            ],
+            [
+              -62,
+              -48
+            ],
+            [
+              -22,
+              -76
+            ],
+            [
+              22,
+              -76
+            ],
+            [
+              62,
+              -48
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "f32f168d-5bc5-427b-88fc-349d7dd10dbc",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 68749,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-015.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 68749,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              42,
+              0
+            ],
+            [
+              38,
+              16
+            ],
+            [
+              28,
+              28
+            ],
+            [
+              16,
+              38
+            ],
+            [
+              0,
+              42
+            ],
+            [
+              -16,
+              38
+            ],
+            [
+              -28,
+              28
+            ],
+            [
+              -38,
+              16
+            ],
+            [
+              -42,
+              0
+            ],
+            [
+              -38,
+              -16
+            ],
+            [
+              -28,
+              -28
+            ],
+            [
+              -16,
+              -38
+            ],
+            [
+              0,
+              -42
+            ],
+            [
+              16,
+              -38
+            ],
+            [
+              28,
+              -28
+            ],
+            [
+              38,
+              -16
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "7974bd2d-4f30-4c4d-8b85-d719db8674dd",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 71499,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-016.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 71499,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 14,
+          "polygon_vertices": [
+            [
+              66,
+              0
+            ],
+            [
+              58,
+              32
+            ],
+            [
+              38,
+              55
+            ],
+            [
+              12,
+              65
+            ],
+            [
+              -12,
+              65
+            ],
+            [
+              -38,
+              55
+            ],
+            [
+              -58,
+              32
+            ],
+            [
+              -66,
+              0
+            ],
+            [
+              -58,
+              -32
+            ],
+            [
+              -38,
+              -55
+            ],
+            [
+              -12,
+              -65
+            ],
+            [
+              12,
+              -65
+            ],
+            [
+              38,
+              -55
+            ],
+            [
+              58,
+              -32
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "86a4043f-8011-4e28-9efd-4dd245468730",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 74249,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-017.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 74249,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              36,
+              0
+            ],
+            [
+              33,
+              14
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              14,
+              33
+            ],
+            [
+              0,
+              36
+            ],
+            [
+              -14,
+              33
+            ],
+            [
+              -25,
+              25
+            ],
+            [
+              -33,
+              14
+            ],
+            [
+              -36,
+              0
+            ],
+            [
+              -33,
+              -14
+            ],
+            [
+              -25,
+              -25
+            ],
+            [
+              -14,
+              -33
+            ],
+            [
+              0,
+              -36
+            ],
+            [
+              14,
+              -33
+            ],
+            [
+              25,
+              -25
+            ],
+            [
+              33,
+              -14
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "3c6e3d45-1d78-4c66-9adc-da9bb31de370",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 76999,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-018.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 76999,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              75,
+              0
+            ],
+            [
+              68,
+              32
+            ],
+            [
+              48,
+              55
+            ],
+            [
+              22,
+              72
+            ],
+            [
+              0,
+              75
+            ],
+            [
+              -22,
+              72
+            ],
+            [
+              -48,
+              55
+            ],
+            [
+              -68,
+              32
+            ],
+            [
+              -75,
+              0
+            ],
+            [
+              -68,
+              -32
+            ],
+            [
+              -48,
+              -55
+            ],
+            [
+              -22,
+              -72
+            ],
+            [
+              0,
+              -75
+            ],
+            [
+              22,
+              -72
+            ],
+            [
+              48,
+              -55
+            ],
+            [
+              68,
+              -32
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "f5f5d131-b0c6-4929-8c63-a6da66d44b2a",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 79749,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-019.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 79749,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              38,
+              0
+            ],
+            [
+              35,
+              15
+            ],
+            [
+              27,
+              27
+            ],
+            [
+              15,
+              35
+            ],
+            [
+              0,
+              38
+            ],
+            [
+              -15,
+              35
+            ],
+            [
+              -27,
+              27
+            ],
+            [
+              -35,
+              15
+            ],
+            [
+              -38,
+              0
+            ],
+            [
+              -35,
+              -15
+            ],
+            [
+              -27,
+              -27
+            ],
+            [
+              -15,
+              -35
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "53d4ab37-1335-44fd-b2aa-146b15df4b28",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 82499,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-020.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 82499,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              55,
+              0
+            ],
+            [
+              52,
+              17
+            ],
+            [
+              44,
+              32
+            ],
+            [
+              32,
+              44
+            ],
+            [
+              17,
+              52
+            ],
+            [
+              0,
+              55
+            ],
+            [
+              -17,
+              52
+            ],
+            [
+              -32,
+              44
+            ],
+            [
+              -44,
+              32
+            ],
+            [
+              -52,
+              17
+            ],
+            [
+              -55,
+              0
+            ],
+            [
+              -52,
+              -17
+            ],
+            [
+              -44,
+              -32
+            ],
+            [
+              -32,
+              -44
+            ],
+            [
+              -17,
+              -52
+            ],
+            [
+              0,
+              -55
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "b62360da-bfa4-437b-b76d-f1f5224cf047",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 85249,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-021.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 85249,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 16,
+          "polygon_vertices": [
+            [
+              80,
+              0
+            ],
+            [
+              74,
+              15
+            ],
+            [
+              57,
+              28
+            ],
+            [
+              31,
+              37
+            ],
+            [
+              0,
+              40
+            ],
+            [
+              -31,
+              37
+            ],
+            [
+              -57,
+              28
+            ],
+            [
+              -74,
+              15
+            ],
+            [
+              -80,
+              0
+            ],
+            [
+              -74,
+              -15
+            ],
+            [
+              -57,
+              -28
+            ],
+            [
+              -31,
+              -37
+            ],
+            [
+              0,
+              -40
+            ],
+            [
+              31,
+              -37
+            ],
+            [
+              57,
+              -28
+            ],
+            [
+              74,
+              -15
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "de478c4b-2032-4a0e-b40e-5f3aac7be14f",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 87999,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-022.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 87999,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 10,
+          "polygon_vertices": [
+            [
+              44,
+              0
+            ],
+            [
+              38,
+              22
+            ],
+            [
+              22,
+              38
+            ],
+            [
+              0,
+              44
+            ],
+            [
+              -22,
+              38
+            ],
+            [
+              -38,
+              22
+            ],
+            [
+              -44,
+              0
+            ],
+            [
+              -38,
+              -22
+            ],
+            [
+              -22,
+              -38
+            ],
+            [
+              0,
+              -44
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    },
+    {
+      "ghost_id": "2498f6b2-8c8d-4bcf-a556-d7b10b8826a1",
+      "track_id": 3,
+      "physics_version": 8,
+      "time_ms": 93499,
+      "is_pb": false,
+      "is_legacy": false,
+      "s3_key": "/home/coding/drawrace/crates/validator/../../seeds/track_3/seed-023.blob",
+      "blob_version": 8,
+      "blob_track_id": 3,
+      "blob_finish_time_ms": 93499,
+      "wheel_count": 1,
+      "wheels": [
+        {
+          "swap_tick": 0,
+          "vertex_count": 12,
+          "polygon_vertices": [
+            [
+              60,
+              0
+            ],
+            [
+              52,
+              31
+            ],
+            [
+              31,
+              52
+            ],
+            [
+              0,
+              60
+            ],
+            [
+              -31,
+              52
+            ],
+            [
+              -52,
+              31
+            ],
+            [
+              -60,
+              0
+            ],
+            [
+              -52,
+              -31
+            ],
+            [
+              -31,
+              -52
+            ],
+            [
+              0,
+              -60
+            ],
+            [
+              31,
+              -52
+            ],
+            [
+              52,
+              -31
+            ]
+          ]
+        }
+      ],
+      "polygon_notes": []
+    }
+  ]
+}
