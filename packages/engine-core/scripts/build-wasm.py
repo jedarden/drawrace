@@ -38,14 +38,23 @@ def extract_physics_version() -> int:
     return int(match.group(1))
 
 def patch_wat_physics_version(wat_path: Path, physics_version: int) -> Path:
-    """Patch the physics version in the WAT file."""
+    """Patch the physics version in the WAT file.
+
+    Uses a regex so the patch matches whatever version constant is currently in
+    the WAT — not just the literal ``i32.const 4``. This keeps the build honest
+    across future PHYSICS_VERSION bumps: previously a fixed-string replace
+    silently no-op'd once the committed WAT value moved off 4, shipping a WASM
+    whose reported version lagged version.ts.
+    """
     content = wat_path.read_text()
-    # Replace the hardcoded physics version
-    updated = content.replace(
-        '(global $PHYSICS_VERSION i32 (i32.const 4))',
-        f'(global $PHYSICS_VERSION i32 (i32.const {physics_version}))'
-    )
-    # Write to a temporary file
+    pattern = re.compile(r'\(global \$PHYSICS_VERSION i32 \(i32\.const \d+\)\)')
+    new_decl = f'(global $PHYSICS_VERSION i32 (i32.const {physics_version}))'
+    updated, n = pattern.subn(new_decl, content)
+    if n == 0:
+        raise ValueError(
+            f"could not find '(global $PHYSICS_VERSION i32 (i32.const N))' in {wat_path}"
+        )
+    # Write to a temporary file (committed WAT is left as the source of truth)
     patched_path = wat_path.parent / f"{wat_path.name}.patched"
     patched_path.write_text(updated)
     log("patch", f"Patched physics_version to {physics_version} in {patched_path}")

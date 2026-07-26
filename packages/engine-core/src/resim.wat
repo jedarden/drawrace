@@ -1,6 +1,11 @@
 (module
-  ;; Global for physics version
-  (global $PHYSICS_VERSION i32 (i32.const 4))
+  ;; Global for physics version. Must mirror PHYSICS_VERSION in
+  ;; src/version.ts (the engine's declared physics version). The build script
+  ;; (scripts/build-wasm.py) also re-patches this from version.ts at compile
+  ;; time, but keeping the committed WAT in sync means a bare `wat2wasm`
+  ;; invocation produces an honest artifact too — the two had drifted (WAT=4,
+  ;; version.ts=8), which is what shipped a stale WASM reporting v4.
+  (global $PHYSICS_VERSION i32 (i32.const 8))
 
   ;; Mutable globals for simulation state
   (global $sim_tick (mut i32) (i32.const 0))
