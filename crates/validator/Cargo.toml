@@ -59,3 +59,7 @@ path = "src/main.rs"
 [[bin]]
 name = "generate-reference-ghosts"
 path = "src/bin/generate-reference-ghosts.rs"
+
+[[bin]]
+name = "extract-reference-ghosts"
+path = "src/bin/extract-reference-ghosts.rs"
