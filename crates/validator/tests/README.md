@@ -148,23 +148,69 @@ is NXDOMAIN; tracked by the open deployment beads), so there is no Postgres to
 query today. The in-tree generator above is the working source in the meantime.
 
 Once the backend is live and serving real submissions, re-sourcing follows this
-path (gated entirely on deployment — not actionable until then):
+path (gated entirely on deployment — not actionable until then). The canonical
+implementation is the **`extract-reference-ghosts`** binary
+(`crates/validator/src/bin/extract-reference-ghosts.rs`), which runs the exact
+two-stage contract below.
 
-1. **Extract real accepted ghosts from the production database:**
+### Stage 1 — query `ghosts` metadata rows (Postgres)
 
-   ```sql
-   SELECT g.id, g.track_id, g.finish_time_ms, g.wheels
-   FROM ghosts g
-   WHERE g.track_id IN (1, 2, 3)
-     AND g.physics_version = <current PHYSICS_VERSION>
-   ORDER BY g.finish_time_ms ASC
-   LIMIT 200;
-   ```
+The `ghosts` table is **metadata-only**. Per `crates/api/migrations/001_initial.sql`
+(+ `006_wheel_swaps.sql`, `008_daily_challenges.sql`), its columns are
+`ghost_id, player_uuid, track_id, physics_version, time_ms, is_pb, is_legacy,
+s3_key, created_at, wheel_count, daily_challenge_date`. **There is no `wheels`
+column and no `finish_time_ms` column** — the wheel-swap geometry lives in the
+binary blob in object storage, keyed by `s3_key`. (An earlier version of this
+README showed a `SELECT g.id, g.finish_time_ms, g.wheels FROM ghosts` query —
+none of those columns exist; that query would not compile against the real
+schema.) The extractor runs this windowed metadata query:
 
-2. **Convert each to the `ReferenceGhost` schema** (track_id, finish_time_ms,
-   wheels[], physics_version, notes) consumed by `replay.rs`.
-3. **Run the test** (`cargo test -p drawrace-validator --test replay`) and
-   confirm all extracted ghosts pass within the 2-tick tolerance.
+```sql
+WITH ranked AS (
+    SELECT ghost_id, player_uuid, track_id, physics_version, time_ms,
+           is_pb, is_legacy, s3_key, created_at,
+           ROW_NUMBER() OVER (
+               PARTITION BY track_id
+               ORDER BY is_pb DESC, time_ms ASC
+           ) AS rn
+      FROM ghosts
+     WHERE track_id = ANY(ARRAY[1, 2, 3])   -- 1=hills-01, 2=canyon-02, 3=dunes-03
+       AND is_legacy = false
+       AND physics_version = 8               -- current PHYSICS_VERSION
+)
+SELECT ghost_id, player_uuid, track_id, physics_version, time_ms,
+       is_pb, is_legacy, s3_key, created_at
+  FROM ranked
+ WHERE rn <= 80                              -- 80/track -> up to 240 (>=200 bar)
+ ORDER BY track_id ASC, rn ASC;
+```
+
+Every `ghosts` row is an accepted run by construction (`submissions.status`
+flips to `'accepted'` when the row is inserted), so no `status` filter is
+needed. The `is_pb DESC, time_ms ASC` ordering surfaces clean drivable runs
+first.
+
+### Stage 2 — fetch + decode each DRGH blob (S3/Garage)
+
+For each metadata row, fetch the blob at `ghosts.s3_key` from
+`drawrace-ghosts` (Garage on ardenone-hub) and decode it via
+`drawrace_api::blob::GhostBlob` — the v2 `wheels[]` format with a
+`physics_version` header. This is where the real drivable polygons come from.
+
+### Running it
+
+```bash
+DATABASE_URL=... S3_BUCKET=drawrace-ghosts S3_ENDPOINT=... \
+AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... CURRENT_PHYSICS_VERSION=8 \
+  cargo run -p drawrace-validator --bin extract-reference-ghosts -- \
+    --out crates/validator/raw-ghost-extract.json
+```
+
+See the binary's header doc for the full six-variable env contract and the
+offline `--self-check` mode. The dump is then reformatted to the
+`ReferenceGhost` schema consumed by `replay.rs`, and the test
+(`cargo test -p drawrace-validator --test replay`) confirms every extracted
+ghost finishes within the 2-tick tolerance.
 
 This is deferred and explicitly not required for the gate to be meaningful
 today — the physics-derived generator corpus already exercises the re-sim path
