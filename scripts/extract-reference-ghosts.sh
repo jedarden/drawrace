@@ -374,6 +374,33 @@
 #  missing DATABASE_URL/S3 source, which a read-only observer here cannot
 #  create); per task rule, NOT closed. Nothing further is actionable in-repo.]
 #
+# [bf-65pk8 retry #18, 2026-07-26: full unblock-probe checklist re-run AGAIN
+#  from this box — 18th pass today, byte-identical to retry #17. Confirmed
+#  this run: api-drawrace.ardenone.com NXDOMAIN (getent exit 2, no output —
+#  the authoritative DNS signal; curl exit 6 could-not-resolve); rs-manager
+#  `drawrace` ns `get deploy,svc,secret` -> "No resources found" AND
+#  `get secrets -n drawrace` -> "No resources found" (authoritative empty-
+#  secrets signal — no DATABASE_URL source, no S3 creds); only
+#  `kube-root-ca.crt` cm present (ns created 2026-05-05, Active, still empty
+#  — no Deployments, Services, or Secrets anywhere in the namespace); cnpg
+#  `cluster` still "server doesn't have a resource type" (observer SA RBAC-
+#  discovery-limited); ArgoCD RO proxy still 0 drawrace Application matches
+#  (0-byte body); offline self-check re-run -> exit 0 (decode pipeline still
+#  green — drawrace target warm/incremental, 163G disk free, no target clear
+#  needed). In-workspace chain re-confirmed via `br list`: bf-65pk8
+#  in_progress, bf-2ji9i (parent) blocked, bf-1kfun (sibling) blocked,
+#  bf-3iggr (child 2, prod contract) closed; deployment epic
+#  nd-1fkb/nd-xjnv/nd-639/bf-5ft all "Bead not found" here (separate NEEDLE
+#  workspace — recorded below under "DEPLOYMENT TRACKER"). Deployment STILL
+#  not landed anywhere reachable; ALL acceptance criteria unmet (no
+#  Deployments + CloudNativePG Postgres + Secrets; no reachable
+#  DATABASE_URL/S3 cred; --prod cannot connect — a "working path" to document
+#  does not exist). Bead stays OPEN — externally blocked on the separate-
+#  NEEDLE-workspace epic nd-1fkb (the grant set — OpenBao token +
+#  cluster-admin on iad-acb + GarageBucket/GarageKey — IS the missing
+#  DATABASE_URL/S3 source, which a read-only observer here cannot create);
+#  per task rule, NOT closed. Nothing further is actionable in-repo.]
+#
 # Production drawrace is NOT deployed, so the literal "extract >=200 real
 # production ghosts" criterion cannot be satisfied today. There is NO working
 # connectivity path to document yet — this section records the blocked state
