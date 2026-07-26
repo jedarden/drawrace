@@ -55,3 +55,7 @@ drawrace-api = { path = "../api" }
 [[bin]]
 name = "drawrace-validator"
 path = "src/main.rs"
+
+[[bin]]
+name = "generate-reference-ghosts"
+path = "src/bin/generate-reference-ghosts.rs"
