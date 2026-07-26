@@ -35,6 +35,12 @@
 #     TERMINATES/times out; nothing is deployed there either.
 #   * ardenone-hub (where Garage S3 lives) kubectl-proxy times out; and no API
 #     was ever deployed to write blobs anyway.
+#   * ArgoCD RO proxy (argocd-ro-ardenone-manager-ts.ardenone.com:8444) lists NO
+#     drawrace Application — the backend was never GitOps-registered, so the empty
+#     `drawrace` namespace is by-omission, not a failed ArgoCD sync. (This run the
+#     proxy returned an empty body, so it is not independently confirmatory; the
+#     namespace-level checks above — empty on rs-manager, NotFound on
+#     ardenone-manager, iad-acb API timeout — are authoritative.)
 #   * Kubeconfig inventory (corrected this run, 2026-07-26): /home/coding/.kube/
 #     now holds ardenone-manager-24h.kubeconfig (fresh 24h cluster-admin token),
 #     iad-acb.kubeconfig, and iad-ci.kubeconfig — but still NO rs-manager
@@ -96,6 +102,8 @@
 #   # `get deploy,svc,cluster.postgresql.cnpg.io` ERRORS with "server doesn't have
 #   # a resource type 'cluster'" and masks the real (empty) result. Query it alone:
 #   kubectl --server=http://traefik-rs-manager:8001 get cluster.postgresql.cnpg.io -n drawrace
+#   curl -sk https://argocd-ro-ardenone-manager-ts.ardenone.com:8444/api/v1/applications \
+#     | grep -i drawrace        # must show a registered drawrace Application (today: none)
 #
 # When ALL of those succeed, a DATABASE_URL + S3 creds exist in the namespace
 # and this script's --prod path (below) can do the real extraction (80
