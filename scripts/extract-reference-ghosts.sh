@@ -57,6 +57,19 @@
 #   3. GarageBucket/GarageKey creation (cannot verify without #2)
 # These docs estimated "1-2 business days"; 23 days have elapsed with no unblock.
 #
+# ── DEPENDENCY CHAIN (re-resolved this run, 2026-07-26) ─────────────────────
+#
+#   bf-65pk8  (THIS bead — prod connectivity)  ─► blocked on the external deploy
+#     ▲ blocks-on: bf-3iggr  ← now CLOSED. Child 2 locked the prod SQL +
+#       S3/DB env-var contract against the REAL ghosts schema (this header's
+#       DATABASE_URL / S3_* / AWS_* contract IS that child's deliverable).
+#   Parent split: bf-2ji9i (in-workspace). Sibling: bf-1kfun (in-workspace).
+#
+# Net: the contract AND the decode/validate pipeline are DONE and verified
+# (offline self-check re-run this run → exit 0; real DRGH blobs decode to
+# drivable polygons). The ONLY thing keeping bf-65pk8 open is the external
+# nd-1fkb deployment grant set above — nothing further is actionable in-repo.
+#
 # ── HOW TO TELL WHEN DEPLOYMENT LANDS (re-run before assuming unblocked) ────
 #
 #   getent hosts api-drawrace.ardenone.com                       # must RESOLVE
