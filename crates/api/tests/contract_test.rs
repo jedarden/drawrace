@@ -15,13 +15,18 @@
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::Client as S3Client;
 use axum::body::Body;
+use axum::extract::connect_info::MockConnectInfo;
 use axum::http::{Request, StatusCode};
 use axum::Router;
 use drawrace_api::app;
 use drawrace_api::blob::{BlobHeader, GhostBlob, HEADER_SIZE};
+use drawrace_api::handlers::submissions::{
+    SUBMIT_RATE_LIMIT_PER_IP_MAX, SUBMIT_RATE_LIMIT_WINDOW_SECS,
+};
 use drawrace_api::hmac_mod;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -30,100 +35,80 @@ const TEST_HMAC_KEY: [u8; 32] = [0x42u8; 32];
 const TEST_PLAYER_UUID: &str = "550e8400-e29b-41d4-a716-446655440000";
 const TEST_PLAYER_B_UUID: &str = "660e8400-e29b-41d4-a716-446655440001";
 
+/// Build the shared [`drawrace_api::AppState`] used by the contract suite,
+/// against a given Postgres pool. Redis/S3/HMAC config are identical for every
+/// test, so this avoids duplicating ~50 lines between [`test_app`] and
+/// [`test_app_with_pool`].
+async fn make_state(pool: PgPool) -> Arc<drawrace_api::AppState> {
+    let redis_pool = deadpool_redis::Config::from_url("redis://127.0.0.1:6333")
+        .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+        .expect("redis pool");
+
+    let s3_config = {
+        let endpoint =
+            std::env::var("S3_ENDPOINT").unwrap_or_else(|_| "http://127.0.0.1:9000".into());
+        aws_config::defaults(BehaviorVersion::latest())
+            .region(aws_sdk_s3::config::Region::new("garage"))
+            .endpoint_url(endpoint)
+    };
+    let s3_client = S3Client::new(&s3_config.load().await);
+
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+    let metrics_handle = recorder.handle();
+
+    Arc::new(drawrace_api::AppState {
+        pool,
+        redis: redis_pool,
+        s3: s3_client,
+        s3_bucket: "test-bucket".into(),
+        hmac_config: tokio::sync::RwLock::new(hmac_mod::HmacConfig {
+            current_key: TEST_HMAC_KEY.to_vec(),
+            previous_key: None,
+            rotated_at: None,
+        }),
+        validator_cache: tokio::sync::RwLock::new(
+            drawrace_api::handlers::health::CachedValidator {
+                physics_version: 2,
+                engine_core_wasm_sha256: String::new(),
+                ok: false,
+                last_success: std::time::Instant::now(),
+            },
+        ),
+        readiness: drawrace_api::handlers::health::ReadinessState {
+            has_ever_polled: std::sync::atomic::AtomicBool::new(false),
+            boot_instant: std::time::Instant::now(),
+        },
+        metrics_handle,
+    })
+}
+
+/// Default loopback TCP peer injected via [`MockConnectInfo`] for the
+/// `oneshot`-based tests. The real server uses
+/// `into_make_service_with_connect_info` (see `main.rs`), which inserts the
+/// actual TCP peer into each request's extensions; under `oneshot` there is no
+/// socket, so we mock it. `post_submission` reads this via `ip::peer_ip`.
+const TEST_PEER: ([u8; 4], u16) = ([127, 0, 0, 1], 0);
+
 async fn test_app() -> Router {
+    test_app_with_peer(TEST_PEER.into()).await
+}
+
+/// Build a test app whose `post_submission` handler observes a specific TCP
+/// peer address. Used by the per-IP rate-limit test to isolate its counter
+/// (a distinct loopback IP) from the shared `TEST_PEER` the rest of the suite
+/// writes to — otherwise this test's 200+ requests would trip the per-UUID
+/// test's shared per-IP counter when the ignored suite runs in parallel.
+async fn test_app_with_peer(peer: SocketAddr) -> Router {
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect_lazy("postgres://test:test@localhost:5432/drawrace_test")
         .expect("pool");
-
-    let redis_pool = deadpool_redis::Config::from_url("redis://127.0.0.1:6333")
-        .create_pool(Some(deadpool_redis::Runtime::Tokio1))
-        .expect("redis pool");
-
-    let s3_config = {
-        let endpoint =
-            std::env::var("S3_ENDPOINT").unwrap_or_else(|_| "http://127.0.0.1:9000".into());
-        aws_config::defaults(BehaviorVersion::latest())
-            .region(aws_sdk_s3::config::Region::new("garage"))
-            .endpoint_url(endpoint)
-    };
-    let s3_client = S3Client::new(&s3_config.load().await);
-
-    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
-    let metrics_handle = recorder.handle();
-
-    let state = Arc::new(drawrace_api::AppState {
-        pool,
-        redis: redis_pool,
-        s3: s3_client,
-        s3_bucket: "test-bucket".into(),
-        hmac_config: tokio::sync::RwLock::new(hmac_mod::HmacConfig {
-            current_key: TEST_HMAC_KEY.to_vec(),
-            previous_key: None,
-            rotated_at: None,
-        }),
-        validator_cache: tokio::sync::RwLock::new(
-            drawrace_api::handlers::health::CachedValidator {
-                physics_version: 2,
-                engine_core_wasm_sha256: String::new(),
-                ok: false,
-                last_success: std::time::Instant::now(),
-            },
-        ),
-        readiness: drawrace_api::handlers::health::ReadinessState {
-            has_ever_polled: std::sync::atomic::AtomicBool::new(false),
-            boot_instant: std::time::Instant::now(),
-        },
-        metrics_handle,
-    });
-
-    app::app(state)
+    app::app(make_state(pool).await).layer(MockConnectInfo(peer))
 }
 
 /// Build a test app with a specific PgPool (for tests that need DB setup/cleanup).
 async fn test_app_with_pool(pool: PgPool) -> Router {
-    let redis_pool = deadpool_redis::Config::from_url("redis://127.0.0.1:6333")
-        .create_pool(Some(deadpool_redis::Runtime::Tokio1))
-        .expect("redis pool");
-
-    let s3_config = {
-        let endpoint =
-            std::env::var("S3_ENDPOINT").unwrap_or_else(|_| "http://127.0.0.1:9000".into());
-        aws_config::defaults(BehaviorVersion::latest())
-            .region(aws_sdk_s3::config::Region::new("garage"))
-            .endpoint_url(endpoint)
-    };
-    let s3_client = S3Client::new(&s3_config.load().await);
-
-    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
-    let metrics_handle = recorder.handle();
-
-    let state = Arc::new(drawrace_api::AppState {
-        pool,
-        redis: redis_pool,
-        s3: s3_client,
-        s3_bucket: "test-bucket".into(),
-        hmac_config: tokio::sync::RwLock::new(hmac_mod::HmacConfig {
-            current_key: TEST_HMAC_KEY.to_vec(),
-            previous_key: None,
-            rotated_at: None,
-        }),
-        validator_cache: tokio::sync::RwLock::new(
-            drawrace_api::handlers::health::CachedValidator {
-                physics_version: 2,
-                engine_core_wasm_sha256: String::new(),
-                ok: false,
-                last_success: std::time::Instant::now(),
-            },
-        ),
-        readiness: drawrace_api::handlers::health::ReadinessState {
-            has_ever_polled: std::sync::atomic::AtomicBool::new(false),
-            boot_instant: std::time::Instant::now(),
-        },
-        metrics_handle,
-    });
-
-    app::app(state)
+    app::app(make_state(pool).await).layer(MockConnectInfo(SocketAddr::from(TEST_PEER)))
 }
 
 async fn setup_db() -> PgPool {
@@ -369,7 +354,10 @@ async fn golden_submission_rejects_physics_version_mismatch() {
         metrics_handle,
     });
 
-    let app = app::app(state);
+    // post_submission now requires `ConnectInfo<SocketAddr>` (it reads the TCP
+    // peer for per-IP rate limiting via `ip::peer_ip`). There is no socket
+    // under `oneshot`, so mock the peer the same way `test_app` does.
+    let app = app::app(state).layer(MockConnectInfo(SocketAddr::from(TEST_PEER)));
 
     // Create a blob with physics_version = 3 (stale client)
     let body = make_blob_with_version_time(TEST_PLAYER_UUID, 1, 3, 28441);
@@ -1241,5 +1229,109 @@ async fn submission_rate_limit_21st_returns_429_with_retry_after() {
         resp.status(),
         StatusCode::TOO_MANY_REQUESTS,
         "a different player_uuid must have its own budget"
+    );
+}
+
+// ===========================================================================
+// 11. Per-IP submission rate limit (200/min → 429 + Retry-After)
+// ===========================================================================
+
+/// A loopback IP *distinct* from [`TEST_PEER`] so the 200+ requests this test
+/// fires never share the `rl:submit:ip:127.0.0.1` counter the rest of the
+/// ignored suite (including the per-UUID test above) writes to.
+const PER_IP_TEST_PEER: ([u8; 4], u16) = ([127, 0, 0, 2], 0);
+
+/// Over the per-IP ceiling from one address returns 429 + Retry-After even
+/// across many distinct UUIDs, and the keyed IP is the real TCP peer (NOT
+/// `X-Forwarded-For`).
+#[tokio::test]
+#[ignore] // requires Redis (Postgres/S3 optional: under-limit requests may 500)
+async fn submission_per_ip_rate_limit_trips_across_many_uuids() {
+    // Distinct IP from TEST_PEER → isolated per-IP counter.
+    let app = test_app_with_peer(PER_IP_TEST_PEER.into()).await;
+
+    // Each request uses a FRESH player UUID (so the per-UUID counter never
+    // reaches its 20/min ceiling — only the per-IP limiter can trip) but the
+    // SAME TCP peer. We also set a unique `X-Forwarded-For` per request:
+    // because the rate-limit key is the TCP peer (ip::peer_ip) and NOT the
+    // forwarded header (plan §Multiplayer & Backend 1), every request
+    // increments the SAME per-IP key. If the limiter trusted XFF, each request
+    // would hash to a unique key and the cap could never trip.
+    for i in 0..SUBMIT_RATE_LIMIT_PER_IP_MAX {
+        let uuid = Uuid::new_v4().to_string();
+        let body = make_test_blob(&uuid, 1);
+        let hmac = compute_hmac(&body);
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/submissions")
+            .header("X-DrawRace-Player", &uuid)
+            .header("X-DrawRace-Track", "1")
+            .header("X-DrawRace-ClientHMAC", &hmac)
+            // Spoofed forwarded header — must NOT influence the keyed IP.
+            .header(
+                "X-Forwarded-For",
+                format!("203.0.113.{}", (i % 254) as u32 + 1),
+            )
+            .body(Body::from(body))
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_ne!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "per-IP request {}/{} (fresh UUID) must pass while under the {}/min ceiling",
+            i + 1,
+            SUBMIT_RATE_LIMIT_PER_IP_MAX,
+            SUBMIT_RATE_LIMIT_PER_IP_MAX,
+        );
+    }
+
+    // The 201st submission from the SAME TCP peer — fresh UUID (under its own
+    // 20/min budget), carrying yet another spoofed XFF — trips ONLY the per-IP
+    // ceiling → 429 + Retry-After.
+    let uuid = Uuid::new_v4().to_string();
+    let body = make_test_blob(&uuid, 1);
+    let hmac = compute_hmac(&body);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/submissions")
+        .header("X-DrawRace-Player", &uuid)
+        .header("X-DrawRace-Track", "1")
+        .header("X-DrawRace-ClientHMAC", &hmac)
+        .header("X-Forwarded-For", "203.0.113.42")
+        .body(Body::from(body))
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    let retry_after = resp
+        .headers()
+        .get("retry-after")
+        .expect("per-IP 429 must carry a Retry-After header");
+    let secs: i64 = retry_after
+        .to_str()
+        .unwrap()
+        .parse()
+        .expect("Retry-After must be a parseable integer of seconds");
+    assert!(secs > 0, "Retry-After must be positive, got {}", secs);
+    assert!(
+        secs <= SUBMIT_RATE_LIMIT_WINDOW_SECS,
+        "Retry-After must not exceed the {}s window, got {}",
+        SUBMIT_RATE_LIMIT_WINDOW_SECS,
+        secs
+    );
+
+    // The SAME number of requests from a *different* TCP peer are unaffected:
+    // the limit is keyed per-IP, so a second source has its own budget. (Uses
+    // a third loopback IP, isolated from both counters above.)
+    let other_app = test_app_with_peer(([127, 0, 0, 3], 0).into()).await;
+    let other_uuid = Uuid::new_v4().to_string();
+    let other_body = make_test_blob(&other_uuid, 1);
+    let other_hmac = compute_hmac(&other_body);
+    let req = submission_request(&other_body, &other_uuid, 1, &other_hmac);
+    let resp = other_app.oneshot(req).await.unwrap();
+    assert_ne!(
+        resp.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "a different TCP peer address must have its own per-IP budget"
     );
 }
