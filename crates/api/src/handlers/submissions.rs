@@ -1,7 +1,7 @@
 use axum::body::Bytes;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Json};
+use axum::response::{AppendHeaders, IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -56,6 +56,41 @@ impl IntoResponse for ApiError {
         )
             .into_response()
     }
+}
+
+/// Per-player-UUID submission *write* rate limit. Mirrors the
+/// `rl:name:{uuid}` INCR + EXPIRE pattern in `handlers::names::post_name`,
+/// but under a `rl:submit:` namespace: 20 persisted submissions per 60s
+/// window. The 21st submission in the window is rejected with 429 +
+/// `Retry-After`.
+pub const SUBMIT_RATE_LIMIT_MAX: i64 = 20;
+pub const SUBMIT_RATE_LIMIT_WINDOW_SECS: i64 = 60;
+
+/// Seconds to tell a rate-limited client to wait before retrying. Uses the
+/// counter key's remaining TTL when available; falls back to the full window
+/// when the TTL is missing or non-positive (key absent, no expiry set, or the
+/// TTL lookup itself errored).
+fn retry_after_seconds(ttl_seconds: i64, window_seconds: i64) -> i64 {
+    if ttl_seconds > 0 {
+        ttl_seconds
+    } else {
+        window_seconds
+    }
+}
+
+/// Build the 429 Too Many Requests response carrying a `Retry-After` header
+/// (a non-negative integer of seconds, per RFC 7231). Extracted so the
+/// response shape is unit-testable without Redis.
+fn rate_limited_response(retry_after_secs: i64) -> axum::response::Response {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        AppendHeaders([(
+            axum::http::header::RETRY_AFTER,
+            retry_after_secs.to_string(),
+        )]),
+        Json(serde_json::json!({ "error": "rate limit exceeded" })),
+    )
+        .into_response()
 }
 
 pub async fn post_submission(
@@ -130,6 +165,55 @@ pub async fn post_submission(
         metrics::counter!("drawrace_submissions_total", "outcome" => "ephemeral").increment(1);
 
         return Ok(StatusCode::NO_CONTENT.into_response());
+    }
+
+    // Per-player-UUID *write* rate limit: at most SUBMIT_RATE_LIMIT_MAX
+    // persisted submissions per SUBMIT_RATE_LIMIT_WINDOW_SECS window.
+    //
+    // Runs after the cheap request validation (header/blob/HMAC checks above,
+    // which reject malformed or forged requests with 400/409 without any I/O)
+    // and before the first DB write, so that (a) rejected requests don't burn
+    // a player's rate budget, and (b) ephemeral non-persisting submissions
+    // (handled above) are exempt — this limits writes, not validation. This
+    // mirrors `handlers::names::post_name`'s INCR + EXPIRE block.
+    {
+        let mut conn = state.redis.get().await.map_err(|e| {
+            tracing::error!(error = %e, "Redis pool get failed");
+            ApiError {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "rate limit error".into(),
+            }
+        })?;
+        let rl_key = format!("rl:submit:{}", player_uuid);
+        let count: i64 = redis::cmd("INCR")
+            .arg(&rl_key)
+            .query_async(&mut conn)
+            .await
+            .unwrap_or(0);
+
+        if count == 1 {
+            let _: () = redis::cmd("EXPIRE")
+                .arg(&rl_key)
+                .arg(SUBMIT_RATE_LIMIT_WINDOW_SECS)
+                .query_async(&mut conn)
+                .await
+                .unwrap_or(());
+        }
+
+        if count > SUBMIT_RATE_LIMIT_MAX {
+            // Tell the client how long until the window resets. The key's TTL
+            // is the precise remaining time; fall back to the full window if
+            // the TTL is unavailable.
+            let ttl: i64 = redis::cmd("TTL")
+                .arg(&rl_key)
+                .query_async(&mut conn)
+                .await
+                .unwrap_or(-1);
+            let retry_after = retry_after_seconds(ttl, SUBMIT_RATE_LIMIT_WINDOW_SECS);
+            metrics::counter!("drawrace_submissions_total", "outcome" => "rate_limited")
+                .increment(1);
+            return Ok(rate_limited_response(retry_after));
+        }
     }
 
     // Lazy player registration
@@ -467,5 +551,52 @@ mod tests {
         assert_eq!(bucket_for_rank(50), "mid");
         assert_eq!(bucket_for_rank(51), "novice");
         assert_eq!(bucket_for_rank(1000), "novice");
+    }
+
+    #[test]
+    fn submit_rate_limit_constants_match_spec() {
+        assert_eq!(SUBMIT_RATE_LIMIT_MAX, 20);
+        assert_eq!(SUBMIT_RATE_LIMIT_WINDOW_SECS, 60);
+    }
+
+    #[test]
+    fn retry_after_seconds_uses_ttl_when_positive() {
+        assert_eq!(retry_after_seconds(45, 60), 45);
+        assert_eq!(retry_after_seconds(1, 60), 1);
+    }
+
+    #[test]
+    fn retry_after_seconds_falls_back_to_window_when_ttl_non_positive() {
+        // 0 = key just expired, -1 = no expiry set, -2 = key does not exist
+        assert_eq!(retry_after_seconds(0, 60), 60);
+        assert_eq!(retry_after_seconds(-1, 60), 60);
+        assert_eq!(retry_after_seconds(-2, 60), 60);
+    }
+
+    #[tokio::test]
+    async fn rate_limited_response_carries_429_and_retry_after() {
+        let resp = rate_limited_response(42);
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        let retry_after = resp
+            .headers()
+            .get("retry-after")
+            .expect("429 must carry a Retry-After header");
+        assert_eq!(retry_after.to_str().unwrap(), "42");
+
+        // Body matches the ApiError error shape.
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["error"], "rate limit exceeded");
+    }
+
+    #[tokio::test]
+    async fn rate_limited_response_retry_after_at_full_window() {
+        let resp = rate_limited_response(SUBMIT_RATE_LIMIT_WINDOW_SECS);
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            resp.headers().get("retry-after").unwrap().to_str().unwrap(),
+            "60"
+        );
     }
 }

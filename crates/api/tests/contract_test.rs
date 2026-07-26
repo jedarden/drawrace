@@ -1179,3 +1179,67 @@ async fn invite_status_returns_false_without_player_header() {
     let json = read_json(resp).await;
     assert_eq!(json["has_access"], false);
 }
+
+// ===========================================================================
+// 10. Per-UUID submission rate limit (20/min → 429 + Retry-After)
+// ===========================================================================
+
+#[tokio::test]
+#[ignore] // requires Redis (Postgres optional: first 20 return 202 with it)
+async fn submission_rate_limit_21st_returns_429_with_retry_after() {
+    let app = test_app().await;
+    // Fresh UUID so the per-UUID counter starts at zero.
+    let player_uuid = Uuid::new_v4().to_string();
+    let body = make_test_blob(&player_uuid, 1);
+    let hmac = compute_hmac(&body);
+
+    // The first 20 submissions from this player must pass the rate limit
+    // (NOT return 429). Their final status depends on whether Postgres/S3 are
+    // reachable (202 with them, 500 without) — we only assert none are
+    // rate-limited, which proves the counter is only enforced above 20.
+    for i in 0..20 {
+        let req = submission_request(&body, &player_uuid, 1, &hmac);
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_ne!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "submission #{} within the 20/min window must not be rate-limited",
+            i + 1,
+        );
+    }
+
+    // The 21st submission within the 60s window → 429 Too Many Requests.
+    let req = submission_request(&body, &player_uuid, 1, &hmac);
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    // Retry-After must be present and parse as a positive integer of seconds
+    // not exceeding the 60s window.
+    let retry_after = resp
+        .headers()
+        .get("retry-after")
+        .expect("429 must carry a Retry-After header");
+    let secs: i64 = retry_after
+        .to_str()
+        .unwrap()
+        .parse()
+        .expect("Retry-After must be a parseable integer of seconds");
+    assert!(secs > 0, "Retry-After must be positive, got {}", secs);
+    assert!(
+        secs <= 60,
+        "Retry-After must not exceed the 60s window, got {}",
+        secs
+    );
+
+    // A different player is unaffected — their first submission is not limited.
+    let other_uuid = Uuid::new_v4().to_string();
+    let other_body = make_test_blob(&other_uuid, 1);
+    let other_hmac = compute_hmac(&other_body);
+    let req = submission_request(&other_body, &other_uuid, 1, &other_hmac);
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_ne!(
+        resp.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "a different player_uuid must have its own budget"
+    );
+}
