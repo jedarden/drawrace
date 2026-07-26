@@ -21,7 +21,8 @@ use axum::Router;
 use drawrace_api::app;
 use drawrace_api::blob::{BlobHeader, GhostBlob, HEADER_SIZE};
 use drawrace_api::handlers::submissions::{
-    SUBMIT_RATE_LIMIT_PER_IP_MAX, SUBMIT_RATE_LIMIT_WINDOW_SECS,
+    POLL_RATE_LIMIT_MAX, POLL_RATE_LIMIT_WINDOW_SECS, SUBMIT_RATE_LIMIT_PER_IP_MAX,
+    SUBMIT_RATE_LIMIT_WINDOW_SECS,
 };
 use drawrace_api::hmac_mod;
 use sqlx::postgres::PgPoolOptions;
@@ -1333,5 +1334,83 @@ async fn submission_per_ip_rate_limit_trips_across_many_uuids() {
         resp.status(),
         StatusCode::TOO_MANY_REQUESTS,
         "a different TCP peer address must have its own per-IP budget"
+    );
+}
+
+// ===========================================================================
+// 12. Per-UUID poll rate limit (60/min → 429 + Retry-After)
+// ===========================================================================
+
+#[tokio::test]
+#[ignore] // requires Redis (Postgres optional: under-limit polls may 500)
+async fn poll_rate_limit_61st_returns_429_with_retry_after() {
+    let app = test_app().await;
+    // Fresh UUID so the per-UUID poll counter starts at zero.
+    let player_uuid = Uuid::new_v4().to_string();
+    // An unknown submission id: under-limit polls pass the limiter and fall
+    // through to normal handling (404 not-found with Postgres/Redis, 500
+    // without) — which is itself the expected poll body for a missing row.
+    let unknown_id = Uuid::new_v4();
+
+    // The first 60 polls from this player must pass the rate limit (NOT 429).
+    // Their final status depends on whether Postgres/Redis-inflight are
+    // reachable (404 with them, 500 without) — we only assert none are
+    // rate-limited, which proves the counter is only enforced above 60 and
+    // under-limit polls pass through to normal handling.
+    for i in 0..POLL_RATE_LIMIT_MAX {
+        let req = Request::builder()
+            .uri(format!("/v1/submissions/{}", unknown_id))
+            .header("X-DrawRace-Player", &player_uuid)
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_ne!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "poll #{} within the 60/min window must not be rate-limited",
+            i + 1,
+        );
+    }
+
+    // The 61st poll within the 60s window → 429 Too Many Requests.
+    let req = Request::builder()
+        .uri(format!("/v1/submissions/{}", unknown_id))
+        .header("X-DrawRace-Player", &player_uuid)
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    // Retry-After must be present and parse as a positive integer of seconds
+    // not exceeding the 60s window.
+    let retry_after = resp
+        .headers()
+        .get("retry-after")
+        .expect("429 must carry a Retry-After header");
+    let secs: i64 = retry_after
+        .to_str()
+        .unwrap()
+        .parse()
+        .expect("Retry-After must be a parseable integer of seconds");
+    assert!(secs > 0, "Retry-After must be positive, got {}", secs);
+    assert!(
+        secs <= POLL_RATE_LIMIT_WINDOW_SECS,
+        "Retry-After must not exceed the {}s window, got {}",
+        POLL_RATE_LIMIT_WINDOW_SECS,
+        secs
+    );
+
+    // A different player is unaffected — their first poll is not limited.
+    let other_uuid = Uuid::new_v4().to_string();
+    let req = Request::builder()
+        .uri(format!("/v1/submissions/{}", unknown_id))
+        .header("X-DrawRace-Player", &other_uuid)
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_ne!(
+        resp.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "a different player_uuid must have its own poll budget"
     );
 }

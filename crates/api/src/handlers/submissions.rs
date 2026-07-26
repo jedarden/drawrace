@@ -87,6 +87,16 @@ pub const SUBMIT_RATE_LIMIT_WINDOW_SECS: i64 = 60;
 /// production.
 pub const SUBMIT_RATE_LIMIT_PER_IP_MAX: i64 = 200;
 
+/// Per-player-UUID submission *poll* (read) rate limit. Mirrors the write-path
+/// INCR + EXPIRE pattern in `post_submission`, but under a `rl:poll:` namespace:
+/// 60 verdict polls per 60s window per player. The 61st poll in the window is
+/// rejected with 429 + `Retry-After`. This is the *only* read-path limit — the
+/// heavy anti-abuse concern is the POST write path, so no per-IP limit is
+/// needed here (plan §Multiplayer & Backend 7). The reference client polls at
+/// 500ms → 1s → 2s → 4s capped, which stays well under this budget.
+pub const POLL_RATE_LIMIT_MAX: i64 = 60;
+pub const POLL_RATE_LIMIT_WINDOW_SECS: i64 = 60;
+
 /// Seconds to tell a rate-limited client to wait before retrying. Uses the
 /// counter key's remaining TTL when available; falls back to the full window
 /// when the TTL is missing or non-positive (key absent, no expiry set, or the
@@ -408,6 +418,56 @@ pub async fn get_submission(
 ) -> Result<impl IntoResponse, ApiError> {
     let player_uuid = extract_player_uuid(&headers)?;
 
+    // Per-player-UUID *read* (poll) rate limit: 60 polls per 60s window, keyed
+    // `rl:poll:{player_uuid}`. Mirrors the `rl:submit:` INCR + EXPIRE pattern
+    // in `post_submission`, but for the read path (see [`POLL_RATE_LIMIT_MAX`]).
+    // This is the only read-path limit — per-IP is unnecessary here because the
+    // heavy anti-abuse concern is the POST write path. Over the ceiling → 429 +
+    // `Retry-After` (see [`rate_limited_response`]).
+    //
+    // Runs after the cheap header extraction (which 400s on a missing/invalid
+    // player UUID with no I/O) and before the first Postgres lookup, so
+    // rejected polls don't cost a DB round-trip and don't burn a budget on
+    // malformed input.
+    {
+        let mut conn = state.redis.get().await.map_err(|e| {
+            tracing::error!(error = %e, "Redis pool get failed");
+            ApiError {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "rate limit error".into(),
+            }
+        })?;
+
+        let poll_key = format!("rl:poll:{}", player_uuid);
+        let count: i64 = redis::cmd("INCR")
+            .arg(&poll_key)
+            .query_async(&mut conn)
+            .await
+            .unwrap_or(0);
+
+        if count == 1 {
+            let _: () = redis::cmd("EXPIRE")
+                .arg(&poll_key)
+                .arg(POLL_RATE_LIMIT_WINDOW_SECS)
+                .query_async(&mut conn)
+                .await
+                .unwrap_or(());
+        }
+
+        if count > POLL_RATE_LIMIT_MAX {
+            // Tell the client how long until the window resets. The key's TTL
+            // is the precise remaining time; fall back to the full window if
+            // the TTL is unavailable.
+            let ttl: i64 = redis::cmd("TTL")
+                .arg(&poll_key)
+                .query_async(&mut conn)
+                .await
+                .unwrap_or(-1);
+            let retry_after = retry_after_seconds(ttl, POLL_RATE_LIMIT_WINDOW_SECS);
+            return Ok(rate_limited_response(retry_after));
+        }
+    }
+
     // Check Postgres first — fetch status + owner in one query
     type SubRow = (Uuid, String, Option<Uuid>, Option<i32>, Option<String>);
     let row: Option<SubRow> = sqlx::query_as(
@@ -618,6 +678,14 @@ mod tests {
     fn submit_rate_limit_constants_match_spec() {
         assert_eq!(SUBMIT_RATE_LIMIT_MAX, 20);
         assert_eq!(SUBMIT_RATE_LIMIT_WINDOW_SECS, 60);
+    }
+
+    #[test]
+    fn poll_rate_limit_constants_match_spec() {
+        // 60/min per player UUID on the read/poll path — plan §Multiplayer &
+        // Backend 7. The reference client polls well under this budget.
+        assert_eq!(POLL_RATE_LIMIT_MAX, 60);
+        assert_eq!(POLL_RATE_LIMIT_WINDOW_SECS, 60);
     }
 
     #[test]
