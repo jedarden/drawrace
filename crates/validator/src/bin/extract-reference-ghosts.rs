@@ -60,9 +60,28 @@
 //! S3_BUCKET=drawrace-ghosts \
 //! S3_ENDPOINT=https://garage.ardenone... \
 //! AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... \
+//! CURRENT_PHYSICS_VERSION=8 \
 //! cargo run -p drawrace-validator --bin extract-reference-ghosts -- \
 //!     --out crates/validator/raw-ghost-extract.json
 //! ```
+//!
+//! ## Prod env contract (all six variables)
+//!
+//! | Var | Required | Default | Purpose |
+//! |-----|----------|---------|---------|
+//! | `DATABASE_URL` | **yes** | — | Postgres connection string for the prod `ghosts` table. Credentials are read live from the env, never persisted — see the credential-handling note below. |
+//! | `S3_BUCKET` | no | `drawrace-ghosts` | Object-storage bucket holding the DRGH blob per `ghosts.s3_key`. |
+//! | `S3_ENDPOINT` | no | real AWS S3 | Garage (S3-compatible) endpoint URL. Set this for prod (Garage on ardenone-hub). |
+//! | `AWS_ACCESS_KEY_ID` | **yes** (prod) | — | Garage/AWS credential, read from the env by the AWS SDK. |
+//! | `AWS_SECRET_ACCESS_KEY` | **yes** (prod) | — | Garage/AWS credential, read from the env by the AWS SDK. |
+//! | `CURRENT_PHYSICS_VERSION` | no | `8` (mirrors `packages/engine-core/src/version.ts`) | Only current-version ghosts are extracted; bump this in lockstep with a `PHYSICS_VERSION` bump. |
+//!
+//! **No credentials are persisted to git.** `AWS_ACCESS_KEY_ID` /
+//! `AWS_SECRET_ACCESS_KEY` / the `DATABASE_URL` password are read from the
+//! environment at runtime only. The dump's `source.database` label is run through
+//! `redact_url()`, which strips the `user:pass@` segment so the raw dump never
+//! contains a password. The placeholders above (`user:pass`, `...`) are example
+//! shell, not committed secrets.
 //!
 //! Offline decode self-check (no DB / S3 required — exercises the real decoder
 //! against the committed seed blobs and the dump emitter end-to-end):
@@ -130,8 +149,7 @@ async fn main() -> Result<()> {
         }
     };
 
-    let bucket =
-        std::env::var("S3_BUCKET").unwrap_or_else(|_| "drawrace-ghosts".to_string());
+    let bucket = std::env::var("S3_BUCKET").unwrap_or_else(|_| "drawrace-ghosts".to_string());
     let endpoint = std::env::var("S3_ENDPOINT").ok();
     let s3_client = build_s3_client(endpoint.as_deref()).await;
 
@@ -141,8 +159,15 @@ async fn main() -> Result<()> {
         .unwrap_or(DEFAULT_PHYSICS_VERSION);
 
     let out_path = out_path_from_args(&args);
-    extract(&pool, &s3_client, &bucket, endpoint.as_deref(), physics_version, &out_path)
-        .await
+    extract(
+        &pool,
+        &s3_client,
+        &bucket,
+        endpoint.as_deref(),
+        physics_version,
+        &out_path,
+    )
+    .await
 }
 
 /// The actual extraction: query → fetch → decode → validate → dump.
@@ -274,11 +299,7 @@ async fn extract(
                 .map(|w| DecodedWheel {
                     swap_tick: w.swap_tick,
                     vertex_count: w.vertex_count,
-                    polygon_vertices: w
-                        .polygon_vertices
-                        .iter()
-                        .map(|(x, y)| [*x, *y])
-                        .collect(),
+                    polygon_vertices: w.polygon_vertices.iter().map(|(x, y)| [*x, *y]).collect(),
                 })
                 .collect(),
             polygon_notes,
@@ -306,8 +327,7 @@ async fn extract(
 
     let json = serde_json::to_string_pretty(&dump).context("serialize dump")?;
     if let Some(parent) = out_path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("create {}", parent.display()))?;
+        std::fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
     }
     std::fs::write(out_path, json).with_context(|| format!("write {}", out_path.display()))?;
 
@@ -467,10 +487,13 @@ async fn run_self_check(out_path: &PathBuf) -> Result<()> {
         let real = g.wheels.iter().all(|w| {
             w.vertex_count >= drawrace_api::blob::MIN_VERTEX_COUNT as u8
                 && polygon_signed_area(
-                    &w.polygon_vertices.iter().map(|p| (p[0], p[1])).collect::<Vec<_>>(),
+                    &w.polygon_vertices
+                        .iter()
+                        .map(|p| (p[0], p[1]))
+                        .collect::<Vec<_>>(),
                 )
                 .abs()
-                >= 1e-3
+                    >= 1e-3
         });
         if real && g.wheels.first().is_some_and(|w| w.swap_tick == 0) {
             ok += 1;
@@ -491,8 +514,7 @@ async fn run_self_check(out_path: &PathBuf) -> Result<()> {
     if dump.count < 200 {
         eprintln!(
             "self-check: NOTE — seed pool only has {} blobs (< 200); this verifies \
-             the decode pipeline on real DRGH bytes, it is not a production extract."
-            ,
+             the decode pipeline on real DRGH bytes, it is not a production extract.",
             dump.count
         );
     }
@@ -663,7 +685,11 @@ mod tests {
 
     fn first_seed_blob() -> PathBuf {
         let p = seeds_root().join("track_1").join("seed-001.blob");
-        assert!(p.exists(), "missing seed blob: {}; run the seed generator", p.display());
+        assert!(
+            p.exists(),
+            "missing seed blob: {}; run the seed generator",
+            p.display()
+        );
         p
     }
 
