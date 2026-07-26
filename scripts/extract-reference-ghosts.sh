@@ -463,6 +463,42 @@
 #  DATABASE_URL/S3 source, which a read-only observer here cannot create);
 #  per task rule, NOT closed. Nothing further is actionable in-repo.]
 #
+# [bf-65pk8 retry #21, 2026-07-26: full unblock-probe checklist re-run AGAIN
+#  from this box — 21st pass today. Same blocked result as retry #20, with ONE
+#  new wrinkle this run that was investigated and dismissed: the ArgoCD RO
+#  proxy probe initially appeared to return a 3.16MB body with a `drawrace`
+#  match (grep -ic = 1) — but curl ALSO exited 6 (could-not-resolve), a
+#  contradiction. Investigated: the file /tmp/argocd.json was STALE
+#  (mtime 2026-07-19, a prior session) and the lone match was
+#  `grafana-dashboard-drawrace-quality` (a Grafana dashboard, NOT a drawrace
+#  deployment Application). A FRESH probe with a new temp file returned 0
+#  bytes (DNS failed, curl exit 6) — no fresh ArgoCD data is reachable from
+#  this box, exactly as in prior runs. So the stale-file false-positive is
+#  ruled out; deployment status is unchanged. Rest of the checklist is
+#  byte-identical to retry #20: api-drawrace.ardenone.com NXDOMAIN (getent
+#  exit 2, no output — authoritative DNS signal; curl exit 6
+#  could-not-resolve); rs-manager `drawrace` ns `get deploy,svc,secret` ->
+#  "No resources found" AND `get secrets -n drawrace` -> "No resources found"
+#  (authoritative empty-secrets signal — no DATABASE_URL source, no S3 creds);
+#  only `kube-root-ca.crt` cm present (still 82d old); cnpg `cluster` not
+#  re-queried this run (observer SA RBAC-discovery-limited, known to ERROR);
+#  `drawrace` ns NotFound on all 6 other reachable clusters (apexalgo-iad/
+#  ardenone-cluster/ardenone-manager/ord-devimprint/iad-kalshi/iad-options);
+#  offline self-check re-run -> exit 0 (decode pipeline still green — drawrace
+#  target warm/incremental at 15G, 166G disk free, no target clear needed).
+#  In-workspace chain re-confirmed via `br list`: bf-65pk8 in_progress,
+#  bf-2ji9i (parent) blocked, bf-1kfun (sibling) blocked, bf-3iggr (child 2,
+#  prod contract) closed; deployment epic nd-1fkb/nd-xjnv/nd-639/bf-5ft all
+#  "Bead not found" here (separate NEEDLE workspace — recorded below under
+#  "DEPLOYMENT TRACKER"). Deployment STILL not landed anywhere reachable;
+#  ALL acceptance criteria unmet (no Deployments + CloudNativePG Postgres +
+#  Secrets; no reachable DATABASE_URL/S3 cred; --prod cannot connect — a
+#  "working path" to document does not exist). Bead stays OPEN — externally
+#  blocked on the separate-NEEDLE-workspace epic nd-1fkb (the grant set —
+#  OpenBao token + cluster-admin on iad-acb + GarageBucket/GarageKey — IS the
+#  missing DATABASE_URL/S3 source, which a read-only observer here cannot
+#  create); per task rule, NOT closed. Nothing further is actionable in-repo.]
+#
 # Production drawrace is NOT deployed, so the literal "extract >=200 real
 # production ghosts" criterion cannot be satisfied today. There is NO working
 # connectivity path to document yet — this section records the blocked state
