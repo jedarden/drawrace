@@ -132,7 +132,16 @@ async fn main() {
         .expect("failed to bind listener");
 
     tracing::info!(addr = %listen_addr, "drawrace-api listening");
-    axum::serve(listener, app).await.expect("server error");
+    // Wrap with ConnectInfo so handlers can read the real TCP peer address via
+    // axum::extract::ConnectInfo<SocketAddr> (see `ip::peer_ip`). Per plan
+    // §Multiplayer & Backend 1 this vhost is DNS-only (no trusted proxy), so
+    // the TCP peer is the rate-limit key — forwarded headers are not trusted.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .expect("server error");
 }
 
 fn s3_config_endpoint_url(endpoint: String) -> aws_config::ConfigLoader {
