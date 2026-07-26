@@ -42,6 +42,7 @@ pub async fn post_name(
         return Err(ApiError {
             status: StatusCode::BAD_REQUEST,
             message: "name must be 1-20 characters".into(),
+            ..Default::default()
         });
     }
 
@@ -50,6 +51,7 @@ pub async fn post_name(
         return Err(ApiError {
             status: StatusCode::BAD_REQUEST,
             message: "name not allowed".into(),
+            ..Default::default()
         });
     }
 
@@ -60,6 +62,7 @@ pub async fn post_name(
             ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "rate limit error".into(),
+                ..Default::default()
             }
         })?;
         let rl_key = format!("rl:name:{}", body.player_uuid);
@@ -77,6 +80,7 @@ pub async fn post_name(
             return Err(ApiError {
                 status: StatusCode::TOO_MANY_REQUESTS,
                 message: "rate limit exceeded".into(),
+                ..Default::default()
             });
         }
     }
@@ -90,12 +94,14 @@ pub async fn post_name(
             .map_err(|e| ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: format!("db error: {e}"),
+                ..Default::default()
             })?;
 
     if !player_exists {
         return Err(ApiError {
             status: StatusCode::NOT_FOUND,
             message: "player not found".into(),
+            ..Default::default()
         });
     }
 
@@ -124,12 +130,14 @@ pub async fn post_name(
                 return ApiError {
                     status: StatusCode::CONFLICT,
                     message: "name already taken".into(),
+                    ..Default::default()
                 };
             }
         }
         ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             message: format!("db error: {e}"),
+            ..Default::default()
         }
     })?;
 
@@ -138,6 +146,7 @@ pub async fn post_name(
         return Err(ApiError {
             status: StatusCode::TOO_MANY_REQUESTS,
             message: "name can only be changed once per 24 hours".into(),
+            ..Default::default()
         });
     }
 
@@ -162,6 +171,7 @@ pub async fn get_name(
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             message: format!("db error: {e}"),
+            ..Default::default()
         })?;
 
     Ok((StatusCode::OK, Json(GetNameResponse { name })))

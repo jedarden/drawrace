@@ -42,6 +42,28 @@ pub struct SubmissionRejectedVerdict {
 pub struct ApiError {
     pub status: StatusCode,
     pub message: String,
+    /// Optional `Retry-After` header value, in seconds. When `Some(secs)` the
+    /// `IntoResponse` impl appends a `Retry-After: <secs>` header to the error
+    /// response (a non-negative integer of seconds, per RFC 7231) — used by
+    /// rate-limit errors (plan §Multiplayer & Backend 7/8). `None` (the
+    /// default) omits the header entirely. This lets rate-limit errors be
+    /// returned as `Err(ApiError{..})` uniformly instead of bypassing `ApiError`
+    /// via the private `rate_limited_response` builder.
+    pub retry_after: Option<u64>,
+}
+
+impl Default for ApiError {
+    /// `message` defaults to empty and `retry_after` to `None`; `StatusCode`
+    /// has no meaningful zero so it defaults to `500 INTERNAL_SERVER_ERROR`.
+    /// This lets every call site stay source-compatible as new optional fields
+    /// are added: `ApiError { status, message, ..Default::default() }`.
+    fn default() -> Self {
+        ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: String::new(),
+            retry_after: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,11 +73,21 @@ pub struct DailyChallengeQuery {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
-        (
-            self.status,
-            Json(serde_json::json!({ "error": self.message })),
-        )
-            .into_response()
+        // Emit a `Retry-After` header only when explicitly requested — every
+        // non-rate-limit error omits it (defaults to `None`).
+        match self.retry_after {
+            Some(secs) => (
+                self.status,
+                AppendHeaders([(axum::http::header::RETRY_AFTER, secs.to_string())]),
+                Json(serde_json::json!({ "error": self.message })),
+            )
+                .into_response(),
+            None => (
+                self.status,
+                Json(serde_json::json!({ "error": self.message })),
+            )
+                .into_response(),
+        }
     }
 }
 
@@ -139,18 +171,21 @@ pub async fn post_submission(
         return Err(ApiError {
             status: StatusCode::BAD_REQUEST,
             message: "blob too short".into(),
+            ..Default::default()
         });
     }
 
     let header = BlobHeader::parse(&body).map_err(|e| ApiError {
         status: StatusCode::BAD_REQUEST,
         message: format!("invalid blob: {e}"),
+        ..Default::default()
     })?;
 
     if header.track_id != track_id {
         return Err(ApiError {
             status: StatusCode::BAD_REQUEST,
             message: "track_id header does not match blob".into(),
+            ..Default::default()
         });
     }
 
@@ -158,6 +193,7 @@ pub async fn post_submission(
         return Err(ApiError {
             status: StatusCode::BAD_REQUEST,
             message: "player_uuid header does not match blob".into(),
+            ..Default::default()
         });
     }
 
@@ -181,6 +217,7 @@ pub async fn post_submission(
             return Err(ApiError {
                 status: StatusCode::BAD_REQUEST,
                 message: "HMAC verification failed".into(),
+                ..Default::default()
             });
         }
     }
@@ -192,6 +229,7 @@ pub async fn post_submission(
         crate::blob::GhostBlob::parse(&body).map_err(|e| ApiError {
             status: StatusCode::BAD_REQUEST,
             message: format!("invalid blob: {e}"),
+            ..Default::default()
         })?;
 
         metrics::counter!("drawrace_submissions_total", "outcome" => "ephemeral").increment(1);
@@ -215,6 +253,7 @@ pub async fn post_submission(
             ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "rate limit error".into(),
+                ..Default::default()
             }
         })?;
 
@@ -306,6 +345,7 @@ pub async fn post_submission(
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             message: format!("db error: {e}"),
+            ..Default::default()
         })?;
 
     let submission_id = Uuid::new_v4();
@@ -322,12 +362,14 @@ pub async fn post_submission(
                 .map_err(|e| ApiError {
                     status: StatusCode::INTERNAL_SERVER_ERROR,
                     message: format!("db error: {e}"),
+                    ..Default::default()
                 })?;
 
         if exists.is_none() {
             return Err(ApiError {
                 status: StatusCode::BAD_REQUEST,
                 message: "No daily challenge found for this date".into(),
+                ..Default::default()
             });
         }
         Some(date_str)
@@ -350,6 +392,7 @@ pub async fn post_submission(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     state
@@ -365,6 +408,7 @@ pub async fn post_submission(
             ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "storage error".into(),
+                ..Default::default()
             }
         })?;
 
@@ -374,6 +418,7 @@ pub async fn post_submission(
             ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "queue error".into(),
+                ..Default::default()
             }
         })?;
         let inflight_key = format!("submission:{}:inflight", submission_id);
@@ -389,6 +434,7 @@ pub async fn post_submission(
                 ApiError {
                     status: StatusCode::INTERNAL_SERVER_ERROR,
                     message: "queue error".into(),
+                    ..Default::default()
                 }
             })?;
 
@@ -402,6 +448,7 @@ pub async fn post_submission(
                 ApiError {
                     status: StatusCode::INTERNAL_SERVER_ERROR,
                     message: "queue error".into(),
+                    ..Default::default()
                 }
             })?;
     }
@@ -446,6 +493,7 @@ pub async fn get_submission(
             ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "rate limit error".into(),
+                ..Default::default()
             }
         })?;
 
@@ -491,6 +539,7 @@ pub async fn get_submission(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     if let Some((owner_uuid, status, ghost_id, time_ms, reject_reason)) = row {
@@ -499,6 +548,7 @@ pub async fn get_submission(
             return Err(ApiError {
                 status: StatusCode::NOT_FOUND,
                 message: "not found".into(),
+                ..Default::default()
             });
         }
 
@@ -519,6 +569,7 @@ pub async fn get_submission(
                 .map_err(|e| ApiError {
                     status: StatusCode::INTERNAL_SERVER_ERROR,
                     message: format!("db error: {e}"),
+                    ..Default::default()
                 })?;
 
                 let bucket = bucket_for_rank(rank);
@@ -568,6 +619,7 @@ pub async fn get_submission(
             ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "queue error".into(),
+                ..Default::default()
             }
         })?;
         let inflight_key = format!("submission:{}:inflight", submission_id);
@@ -580,6 +632,7 @@ pub async fn get_submission(
                 ApiError {
                     status: StatusCode::INTERNAL_SERVER_ERROR,
                     message: "queue error".into(),
+                    ..Default::default()
                 }
             })?;
 
@@ -595,6 +648,7 @@ pub async fn get_submission(
             _ => Err(ApiError {
                 status: StatusCode::NOT_FOUND,
                 message: "not found".into(),
+                ..Default::default()
             }),
         }
     }
@@ -620,16 +674,19 @@ fn extract_player_uuid(headers: &axum::http::HeaderMap) -> Result<Uuid, ApiError
         .ok_or_else(|| ApiError {
             status: StatusCode::BAD_REQUEST,
             message: "missing X-DrawRace-Player header".into(),
+            ..Default::default()
         })?
         .to_str()
         .map_err(|_| ApiError {
             status: StatusCode::BAD_REQUEST,
             message: "invalid X-DrawRace-Player header".into(),
+            ..Default::default()
         })?;
 
     Uuid::parse_str(val).map_err(|_| ApiError {
         status: StatusCode::BAD_REQUEST,
         message: "invalid player UUID".into(),
+        ..Default::default()
     })
 }
 
@@ -639,16 +696,19 @@ fn extract_track_id(headers: &axum::http::HeaderMap) -> Result<u16, ApiError> {
         .ok_or_else(|| ApiError {
             status: StatusCode::BAD_REQUEST,
             message: "missing X-DrawRace-Track header".into(),
+            ..Default::default()
         })?
         .to_str()
         .map_err(|_| ApiError {
             status: StatusCode::BAD_REQUEST,
             message: "invalid X-DrawRace-Track header".into(),
+            ..Default::default()
         })?;
 
     val.parse().map_err(|_| ApiError {
         status: StatusCode::BAD_REQUEST,
         message: "invalid track_id".into(),
+        ..Default::default()
     })
 }
 
@@ -658,11 +718,13 @@ fn extract_hmac(headers: &axum::http::HeaderMap) -> Result<String, ApiError> {
         .ok_or_else(|| ApiError {
             status: StatusCode::BAD_REQUEST,
             message: "missing X-DrawRace-ClientHMAC header".into(),
+            ..Default::default()
         })?
         .to_str()
         .map_err(|_| ApiError {
             status: StatusCode::BAD_REQUEST,
             message: "invalid X-DrawRace-ClientHMAC header".into(),
+            ..Default::default()
         })?;
 
     Ok(val.to_string())
@@ -752,5 +814,62 @@ mod tests {
             resp.headers().get("retry-after").unwrap().to_str().unwrap(),
             "60"
         );
+    }
+
+    #[tokio::test]
+    async fn api_error_with_retry_after_emits_header() {
+        // A rate-limit error returned as `Err(ApiError{ retry_after: Some(30), .. })`
+        // must surface a `Retry-After: 30` header on the response.
+        let err = ApiError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            message: "rate limit exceeded".into(),
+            retry_after: Some(30),
+        };
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            resp.headers()
+                .get("retry-after")
+                .expect("retry_after=Some must emit a Retry-After header")
+                .to_str()
+                .unwrap(),
+            "30"
+        );
+        // Body still carries the error message in the ApiError shape.
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["error"], "rate limit exceeded");
+    }
+
+    #[tokio::test]
+    async fn api_error_without_retry_after_omits_header() {
+        // A plain error (retry_after = None) must NOT carry a Retry-After header —
+        // non-rate-limit errors are unchanged in shape.
+        let err = ApiError {
+            status: StatusCode::BAD_REQUEST,
+            message: "blob too short".into(),
+            retry_after: None,
+        };
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        assert!(
+            resp.headers().get("retry-after").is_none(),
+            "non-rate-limit errors must not carry a Retry-After header"
+        );
+    }
+
+    #[tokio::test]
+    async fn api_error_default_spread_omits_header() {
+        // The backward-compat pattern used by every existing construction site —
+        // `ApiError { status, message, ..Default::default() }` — must produce no
+        // Retry-After header, preserving behavior for non-rate-limit errors.
+        let err = ApiError {
+            status: StatusCode::NOT_FOUND,
+            message: "not found".into(),
+            ..Default::default()
+        };
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        assert!(resp.headers().get("retry-after").is_none());
     }
 }
