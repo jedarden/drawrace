@@ -22,7 +22,7 @@
 # state and the exact unblock probe so the next retry can tell instantly
 # whether deployment has landed.
 #
-# LAST VERIFIED: 2026-07-26, 57th unblock probe from this box — byte-identical
+# LAST VERIFIED: 2026-07-26, 58th unblock probe from this box — byte-identical
 # to every prior probe today. Authoritative results:
 #
 #   * api-drawrace.ardenone.com  →  NXDOMAIN (getent exit 2, no output — the
@@ -46,9 +46,9 @@
 #     deploy there either.
 #   * ArgoCD RO proxy (argocd-ro-ardenone-manager-ts.ardenone.com:8444) lists NO
 #     drawrace Application — the backend was never GitOps-registered, so the empty
-#     `drawrace` namespace is by-omission, not a failed ArgoCD sync. (The proxy is
-#     frequently DNS-unreachable from this box; the namespace-level checks above
-#     are authoritative regardless of ArgoCD reachability.)
+#     `drawrace` namespace is by-omission, not a failed ArgoCD sync. The proxy was
+#     DNS-unreachable AGAIN this run (HTTP 000, exit 6); the namespace-level checks
+#     above are authoritative regardless of ArgoCD reachability.
 #
 # Kubeconfig inventory (/home/coding/.kube/): ardenone-manager-24h.kubeconfig
 # (fresh 24h cluster-admin token), iad-acb.kubeconfig, iad-ci.kubeconfig — but
@@ -61,7 +61,7 @@
 # blocker is the external nd-1fkb grant set (see DEPLOYMENT TRACKER below).
 #
 # RETRY HISTORY: this bead is the EXTERNALLY BLOCKED child of the bf-2ji9i split.
-# It has been probed 57 times on 2026-07-26 with a byte-identical blocked result
+# It has been probed 58 times on 2026-07-26 with a byte-identical blocked result
 # each time — deployment has not landed anywhere reachable. A read-only observer
 # here cannot obtain the DATABASE_URL/S3 creds because those credentials ARE the
 # nd-1fkb grant set (OpenBao token + cluster-admin on iad-acb + GarageBucket/
