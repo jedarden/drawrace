@@ -153,6 +153,29 @@
 #  which a read-only observer here cannot create); per task rule, NOT closed.
 #  Nothing further is actionable in-repo.]
 #
+# [bf-65pk8 retry #9, 2026-07-26: full unblock-probe checklist re-run AGAIN from
+#  this box — byte-identical to retry #8, 9th pass today. Confirmed this run:
+#  api-drawrace.ardenone.com NXDOMAIN (getent + curl exit 6 could-not-resolve);
+#  rs-manager `drawrace` ns `No resources found` for deploy/svc/secret, only
+#  `kube-root-ca.crt` cm (still 82d old); cnpg `cluster` still "server doesn't
+#  have a resource type" (observer SA RBAC-discovery-limited); `drawrace` ns
+#  NotFound on all 6 other reachable clusters (apexalgo-iad/ardenone-cluster/
+#  ardenone-manager/ord-devimprint/iad-kalshi/iad-options); iad-acb proxy still
+#  times out (Terminated); ArgoCD RO proxy still 0 drawrace Application matches;
+#  ardenone-manager-24h admin kc still NotFound for drawrace ns; kubeconfig
+#  inventory unchanged (ardenone-manager-24h + iad-acb + iad-ci; no rs-manager
+#  kc); offline self-check re-run → exit 0 (decode pipeline still green). In-
+#  workspace chain unchanged: bf-2ji9i (parent) `blocked`, bf-1kfun (sibling)
+#  `blocked`, bf-3iggr (child 2) `closed`; deployment epic (nd-1fkb/nd-xjnv/
+#  nd-639/bf-5ft) all "Bead not found" in this workspace (separate NEEDLE
+#  workspace). Deployment STILL not landed anywhere reachable; ALL acceptance
+#  criteria unmet (no Deployments + CloudNativePG Postgres + Secrets; no
+#  reachable DATABASE_URL/S3 cred; --prod cannot connect — a "working path" to
+#  document does not exist). Bead stays OPEN — externally blocked on the
+#  separate-NEEDLE-workspace epic nd-1fkb (the grant set IS the missing
+#  DATABASE_URL/S3 source, which a read-only observer here cannot create); per
+#  task rule, NOT closed. Nothing further is actionable in-repo.]
+#
 # Production drawrace is NOT deployed, so the literal "extract >=200 real
 # production ghosts" criterion cannot be satisfied today. There is NO working
 # connectivity path to document yet — this section records the blocked state
