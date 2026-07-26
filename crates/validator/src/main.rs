@@ -477,13 +477,12 @@ async fn update_submission_verdict(
     s3_key: &str,
 ) -> anyhow::Result<()> {
     // Fetch player_uuid for history tracking before updating verdict
-    let player_uuid: Option<Uuid> = sqlx::query_scalar(
-        "SELECT player_uuid FROM submissions WHERE submission_id = $1",
-    )
-    .bind(submission_id)
-    .fetch_optional(pool)
-    .await
-    .context("Failed to fetch player_uuid")?;
+    let player_uuid: Option<Uuid> =
+        sqlx::query_scalar("SELECT player_uuid FROM submissions WHERE submission_id = $1")
+            .bind(submission_id)
+            .fetch_optional(pool)
+            .await
+            .context("Failed to fetch player_uuid")?;
 
     let player_uuid = match player_uuid {
         Some(uuid) => uuid,
@@ -560,7 +559,8 @@ async fn update_submission_verdict(
             tx.commit().await?;
 
             // Track this submission in history
-            shadowban::record_submission_verdict(pool, player_uuid, submission_id, "accepted").await?;
+            shadowban::record_submission_verdict(pool, player_uuid, submission_id, "accepted")
+                .await?;
 
             // Track metrics
             crate::metrics::inc_accepted();
@@ -580,7 +580,8 @@ async fn update_submission_verdict(
             .await?;
 
             // Track this submission in history
-            shadowban::record_submission_verdict(pool, player_uuid, submission_id, "rejected").await?;
+            shadowban::record_submission_verdict(pool, player_uuid, submission_id, "rejected")
+                .await?;
 
             // Track metrics
             crate::metrics::inc_rejected();
