@@ -115,6 +115,15 @@ spec:
             dependencies: [e2e]
             when: "'{{workflow.parameters.mode}}' == 'nightly'"
 
+          # validator-chaos: the second nightly chaos job (plan.md §Testing 9) —
+          # kills the drawrace-validator pod and asserts the drawrace:validate
+          # queue drains with no lost submissions. Runs as a sibling of the api
+          # pod-kill chaos (different pod, ~18/min vs 500 RPS, so benign overlap).
+          - name: validator-chaos
+            template: validator-chaos-test
+            dependencies: [e2e]
+            when: "'{{workflow.parameters.mode}}' == 'nightly'"
+
           - name: device-matrix
             template: device-matrix
             dependencies: [e2e]
@@ -394,6 +403,64 @@ spec:
             # Run chaos test
             cd /workspace/load
             bash chaos-test.sh
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+      volumes:
+        - name: workspace
+          emptyDir: {}
+
+    # ── Validator chaos test template ───────────────────────────────────────────
+    # The second nightly chaos job (plan.md §Testing 9): kills the single
+    # drawrace-validator pod while submissions are generated, waits for a
+    # replacement pod to become Ready, then asserts the drawrace:validate Redis
+    # list drains with no permanently lost submissions. Driven by
+    # load/validator-chaos-test.sh + load/validator-chaos.js. Uses the same
+    # kubectl-proxy-over-Tailscale access to iad-acb as the api chaos test.
+    - name: validator-chaos-test
+      activeDeadlineSeconds: 900
+      container:
+        image: alpine/k8s-kubectl:v1.29.3
+        command: [sh, -c]
+        args:
+          - |
+            set -euo pipefail
+            # Install k6 + jq (jq is present in the k8s-kubectl image, k6 is not)
+            apk add --no-cache curl jq
+            curl -fsSL https://github.com/grafana/k6/releases/download/v0.54.0/k6-v0.54.0-linux-amd64.tar.gz | tar xvz -C /tmp
+            mv /tmp/k6-v0.54.0-linux-amd64/k6 /usr/local/bin/
+            k6 version
+            # Set environment
+            export API="https://api.drawrace.ardenone.com"
+            export HMAC_KEY="drawrace-dev-key-2026"
+            export NS="drawrace"
+            # Create minimal kubeconfig for iad-acb kubectl-proxy
+            mkdir -p ~/.kube
+            cat > ~/.kube/config <<EOF
+            apiVersion: v1
+            clusters:
+              - cluster:
+                  server: http://traefik-iad-acb:8001
+                  insecure-skip-tls-verify: true
+                name: iad-acb
+            contexts:
+              - context:
+                  cluster: iad-acb
+                  namespace: drawrace
+                name: iad-acb
+            current-context: iad-acb
+            EOF
+            export KUBECONF="$HOME/.kube/config"
+            # Run validator chaos test (pod-kill + queue-drain + no-loss assertion)
+            cd /workspace/load
+            bash validator-chaos-test.sh
         resources:
           requests:
             cpu: 500m
