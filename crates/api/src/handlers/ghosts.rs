@@ -21,6 +21,7 @@ pub async fn get_ghost(
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             message: format!("db error: {e}"),
+            ..Default::default()
         })?;
 
     let s3_key = match row {
@@ -29,6 +30,7 @@ pub async fn get_ghost(
             return Err(ApiError {
                 status: StatusCode::NOT_FOUND,
                 message: "ghost not found".into(),
+                ..Default::default()
             });
         }
     };
@@ -48,6 +50,7 @@ pub async fn get_ghost(
             ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "storage error".into(),
+                ..Default::default()
             }
         })?;
 

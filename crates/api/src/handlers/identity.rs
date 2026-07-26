@@ -29,6 +29,7 @@ pub async fn restore_identity(
         return Err(ApiError {
             status: StatusCode::BAD_REQUEST,
             message: "recovery phrase must be 4 words".into(),
+            ..Default::default()
         });
     }
 
@@ -37,6 +38,7 @@ pub async fn restore_identity(
             return Err(ApiError {
                 status: StatusCode::BAD_REQUEST,
                 message: format!("invalid recovery phrase word: {}", word),
+                ..Default::default()
             });
         }
     }
@@ -48,6 +50,7 @@ pub async fn restore_identity(
             ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "rate limit error".into(),
+                ..Default::default()
             }
         })?;
 
@@ -68,6 +71,7 @@ pub async fn restore_identity(
             return Err(ApiError {
                 status: StatusCode::TOO_MANY_REQUESTS,
                 message: "rate limit exceeded".into(),
+                ..Default::default()
             });
         }
     }
@@ -88,6 +92,7 @@ pub async fn restore_identity(
             .map_err(|e| ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: format!("db error: {e}"),
+                ..Default::default()
             })?;
 
     match player_uuid {
@@ -98,6 +103,7 @@ pub async fn restore_identity(
         None => Err(ApiError {
             status: StatusCode::NOT_FOUND,
             message: "no identity found for this recovery phrase".into(),
+            ..Default::default()
         }),
     }
 }

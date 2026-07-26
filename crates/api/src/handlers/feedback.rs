@@ -37,6 +37,7 @@ pub async fn post_feedback(
         return Err(ApiError {
             status: axum::http::StatusCode::BAD_REQUEST,
             message: "category must be bug, feature, or other".into(),
+            ..Default::default()
         });
     }
 
@@ -44,6 +45,7 @@ pub async fn post_feedback(
         return Err(ApiError {
             status: axum::http::StatusCode::BAD_REQUEST,
             message: "body must be 1-5000 characters".into(),
+            ..Default::default()
         });
     }
 
@@ -54,6 +56,7 @@ pub async fn post_feedback(
             ApiError {
                 status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 message: "rate limit error".into(),
+                ..Default::default()
             }
         })?;
         let rl_key = format!("rl:feedback:{}", uuid);
@@ -72,6 +75,7 @@ pub async fn post_feedback(
             return Err(ApiError {
                 status: axum::http::StatusCode::TOO_MANY_REQUESTS,
                 message: "rate limit exceeded".into(),
+                ..Default::default()
             });
         }
     }
@@ -92,6 +96,7 @@ pub async fn post_feedback(
         ApiError {
             status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             message: "db error".into(),
+            ..Default::default()
         }
     })?;
 

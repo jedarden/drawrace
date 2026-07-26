@@ -31,6 +31,7 @@ pub async fn post_redeem_invite(
         return Err(ApiError {
             status: axum::http::StatusCode::BAD_REQUEST,
             message: "code must be 1-32 characters".into(),
+            ..Default::default()
         });
     }
 
@@ -44,6 +45,7 @@ pub async fn post_redeem_invite(
     .map_err(|e| ApiError {
         status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let Some((_code, max_uses, current_uses)) = row else {
@@ -71,6 +73,7 @@ pub async fn post_redeem_invite(
             .map_err(|e| ApiError {
                 status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 message: format!("db error: {e}"),
+                ..Default::default()
             })?;
 
     if already_redeemed {
@@ -85,6 +88,7 @@ pub async fn post_redeem_invite(
     let mut tx = state.pool.begin().await.map_err(|e| ApiError {
         status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let updated = sqlx::query(
@@ -97,6 +101,7 @@ pub async fn post_redeem_invite(
     .map_err(|e| ApiError {
         status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     if updated.rows_affected() == 0 {
@@ -116,11 +121,13 @@ pub async fn post_redeem_invite(
         .map_err(|e| ApiError {
             status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             message: format!("db error: {e}"),
+            ..Default::default()
         })?;
 
     tx.commit().await.map_err(|e| ApiError {
         status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     metrics::counter!("drawrace_invite_redeem_total", "result" => "success").increment(1);
@@ -156,6 +163,7 @@ pub async fn get_invite_status(
             .map_err(|e| ApiError {
                 status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 message: format!("db error: {e}"),
+                ..Default::default()
             })?;
 
     Ok((

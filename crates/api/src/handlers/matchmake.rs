@@ -75,6 +75,7 @@ pub async fn get_matchmake(
             ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "rate limit error".into(),
+                ..Default::default()
             }
         })?;
         let rl_key = format!("rl:matchmake:{}", query.player_uuid);
@@ -97,6 +98,7 @@ pub async fn get_matchmake(
             return Err(ApiError {
                 status: StatusCode::TOO_MANY_REQUESTS,
                 message: "rate limit exceeded".into(),
+                ..Default::default()
             });
         }
     }
@@ -120,6 +122,7 @@ pub async fn get_matchmake(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let player_bucket = match player_row {
@@ -237,6 +240,7 @@ async fn fetch_ghosts_from_bucket(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let mut ghosts = Vec::with_capacity(rows.len());
@@ -274,6 +278,7 @@ async fn fetch_shadow_ghost(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     match row {
@@ -309,6 +314,7 @@ async fn presign_ghost(
             ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "storage error".into(),
+                ..Default::default()
             }
         })?;
 

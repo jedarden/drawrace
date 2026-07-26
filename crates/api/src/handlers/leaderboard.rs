@@ -75,6 +75,7 @@ pub async fn get_top(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let entries: Vec<LeaderboardEntry> = rows
@@ -114,6 +115,7 @@ pub async fn get_context(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let player_best_time = match player_best {
@@ -135,6 +137,7 @@ pub async fn get_context(
             .map_err(|e| ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: format!("db error: {e}"),
+                ..Default::default()
             })?;
             Some(rank)
         }
@@ -170,6 +173,7 @@ pub async fn get_context(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let entries: Vec<LeaderboardEntry> = rows

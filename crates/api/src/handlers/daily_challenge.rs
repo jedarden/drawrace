@@ -85,6 +85,7 @@ pub async fn get_daily_challenge(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let (track_id, grav, fric, mass) = if let Some(r) = row {
@@ -118,6 +119,7 @@ pub async fn get_daily_challenge(
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             message: format!("db error: {e}"),
+            ..Default::default()
         })?;
 
         (track_id, grav, fric, mass)
@@ -184,11 +186,13 @@ pub async fn get_daily_top(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let (track_id, grav, fric, mass) = challenge_row.ok_or_else(|| ApiError {
         status: StatusCode::NOT_FOUND,
         message: "No daily challenge found for this date".to_string(),
+        ..Default::default()
     })?;
 
     let rows: Vec<(Uuid, Option<String>, i32)> = sqlx::query_as(
@@ -206,6 +210,7 @@ pub async fn get_daily_top(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let entries: Vec<LeaderboardEntry> = rows
@@ -274,11 +279,13 @@ pub async fn get_daily_context(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let (track_id, grav, fric, mass) = challenge_row.ok_or_else(|| ApiError {
         status: StatusCode::NOT_FOUND,
         message: "No daily challenge found for this date".to_string(),
+        ..Default::default()
     })?;
 
     // Check if player has a PB on this daily challenge
@@ -293,6 +300,7 @@ pub async fn get_daily_context(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let player_best_time = match player_best {
@@ -313,6 +321,7 @@ pub async fn get_daily_context(
             .map_err(|e| ApiError {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 message: format!("db error: {e}"),
+                ..Default::default()
             })?;
             Some(rank)
         }
@@ -347,6 +356,7 @@ pub async fn get_daily_context(
     .map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("db error: {e}"),
+        ..Default::default()
     })?;
 
     let entries: Vec<LeaderboardEntry> = rows

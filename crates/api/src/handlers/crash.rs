@@ -40,6 +40,7 @@ pub async fn post_crash_report(
         return Err(ApiError {
             status: axum::http::StatusCode::BAD_REQUEST,
             message: "message must be 1-10000 characters".into(),
+            ..Default::default()
         });
     }
 
@@ -50,6 +51,7 @@ pub async fn post_crash_report(
             ApiError {
                 status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 message: "rate limit error".into(),
+                ..Default::default()
             }
         })?;
         let rl_key = format!("rl:crash:{}", uuid);
@@ -68,6 +70,7 @@ pub async fn post_crash_report(
             return Err(ApiError {
                 status: axum::http::StatusCode::TOO_MANY_REQUESTS,
                 message: "rate limit exceeded".into(),
+                ..Default::default()
             });
         }
     }
@@ -92,6 +95,7 @@ pub async fn post_crash_report(
         ApiError {
             status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             message: "db error".into(),
+            ..Default::default()
         }
     })?;
 
