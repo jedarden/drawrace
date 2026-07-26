@@ -2,6 +2,7 @@ mod champion;
 mod metrics;
 mod resim;
 mod seed_loader;
+mod shadowban;
 mod track;
 mod wasm_abi;
 mod wasm_loader;
@@ -556,24 +557,16 @@ async fn update_submission_verdict(
             .execute(&mut *tx)
             .await?;
 
-            // Track this submission in history
-            sqlx::query(
-                "INSERT INTO player_submission_history (player_uuid, submission_id, status)
-                 VALUES ($1, $2, 'accepted')
-                 ON CONFLICT (player_uuid, submission_id) DO NOTHING",
-            )
-            .bind(player_uuid)
-            .bind(submission_id)
-            .execute(&mut *tx)
-            .await?;
-
             tx.commit().await?;
+
+            // Track this submission in history
+            shadowban::record_submission_verdict(pool, player_uuid, submission_id, "accepted").await?;
 
             // Track metrics
             crate::metrics::inc_accepted();
 
             // Update shadowban status based on rolling rejection rate
-            update_shadowban_status(pool, player_uuid).await?;
+            shadowban::update_shadowban_status(pool, player_uuid).await?;
         }
         "rejected" => {
             sqlx::query(
@@ -587,15 +580,7 @@ async fn update_submission_verdict(
             .await?;
 
             // Track this submission in history
-            sqlx::query(
-                "INSERT INTO player_submission_history (player_uuid, submission_id, status)
-                 VALUES ($1, $2, 'rejected')
-                 ON CONFLICT (player_uuid, submission_id) DO NOTHING",
-            )
-            .bind(player_uuid)
-            .bind(submission_id)
-            .execute(pool)
-            .await?;
+            shadowban::record_submission_verdict(pool, player_uuid, submission_id, "rejected").await?;
 
             // Track metrics
             crate::metrics::inc_rejected();
@@ -609,7 +594,7 @@ async fn update_submission_verdict(
             }
 
             // Update shadowban status based on rolling rejection rate
-            update_shadowban_status(pool, player_uuid).await?;
+            shadowban::update_shadowban_status(pool, player_uuid).await?;
         }
         "quarantined" => {
             // Quarantined submissions are stored for human review.
@@ -636,100 +621,6 @@ async fn update_submission_verdict(
         }
         _ => {
             anyhow::bail!("Unknown verdict status: {}", verdict.status);
-        }
-    }
-
-    Ok(())
-}
-
-/// Update shadowban status based on rolling 50-submission rejection rate.
-///
-/// Shadowban policy: If a player's rejection rate exceeds 20% over the last
-/// 50 submissions, mark them as shadowbanned. Shadowbanned players' accepted
-/// submissions are still stored (to avoid revealing shadowban status) but
-/// excluded from leaderboard/matchmaking queries.
-async fn update_shadowban_status(pool: &PgPool, player_uuid: Uuid) -> anyhow::Result<()> {
-    // Get the last 50 submissions for this player
-    let recent_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM player_submission_history
-         WHERE player_uuid = $1",
-    )
-    .bind(player_uuid)
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
-
-    // Need at least 10 submissions to establish a rejection rate baseline
-    if recent_count < 10 {
-        return Ok(());
-    }
-
-    // Calculate rejection rate over last 50 submissions (or fewer if < 50 total)
-    let rejected_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM (
-            SELECT submission_id FROM player_submission_history
-            WHERE player_uuid = $1
-            ORDER BY created_at DESC
-            LIMIT 50
-        ) AS recent_submissions
-        WHERE status = 'rejected'",
-    )
-    .bind(player_uuid)
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
-
-    let window_size = recent_count.min(50);
-    let rejection_rate = (rejected_count as f64) / (window_size as f64);
-
-    // Shadowban threshold: 20% rejection rate
-    const SHADOWBAN_THRESHOLD: f64 = 0.20;
-
-    let should_be_shadowbanned = rejection_rate > SHADOWBAN_THRESHOLD;
-
-    // Check current shadowban status
-    let current_status: Option<bool> = sqlx::query_scalar(
-        "SELECT shadowbanned FROM players WHERE player_uuid = $1",
-    )
-    .bind(player_uuid)
-    .fetch_optional(pool)
-    .await
-    .context("Failed to fetch current shadowban status")?;
-
-    // Only update if status needs to change
-    match (current_status.unwrap_or(false), should_be_shadowbanned) {
-        (false, true) => {
-            // Mark as shadowbanned
-            sqlx::query("UPDATE players SET shadowbanned = true WHERE player_uuid = $1")
-                .bind(player_uuid)
-                .execute(pool)
-                .await?;
-
-            tracing::warn!(
-                player_uuid = %player_uuid,
-                rejection_rate = %rejection_rate,
-                rejected_count = %rejected_count,
-                window_size = %window_size,
-                "Player shadowbanned for exceeding 20% rejection rate"
-            );
-
-            metrics::inc_shadowban();
-        }
-        (true, false) => {
-            // Unban (rejection rate dropped below threshold)
-            sqlx::query("UPDATE players SET shadowbanned = false WHERE player_uuid = $1")
-                .bind(player_uuid)
-                .execute(pool)
-                .await?;
-
-            tracing::info!(
-                player_uuid = %player_uuid,
-                rejection_rate = %rejection_rate,
-                "Player unshadowbanned (rejection rate below threshold)"
-            );
-        }
-        _ => {
-            // Status unchanged, no action needed
         }
     }
 

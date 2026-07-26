@@ -4,6 +4,7 @@ pub mod champion;
 pub mod metrics;
 pub mod resim;
 pub mod seed_loader;
+pub mod shadowban;
 pub mod track;
 pub mod wasm_abi;
 pub mod wasm_loader;
