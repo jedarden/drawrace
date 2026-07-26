@@ -8,6 +8,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::blob::BlobHeader;
+use crate::ratelimit::check_rate_limit;
 use crate::AppState;
 
 #[derive(Debug, Serialize)]
@@ -47,8 +48,9 @@ pub struct ApiError {
     /// response (a non-negative integer of seconds, per RFC 7231) — used by
     /// rate-limit errors (plan §Multiplayer & Backend 7/8). `None` (the
     /// default) omits the header entirely. This lets rate-limit errors be
-    /// returned as `Err(ApiError{..})` uniformly instead of bypassing `ApiError`
-    /// via the private `rate_limited_response` builder.
+    /// returned as `Err(ApiError{..})` uniformly — set by every rate-limit call
+    /// site from the `retry_after_secs` of [`crate::ratelimit::check_rate_limit`]'s
+    /// [`RateLimitOutcome`](crate::ratelimit::RateLimitOutcome).
     pub retry_after: Option<u64>,
 }
 
@@ -128,33 +130,6 @@ pub const SUBMIT_RATE_LIMIT_PER_IP_MAX: i64 = 200;
 /// 500ms → 1s → 2s → 4s capped, which stays well under this budget.
 pub const POLL_RATE_LIMIT_MAX: i64 = 60;
 pub const POLL_RATE_LIMIT_WINDOW_SECS: i64 = 60;
-
-/// Seconds to tell a rate-limited client to wait before retrying. Uses the
-/// counter key's remaining TTL when available; falls back to the full window
-/// when the TTL is missing or non-positive (key absent, no expiry set, or the
-/// TTL lookup itself errored).
-fn retry_after_seconds(ttl_seconds: i64, window_seconds: i64) -> i64 {
-    if ttl_seconds > 0 {
-        ttl_seconds
-    } else {
-        window_seconds
-    }
-}
-
-/// Build the 429 Too Many Requests response carrying a `Retry-After` header
-/// (a non-negative integer of seconds, per RFC 7231). Extracted so the
-/// response shape is unit-testable without Redis.
-fn rate_limited_response(retry_after_secs: i64) -> axum::response::Response {
-    (
-        StatusCode::TOO_MANY_REQUESTS,
-        AppendHeaders([(
-            axum::http::header::RETRY_AFTER,
-            retry_after_secs.to_string(),
-        )]),
-        Json(serde_json::json!({ "error": "rate limit exceeded" })),
-    )
-        .into_response()
-}
 
 pub async fn post_submission(
     State(state): State<Arc<AppState>>,
@@ -238,15 +213,15 @@ pub async fn post_submission(
     }
 
     // Per-player-UUID AND per-source-IP *write* rate limits. Whichever trips
-    // first returns 429 + Retry-After (see [`rate_limited_response`]).
+    // first returns 429 + Retry-After (via the `check_rate_limit` primitive and
+    // `ApiError { retry_after: Some(..), .. }`).
     //
     // Runs after the cheap request validation (header/blob/HMAC/physics-version
     // checks above, which reject malformed or forged requests with 400/409
     // without any I/O) and before the first DB write, so that (a) rejected
     // requests don't burn a rate budget, and (b) ephemeral non-persisting
     // submissions (handled above) are exempt — these limit writes, not
-    // validation. This mirrors `handlers::names::post_name`'s INCR + EXPIRE
-    // block.
+    // validation. This mirrors `handlers::names::post_name`'s rate-limit block.
     {
         let mut conn = state.redis.get().await.map_err(|e| {
             tracing::error!(error = %e, "Redis pool get failed");
@@ -258,81 +233,61 @@ pub async fn post_submission(
         })?;
 
         // Per-UUID: at most SUBMIT_RATE_LIMIT_MAX persisted submissions per
-        // window, keyed on the authenticated player UUID.
-        let uuid_key = format!("rl:submit:{}", player_uuid);
-        let uuid_count: i64 = redis::cmd("INCR")
-            .arg(&uuid_key)
-            .query_async(&mut conn)
-            .await
-            .unwrap_or(0);
-
-        if uuid_count == 1 {
-            let _: () = redis::cmd("EXPIRE")
-                .arg(&uuid_key)
-                .arg(SUBMIT_RATE_LIMIT_WINDOW_SECS)
-                .query_async(&mut conn)
-                .await
-                .unwrap_or(());
-        }
-
-        if uuid_count > SUBMIT_RATE_LIMIT_MAX {
-            // Tell the client how long until the window resets. The key's TTL
-            // is the precise remaining time; fall back to the full window if
-            // the TTL is unavailable.
-            let ttl: i64 = redis::cmd("TTL")
-                .arg(&uuid_key)
-                .query_async(&mut conn)
-                .await
-                .unwrap_or(-1);
-            let retry_after = retry_after_seconds(ttl, SUBMIT_RATE_LIMIT_WINDOW_SECS);
+        // window, keyed on the authenticated player UUID
+        // (`rl:submit:{uuid}` — the primitive joins namespace + key with `:`).
+        let uuid_outcome = check_rate_limit(
+            &mut conn,
+            "rl:submit",
+            &player_uuid.to_string(),
+            SUBMIT_RATE_LIMIT_MAX,
+            SUBMIT_RATE_LIMIT_WINDOW_SECS,
+        )
+        .await;
+        if !uuid_outcome.allowed {
             metrics::counter!("drawrace_submissions_total", "outcome" => "rate_limited")
                 .increment(1);
-            return Ok(rate_limited_response(retry_after));
+            return Err(ApiError {
+                status: StatusCode::TOO_MANY_REQUESTS,
+                message: "rate limit exceeded".into(),
+                retry_after: Some(uuid_outcome.retry_after_secs),
+            });
         }
 
-        // Per-IP: at most SUBMIT_RATE_LIMIT_PER_IP_MAX persisted submissions
-        // per window from one TCP peer address. The key is the real TCP peer
-        // (`crate::ip::peer_ip`) — NEVER X-Forwarded-For / X-Real-IP /
-        // CF-Connecting-IP, which are attacker-controlled on this vhost (plan
-        // §Multiplayer & Backend 1). This bounds the aggregate write rate from
-        // a single host hiding behind many throwaway UUIDs.
-        //
-        // Staging-only bypass (plan §Multiplayer & Backend 8 Layer 2): when the
-        // request's TCP peer falls inside the allowlist, the per-IP INCR/check
-        // is skipped entirely so the k6 load-test runner can exceed the per-IP
-        // ceiling without self-tripping. The allowlist is empty in every
-        // non-staging deployment (production/development/unset), so in
-        // production `should_bypass` is always false and this guard never
-        // fires — the per-IP limit is always enforced. The bypass is per-IP
-        // ONLY: the per-UUID limit above still applies regardless.
         let peer = crate::ip::peer_ip(connect_info);
         if !state.rate_limit_bypass.should_bypass(&peer) {
-            let ip_key = format!("rl:submit:ip:{}", peer);
-            let ip_count: i64 = redis::cmd("INCR")
-                .arg(&ip_key)
-                .query_async(&mut conn)
-                .await
-                .unwrap_or(0);
-
-            if ip_count == 1 {
-                let _: () = redis::cmd("EXPIRE")
-                    .arg(&ip_key)
-                    .arg(SUBMIT_RATE_LIMIT_WINDOW_SECS)
-                    .query_async(&mut conn)
-                    .await
-                    .unwrap_or(());
-            }
-
-            if ip_count > SUBMIT_RATE_LIMIT_PER_IP_MAX {
-                let ttl: i64 = redis::cmd("TTL")
-                    .arg(&ip_key)
-                    .query_async(&mut conn)
-                    .await
-                    .unwrap_or(-1);
-                let retry_after = retry_after_seconds(ttl, SUBMIT_RATE_LIMIT_WINDOW_SECS);
+            // Per-IP: at most SUBMIT_RATE_LIMIT_PER_IP_MAX persisted submissions
+            // per window from one TCP peer address. The key is the real TCP peer
+            // (`crate::ip::peer_ip`) — NEVER X-Forwarded-For / X-Real-IP /
+            // CF-Connecting-IP, which are attacker-controlled on this vhost (plan
+            // §Multiplayer & Backend 1). The composite key `rl:submit:ip:{peer}`
+            // is reconstructed by the primitive from the `rl:submit:ip` namespace
+            // + peer key. This bounds the aggregate write rate from a single host
+            // hiding behind many throwaway UUIDs.
+            //
+            // Staging-only bypass (plan §Multiplayer & Backend 8 Layer 2): when the
+            // request's TCP peer falls inside the allowlist, the per-IP check is
+            // skipped entirely so the k6 load-test runner can exceed the per-IP
+            // ceiling without self-tripping. The allowlist is empty in every
+            // non-staging deployment (production/development/unset), so in
+            // production `should_bypass` is always false and this guard never
+            // fires — the per-IP limit is always enforced. The bypass is per-IP
+            // ONLY: the per-UUID limit above still applies regardless.
+            let ip_outcome = check_rate_limit(
+                &mut conn,
+                "rl:submit:ip",
+                &peer.to_string(),
+                SUBMIT_RATE_LIMIT_PER_IP_MAX,
+                SUBMIT_RATE_LIMIT_WINDOW_SECS,
+            )
+            .await;
+            if !ip_outcome.allowed {
                 metrics::counter!("drawrace_submissions_total", "outcome" => "rate_limited")
                     .increment(1);
-                return Ok(rate_limited_response(retry_after));
+                return Err(ApiError {
+                    status: StatusCode::TOO_MANY_REQUESTS,
+                    message: "rate limit exceeded".into(),
+                    retry_after: Some(ip_outcome.retry_after_secs),
+                });
             }
         }
     }
@@ -477,11 +432,12 @@ pub async fn get_submission(
     let player_uuid = extract_player_uuid(&headers)?;
 
     // Per-player-UUID *read* (poll) rate limit: 60 polls per 60s window, keyed
-    // `rl:poll:{player_uuid}`. Mirrors the `rl:submit:` INCR + EXPIRE pattern
-    // in `post_submission`, but for the read path (see [`POLL_RATE_LIMIT_MAX`]).
+    // `rl:poll:{player_uuid}`. Mirrors the `rl:submit:` rate-limit pattern in
+    // `post_submission`, but for the read path (see [`POLL_RATE_LIMIT_MAX`]).
     // This is the only read-path limit — per-IP is unnecessary here because the
     // heavy anti-abuse concern is the POST write path. Over the ceiling → 429 +
-    // `Retry-After` (see [`rate_limited_response`]).
+    // `Retry-After`. This path emits no `rate_limited` metric (the write path
+    // does) — it stays metric-free.
     //
     // Runs after the cheap header extraction (which 400s on a missing/invalid
     // player UUID with no I/O) and before the first Postgres lookup, so
@@ -497,33 +453,20 @@ pub async fn get_submission(
             }
         })?;
 
-        let poll_key = format!("rl:poll:{}", player_uuid);
-        let count: i64 = redis::cmd("INCR")
-            .arg(&poll_key)
-            .query_async(&mut conn)
-            .await
-            .unwrap_or(0);
-
-        if count == 1 {
-            let _: () = redis::cmd("EXPIRE")
-                .arg(&poll_key)
-                .arg(POLL_RATE_LIMIT_WINDOW_SECS)
-                .query_async(&mut conn)
-                .await
-                .unwrap_or(());
-        }
-
-        if count > POLL_RATE_LIMIT_MAX {
-            // Tell the client how long until the window resets. The key's TTL
-            // is the precise remaining time; fall back to the full window if
-            // the TTL is unavailable.
-            let ttl: i64 = redis::cmd("TTL")
-                .arg(&poll_key)
-                .query_async(&mut conn)
-                .await
-                .unwrap_or(-1);
-            let retry_after = retry_after_seconds(ttl, POLL_RATE_LIMIT_WINDOW_SECS);
-            return Ok(rate_limited_response(retry_after));
+        let poll_outcome = check_rate_limit(
+            &mut conn,
+            "rl:poll",
+            &player_uuid.to_string(),
+            POLL_RATE_LIMIT_MAX,
+            POLL_RATE_LIMIT_WINDOW_SECS,
+        )
+        .await;
+        if !poll_outcome.allowed {
+            return Err(ApiError {
+                status: StatusCode::TOO_MANY_REQUESTS,
+                message: "rate limit exceeded".into(),
+                retry_after: Some(poll_outcome.retry_after_secs),
+            });
         }
     }
 
@@ -775,46 +718,13 @@ mod tests {
         }
     }
 
-    #[test]
-    fn retry_after_seconds_uses_ttl_when_positive() {
-        assert_eq!(retry_after_seconds(45, 60), 45);
-        assert_eq!(retry_after_seconds(1, 60), 1);
-    }
-
-    #[test]
-    fn retry_after_seconds_falls_back_to_window_when_ttl_non_positive() {
-        // 0 = key just expired, -1 = no expiry set, -2 = key does not exist
-        assert_eq!(retry_after_seconds(0, 60), 60);
-        assert_eq!(retry_after_seconds(-1, 60), 60);
-        assert_eq!(retry_after_seconds(-2, 60), 60);
-    }
-
-    #[tokio::test]
-    async fn rate_limited_response_carries_429_and_retry_after() {
-        let resp = rate_limited_response(42);
-        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
-
-        let retry_after = resp
-            .headers()
-            .get("retry-after")
-            .expect("429 must carry a Retry-After header");
-        assert_eq!(retry_after.to_str().unwrap(), "42");
-
-        // Body matches the ApiError error shape.
-        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(json["error"], "rate limit exceeded");
-    }
-
-    #[tokio::test]
-    async fn rate_limited_response_retry_after_at_full_window() {
-        let resp = rate_limited_response(SUBMIT_RATE_LIMIT_WINDOW_SECS);
-        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_eq!(
-            resp.headers().get("retry-after").unwrap().to_str().unwrap(),
-            "60"
-        );
-    }
+    // Note: the `retry_after_seconds` pure-logic tests and the
+    // `rate_limited_response` shape tests used to live here. The retry-after
+    // logic now lives in `crate::ratelimit::retry_after_seconds` (covered by
+    // its own unit tests, child #1) and the 429 + Retry-After response shape is
+    // now exercised by the `ApiError { retry_after: Some(..) }` tests below
+    // (child #2), since the rate-limit handlers return `Err(ApiError{..})`
+    // rather than building the response inline.
 
     #[tokio::test]
     async fn api_error_with_retry_after_emits_header() {
