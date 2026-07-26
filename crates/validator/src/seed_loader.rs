@@ -160,11 +160,7 @@ pub async fn load_seed_pool(
             continue;
         }
 
-        tracing::info!(
-            "Loading {} seed ghosts for track {}...",
-            total,
-            track_id
-        );
+        tracing::info!("Loading {} seed ghosts for track {}...", total, track_id);
 
         let mut loaded = 0;
         for entry in blob_files {
@@ -203,7 +199,10 @@ pub async fn load_seed_pool(
     if total_loaded == 0 {
         tracing::warn!("No seed ghosts loaded from any track directory");
     } else {
-        tracing::info!("Loaded {} total seed ghosts across all tracks", total_loaded);
+        tracing::info!(
+            "Loaded {} total seed ghosts across all tracks",
+            total_loaded
+        );
     }
 
     Ok(())

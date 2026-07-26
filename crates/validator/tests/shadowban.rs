@@ -122,10 +122,11 @@ async fn shadowban_excludes_from_leaderboard_and_matchmake() -> Result<()> {
         .await?;
 
     // Verify the player is marked as shadowbanned
-    let is_shadowbanned: bool = sqlx::query_scalar("SELECT shadowbanned FROM players WHERE player_uuid = $1")
-        .bind(test_player_uuid)
-        .fetch_one(&pool)
-        .await?;
+    let is_shadowbanned: bool =
+        sqlx::query_scalar("SELECT shadowbanned FROM players WHERE player_uuid = $1")
+            .bind(test_player_uuid)
+            .fetch_one(&pool)
+            .await?;
 
     assert!(is_shadowbanned, "Test player should be shadowbanned");
 
@@ -189,13 +190,17 @@ async fn shadowban_excludes_from_leaderboard_and_matchmake() -> Result<()> {
 
     // None of the returned ghost_ids should belong to the shadowbanned player
     for (ghost_id,) in &top_ghosts {
-        let owner: Option<(Uuid,)> = sqlx::query_as("SELECT player_uuid FROM ghosts WHERE ghost_id = $1")
-            .bind(ghost_id)
-            .fetch_optional(&pool)
-            .await?;
+        let owner: Option<(Uuid,)> =
+            sqlx::query_as("SELECT player_uuid FROM ghosts WHERE ghost_id = $1")
+                .bind(ghost_id)
+                .fetch_optional(&pool)
+                .await?;
 
         if let Some((owner_uuid,)) = owner {
-            assert_ne!(owner_uuid, test_player_uuid, "Shadowbanned player's ghost should not appear in top leaderboard");
+            assert_ne!(
+                owner_uuid, test_player_uuid,
+                "Shadowbanned player's ghost should not appear in top leaderboard"
+            );
         }
     }
 
@@ -214,13 +219,17 @@ async fn shadowban_excludes_from_leaderboard_and_matchmake() -> Result<()> {
 
     // None of the returned ghost_ids should belong to the shadowbanned player
     for (ghost_id,) in &context_ghosts {
-        let owner: Option<(Uuid,)> = sqlx::query_as("SELECT player_uuid FROM ghosts WHERE ghost_id = $1")
-            .bind(ghost_id)
-            .fetch_optional(&pool)
-            .await?;
+        let owner: Option<(Uuid,)> =
+            sqlx::query_as("SELECT player_uuid FROM ghosts WHERE ghost_id = $1")
+                .bind(ghost_id)
+                .fetch_optional(&pool)
+                .await?;
 
         if let Some((owner_uuid,)) = owner {
-            assert_ne!(owner_uuid, test_player_uuid, "Shadowbanned player's ghost should not appear in context leaderboard");
+            assert_ne!(
+                owner_uuid, test_player_uuid,
+                "Shadowbanned player's ghost should not appear in context leaderboard"
+            );
         }
     }
 
@@ -246,13 +255,17 @@ async fn shadowban_excludes_from_leaderboard_and_matchmake() -> Result<()> {
 
     // None of the returned ghost_ids should belong to the shadowbanned player
     for (ghost_id,) in &matchmake_ghosts {
-        let owner: Option<(Uuid,)> = sqlx::query_as("SELECT player_uuid FROM ghosts WHERE ghost_id = $1")
-            .bind(ghost_id)
-            .fetch_optional(&pool)
-            .await?;
+        let owner: Option<(Uuid,)> =
+            sqlx::query_as("SELECT player_uuid FROM ghosts WHERE ghost_id = $1")
+                .bind(ghost_id)
+                .fetch_optional(&pool)
+                .await?;
 
         if let Some((owner_uuid,)) = owner {
-            assert_ne!(owner_uuid, test_player_uuid, "Shadowbanned player's ghost should not appear in matchmake results");
+            assert_ne!(
+                owner_uuid, test_player_uuid,
+                "Shadowbanned player's ghost should not appear in matchmake results"
+            );
         }
     }
 
@@ -393,7 +406,10 @@ async fn shadowban_unbans_when_rejection_rate_drops() -> Result<()> {
             .fetch_one(&pool)
             .await?;
 
-    assert!(!is_shadowbanned, "Player should be un-shadowbanned when rejection rate drops");
+    assert!(
+        !is_shadowbanned,
+        "Player should be un-shadowbanned when rejection rate drops"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM player_submission_history WHERE player_uuid = $1")
@@ -453,7 +469,10 @@ async fn shadowban_requires_minimum_submissions() -> Result<()> {
             .fetch_one(&pool)
             .await?;
 
-    assert!(!is_shadowbanned, "Player with <10 submissions should not be shadowbanned");
+    assert!(
+        !is_shadowbanned,
+        "Player with <10 submissions should not be shadowbanned"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM player_submission_history WHERE player_uuid = $1")
