@@ -25,6 +25,20 @@
 #  in-repo. Read-only observer here cannot obtain DATABASE_URL/S3 creds, which
 #  ARE the nd-1fkb grant set themselves.]
 #
+# [bf-65pk8 retry #2, 2026-07-26: full unblock-probe checklist re-run AGAIN from
+#  this box — byte-identical to acc18de. api-drawrace.ardenone.com NXDOMAIN
+#  (getent+curl), rs-manager `drawrace` ns still `No resources found` for
+#  deploy/svc/secret (only kube-root-ca.crt, now 82d), CloudNativePG `cluster`
+#  still RBAC-discovery-limited, all 6 other reachable clusters NotFound, ArgoCD
+#  RO proxy still empty body (no drawrace Application), ardenone-manager-24h
+#  admin kubeconfig exercised — still no drawrace ns, iad-acb proxy still
+#  times out. Kubeconfig inventory unchanged (ardenone-manager-24h + iad-acb +
+#  iad-ci; no rs-manager kc). Offline self-check re-run AGAIN → exit 0. Nothing
+#  changed since the prior run today; deployment STILL not landed. Bead stays
+#  OPEN — externally blocked on nd-1fkb; the grant set (OpenBao token +
+#  cluster-admin on iad-acb + GarageBucket/Key) is itself the missing
+#  DATABASE_URL/S3 source, which a read-only observer cannot create.]
+#
 # Production drawrace is NOT deployed, so the literal "extract >=200 real
 # production ghosts" criterion cannot be satisfied today. There is NO working
 # connectivity path to document yet — this section records the blocked state
