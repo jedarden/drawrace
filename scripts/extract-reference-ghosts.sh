@@ -39,6 +39,21 @@
 #  cluster-admin on iad-acb + GarageBucket/Key) is itself the missing
 #  DATABASE_URL/S3 source, which a read-only observer cannot create.]
 #
+# [bf-65pk8 retry #3, 2026-07-26: full unblock-probe checklist re-run AGAIN from
+#  this box — third pass today, byte-identical to retry #2. Confirmed this run:
+#  api-drawrace.ardenone.com NXDOMAIN (getent NXDOMAIN; curl exit 6 could-not-
+#  resolve; dig +short empty); rs-manager `drawrace` ns `No resources found`
+#  for deploy/svc/secret and only `kube-root-ca.crt` cm (still 82d old);
+#  CloudNativePG `cluster` still "server doesn't have a resource type" (observer
+#  SA RBAC-discovery-limited); `drawrace` ns NotFound on all 6 other reachable
+#  clusters (apexalgo-iad/ardenone-cluster/ardenone-manager/ord-devimprint/
+#  iad-kalshi/iad-options); ArgoCD RO proxy still no drawrace Application
+#  (empty body); offline self-check re-run → exit 0. The decode/validate
+#  pipeline stays green; the ONLY open blocker is still the external nd-1fkb
+#  grant set. Nothing actionable in-repo; acceptance criteria (Deployments +
+#  CloudNativePG Postgres + Secrets present, or a reachable DATABASE_URL/S3
+#  cred) remain unmet, so the bead stays OPEN — per task rule, NOT closed.]
+#
 # Production drawrace is NOT deployed, so the literal "extract >=200 real
 # production ghosts" criterion cannot be satisfied today. There is NO working
 # connectivity path to document yet — this section records the blocked state
