@@ -257,33 +257,44 @@ pub async fn post_submission(
         // CF-Connecting-IP, which are attacker-controlled on this vhost (plan
         // §Multiplayer & Backend 1). This bounds the aggregate write rate from
         // a single host hiding behind many throwaway UUIDs.
+        //
+        // Staging-only bypass (plan §Multiplayer & Backend 8 Layer 2): when the
+        // request's TCP peer falls inside the allowlist, the per-IP INCR/check
+        // is skipped entirely so the k6 load-test runner can exceed the per-IP
+        // ceiling without self-tripping. The allowlist is empty in every
+        // non-staging deployment (production/development/unset), so in
+        // production `should_bypass` is always false and this guard never
+        // fires — the per-IP limit is always enforced. The bypass is per-IP
+        // ONLY: the per-UUID limit above still applies regardless.
         let peer = crate::ip::peer_ip(connect_info);
-        let ip_key = format!("rl:submit:ip:{}", peer);
-        let ip_count: i64 = redis::cmd("INCR")
-            .arg(&ip_key)
-            .query_async(&mut conn)
-            .await
-            .unwrap_or(0);
-
-        if ip_count == 1 {
-            let _: () = redis::cmd("EXPIRE")
-                .arg(&ip_key)
-                .arg(SUBMIT_RATE_LIMIT_WINDOW_SECS)
-                .query_async(&mut conn)
-                .await
-                .unwrap_or(());
-        }
-
-        if ip_count > SUBMIT_RATE_LIMIT_PER_IP_MAX {
-            let ttl: i64 = redis::cmd("TTL")
+        if !state.rate_limit_bypass.should_bypass(&peer) {
+            let ip_key = format!("rl:submit:ip:{}", peer);
+            let ip_count: i64 = redis::cmd("INCR")
                 .arg(&ip_key)
                 .query_async(&mut conn)
                 .await
-                .unwrap_or(-1);
-            let retry_after = retry_after_seconds(ttl, SUBMIT_RATE_LIMIT_WINDOW_SECS);
-            metrics::counter!("drawrace_submissions_total", "outcome" => "rate_limited")
-                .increment(1);
-            return Ok(rate_limited_response(retry_after));
+                .unwrap_or(0);
+
+            if ip_count == 1 {
+                let _: () = redis::cmd("EXPIRE")
+                    .arg(&ip_key)
+                    .arg(SUBMIT_RATE_LIMIT_WINDOW_SECS)
+                    .query_async(&mut conn)
+                    .await
+                    .unwrap_or(());
+            }
+
+            if ip_count > SUBMIT_RATE_LIMIT_PER_IP_MAX {
+                let ttl: i64 = redis::cmd("TTL")
+                    .arg(&ip_key)
+                    .query_async(&mut conn)
+                    .await
+                    .unwrap_or(-1);
+                let retry_after = retry_after_seconds(ttl, SUBMIT_RATE_LIMIT_WINDOW_SECS);
+                metrics::counter!("drawrace_submissions_total", "outcome" => "rate_limited")
+                    .increment(1);
+                return Ok(rate_limited_response(retry_after));
+            }
         }
     }
 

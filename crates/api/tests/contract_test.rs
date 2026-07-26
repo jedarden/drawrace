@@ -21,8 +21,8 @@ use axum::Router;
 use drawrace_api::app;
 use drawrace_api::blob::{BlobHeader, GhostBlob, HEADER_SIZE};
 use drawrace_api::handlers::submissions::{
-    POLL_RATE_LIMIT_MAX, POLL_RATE_LIMIT_WINDOW_SECS, SUBMIT_RATE_LIMIT_PER_IP_MAX,
-    SUBMIT_RATE_LIMIT_WINDOW_SECS,
+    POLL_RATE_LIMIT_MAX, POLL_RATE_LIMIT_WINDOW_SECS, SUBMIT_RATE_LIMIT_MAX,
+    SUBMIT_RATE_LIMIT_PER_IP_MAX, SUBMIT_RATE_LIMIT_WINDOW_SECS,
 };
 use drawrace_api::hmac_mod;
 use sqlx::postgres::PgPoolOptions;
@@ -41,6 +41,19 @@ const TEST_PLAYER_B_UUID: &str = "660e8400-e29b-41d4-a716-446655440001";
 /// test, so this avoids duplicating ~50 lines between [`test_app`] and
 /// [`test_app_with_pool`].
 async fn make_state(pool: PgPool) -> Arc<drawrace_api::AppState> {
+    // Inert by default — mirrors production (non-staging). Tests that need the
+    // bypass active build state via `make_state_with_bypass`.
+    make_state_with_bypass(pool, drawrace_api::rate_limit_bypass::RateLimitBypass::empty()).await
+}
+
+/// Like [`make_state`], but with an explicit per-IP rate-limit bypass
+/// allowlist injected. Used by the bypass contract tests (section 13) to drive
+/// `post_submission`'s staging-only bypass path without touching the process
+/// environment.
+async fn make_state_with_bypass(
+    pool: PgPool,
+    rate_limit_bypass: drawrace_api::rate_limit_bypass::RateLimitBypass,
+) -> Arc<drawrace_api::AppState> {
     let redis_pool = deadpool_redis::Config::from_url("redis://127.0.0.1:6333")
         .create_pool(Some(deadpool_redis::Runtime::Tokio1))
         .expect("redis pool");
@@ -80,6 +93,7 @@ async fn make_state(pool: PgPool) -> Arc<drawrace_api::AppState> {
             boot_instant: std::time::Instant::now(),
         },
         metrics_handle,
+        rate_limit_bypass,
     })
 }
 
@@ -105,6 +119,20 @@ async fn test_app_with_peer(peer: SocketAddr) -> Router {
         .connect_lazy("postgres://test:test@localhost:5432/drawrace_test")
         .expect("pool");
     app::app(make_state(pool).await).layer(MockConnectInfo(peer))
+}
+
+/// Like [`test_app_with_peer`], but injects a specific per-IP rate-limit
+/// bypass allowlist into the app state. Used by the bypass tests (section 13)
+/// to exercise the staging-only bypass path against a chosen TCP peer.
+async fn test_app_with_bypass_peer(
+    peer: SocketAddr,
+    bypass: drawrace_api::rate_limit_bypass::RateLimitBypass,
+) -> Router {
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect_lazy("postgres://test:test@localhost:5432/drawrace_test")
+        .expect("pool");
+    app::app(make_state_with_bypass(pool, bypass).await).layer(MockConnectInfo(peer))
 }
 
 /// Build a test app with a specific PgPool (for tests that need DB setup/cleanup).
@@ -353,6 +381,10 @@ async fn golden_submission_rejects_physics_version_mismatch() {
             boot_instant: std::time::Instant::now(),
         },
         metrics_handle,
+        // Mirrors production: an inert (empty) bypass. This test asserts the
+        // 409 physics-version-mismatch path, which runs before rate limiting, so
+        // the bypass value is irrelevant here — but the field is required.
+        rate_limit_bypass: drawrace_api::rate_limit_bypass::RateLimitBypass::empty(),
     });
 
     // post_submission now requires `ConnectInfo<SocketAddr>` (it reads the TCP
@@ -1412,5 +1444,178 @@ async fn poll_rate_limit_61st_returns_429_with_retry_after() {
         resp.status(),
         StatusCode::TOO_MANY_REQUESTS,
         "a different player_uuid must have its own poll budget"
+    );
+}
+
+// ===========================================================================
+// 13. Staging-only per-IP rate-limit bypass (DRAWRACE_RATE_LIMIT_BYPASS_CIDR)
+// ===========================================================================
+//
+// Plan §Multiplayer & Backend 8 Layer 2: in staging only, an allowlist of CIDRs
+// lets matching TCP peers skip the per-IP submission limit (so the k6 runner
+// can ramp to 2000 RPS without self-tripping). The bypass is inert in every
+// non-staging deployment and affects per-IP only — per-UUID limits still apply.
+// These tests build the bypass via `from_env` to exercise the staging gate
+// end-to-end through `post_submission`'s guard.
+
+/// A TEST-NET-2 (198.51.100.0/24) peer used by all three bypass tests. It is
+/// inside the bypass CIDR when active and keeps these tests' per-IP counters
+/// isolated from the loopback keys the rest of the suite writes. Each test uses
+/// a distinct last octet so its per-IP counter never collides with another's.
+const BYPASS_CIDR: &str = "198.51.100.0/24";
+
+/// Acceptance criterion 1 — bypass ACTIVE in staging: with `DRAWRACE_ENV` ==
+/// "staging" and the source IP inside the bypass list, the per-IP limit is
+/// skipped, so requests beyond the per-IP ceiling are NOT rate-limited.
+#[tokio::test]
+#[ignore] // requires Redis (Postgres optional: under-limit requests may 500)
+async fn bypass_active_in_staging_skips_per_ip_limit() {
+    // staging + matching CIDR → non-empty allowlist that contains the peer.
+    let bypass = drawrace_api::rate_limit_bypass::RateLimitBypass::from_env(
+        Some("staging".into()),
+        Some(BYPASS_CIDR.into()),
+    );
+    assert!(!bypass.is_empty(), "staging + CIDR must populate the allowlist");
+    let peer: SocketAddr = ([198, 51, 100, 9], 0).into();
+    assert!(bypass.should_bypass(&peer.ip()));
+
+    let app = test_app_with_bypass_peer(peer, bypass).await;
+
+    // Fire BEYOND the per-IP ceiling, each from a FRESH UUID (so the per-UUID
+    // counter never reaches its 20/min ceiling — only the per-IP limiter could
+    // trip). With the bypass active none of these are 429; without it the very
+    // first over-ceiling request would be. Under-limit requests may 500 when
+    // Postgres/S3 are absent — that is fine, we only assert no 429.
+    for i in 0..(SUBMIT_RATE_LIMIT_PER_IP_MAX + 5) {
+        let uuid = Uuid::new_v4().to_string();
+        let body = make_test_blob(&uuid, 1);
+        let hmac = compute_hmac(&body);
+        let req = submission_request(&body, &uuid, 1, &hmac);
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_ne!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "bypassed per-IP request {}/{} in staging must NOT be rate-limited",
+            i + 1,
+            SUBMIT_RATE_LIMIT_PER_IP_MAX + 5,
+        );
+    }
+}
+
+/// Acceptance criterion 2 — bypass INERT in production: even with the CIDR var
+/// set AND the source IP inside it, `DRAWRACE_ENV=production` makes the bypass
+/// a no-op, so the per-IP limit still trips over the ceiling.
+#[tokio::test]
+#[ignore] // requires Redis (Postgres optional: under-limit requests may 500)
+async fn bypass_inert_in_production_still_trips_per_ip() {
+    // production + matching CIDR → empty allowlist (the CIDR var is ignored).
+    let bypass = drawrace_api::rate_limit_bypass::RateLimitBypass::from_env(
+        Some("production".into()),
+        Some(BYPASS_CIDR.into()),
+    );
+    assert!(bypass.is_empty(), "production must yield an empty allowlist");
+    let peer: SocketAddr = ([198, 51, 100, 10], 0).into();
+
+    let app = test_app_with_bypass_peer(peer, bypass).await;
+
+    // The first PER_IP_MAX requests (fresh UUID each, so per-UUID never trips)
+    // pass the per-IP limit.
+    for i in 0..SUBMIT_RATE_LIMIT_PER_IP_MAX {
+        let uuid = Uuid::new_v4().to_string();
+        let body = make_test_blob(&uuid, 1);
+        let hmac = compute_hmac(&body);
+        let req = submission_request(&body, &uuid, 1, &hmac);
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_ne!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "per-IP request {}/{} under the ceiling must not be rate-limited",
+            i + 1,
+            SUBMIT_RATE_LIMIT_PER_IP_MAX,
+        );
+    }
+
+    // The (PER_IP_MAX + 1)th from the same peer — fresh UUID, so only the
+    // per-IP limiter can trip — returns 429. Proves production makes the bypass
+    // inert even though the IP is inside the (ignored) CIDR.
+    let uuid = Uuid::new_v4().to_string();
+    let body = make_test_blob(&uuid, 1);
+    let hmac = compute_hmac(&body);
+    let req = submission_request(&body, &uuid, 1, &hmac);
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    let retry_after = resp
+        .headers()
+        .get("retry-after")
+        .expect("per-IP 429 must carry a Retry-After header");
+    let secs: i64 = retry_after
+        .to_str()
+        .unwrap()
+        .parse()
+        .expect("Retry-After must be a parseable integer of seconds");
+    assert!(secs > 0, "Retry-After must be positive, got {}", secs);
+    assert!(
+        secs <= SUBMIT_RATE_LIMIT_WINDOW_SECS,
+        "Retry-After must not exceed the {}s window, got {}",
+        SUBMIT_RATE_LIMIT_WINDOW_SECS,
+        secs
+    );
+}
+
+/// Acceptance criterion 3 — bypass affects per-IP ONLY: even with the bypass
+/// active and the source IP inside it, the per-UUID submission limit still
+/// fires. With the bypass in place the per-IP limiter cannot trip, so the only
+/// thing that can produce a 429 here is the per-UUID ceiling.
+#[tokio::test]
+#[ignore] // requires Redis (Postgres optional: under-limit requests may 500)
+async fn bypass_does_not_skip_per_uuid_limit() {
+    let bypass = drawrace_api::rate_limit_bypass::RateLimitBypass::from_env(
+        Some("staging".into()),
+        Some(BYPASS_CIDR.into()),
+    );
+    let peer: SocketAddr = ([198, 51, 100, 11], 0).into();
+    let app = test_app_with_bypass_peer(peer, bypass).await;
+
+    // A SINGLE fixed player UUID, so the per-UUID counter climbs toward its
+    // 20/min ceiling. The peer is bypassed, so per-IP can never trip — yet the
+    // 21st submission must still be 429, proving the bypass is per-IP only.
+    let player_uuid = Uuid::new_v4().to_string();
+    let body = make_test_blob(&player_uuid, 1);
+    let hmac = compute_hmac(&body);
+
+    for i in 0..SUBMIT_RATE_LIMIT_MAX {
+        let req = submission_request(&body, &player_uuid, 1, &hmac);
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_ne!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "submission {}/{} within the per-UUID window must not be rate-limited",
+            i + 1,
+            SUBMIT_RATE_LIMIT_MAX,
+        );
+    }
+
+    // The (MAX + 1)th from the SAME UUID (peer bypassed) → 429 from the
+    // per-UUID limit. The per-IP limit cannot be the cause: the bypass skips it.
+    let req = submission_request(&body, &player_uuid, 1, &hmac);
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    let retry_after = resp
+        .headers()
+        .get("retry-after")
+        .expect("per-UUID 429 must carry a Retry-After header");
+    let secs: i64 = retry_after
+        .to_str()
+        .unwrap()
+        .parse()
+        .expect("Retry-After must be a parseable integer of seconds");
+    assert!(secs > 0, "Retry-After must be positive, got {}", secs);
+    assert!(
+        secs <= SUBMIT_RATE_LIMIT_WINDOW_SECS,
+        "Retry-After must not exceed the {}s window, got {}",
+        SUBMIT_RATE_LIMIT_WINDOW_SECS,
+        secs
     );
 }

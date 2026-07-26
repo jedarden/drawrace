@@ -22,6 +22,9 @@ pub struct AppState {
     pub validator_cache: tokio::sync::RwLock<CachedValidator>,
     pub readiness: ReadinessState,
     pub metrics_handle: PrometheusHandle,
+    /// Staging-only per-IP rate-limit bypass allowlist. Inert (empty) in every
+    /// non-staging deployment; see [`crate::rate_limit_bypass`].
+    pub rate_limit_bypass: crate::rate_limit_bypass::RateLimitBypass,
 }
 
 /// Middleware that records HTTP request duration as a Prometheus histogram.

@@ -26,6 +26,10 @@ metrics = "0.24"
 metrics-exporter-prometheus = "0.16"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 rustrict = "0.7"
+# ipnet is already pulled in transitively (reqwest / metrics-exporter-prometheus);
+# declaring it directly costs no extra compilation and gives us `IpNet::contains`
+# for the staging-only per-IP rate-limit bypass (see `rate_limit_bypass`).
+ipnet = "2"
 
 [dev-dependencies]
 axum-test = "16"

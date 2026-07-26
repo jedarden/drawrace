@@ -47,6 +47,8 @@ async fn test_app() -> Router {
             boot_instant: std::time::Instant::now(),
         },
         metrics_handle,
+        // Mirrors production: an inert (empty) per-IP rate-limit bypass.
+        rate_limit_bypass: drawrace_api::rate_limit_bypass::RateLimitBypass::empty(),
     });
 
     app::app(state)
