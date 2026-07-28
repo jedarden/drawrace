@@ -22,7 +22,7 @@
 # state and the exact unblock probe so the next retry can tell instantly
 # whether deployment has landed.
 #
-# LAST VERIFIED: 2026-07-28, 69th unblock probe from this box — byte-identical
+# LAST VERIFIED: 2026-07-28, 70th unblock probe from this box — byte-identical
 # to every prior probe. Authoritative results:
 #
 #   * api-drawrace.ardenone.com  →  NXDOMAIN (getent exit 2, no output — the
@@ -61,7 +61,7 @@
 # blocker is the external nd-1fkb grant set (see DEPLOYMENT TRACKER below).
 #
 # RETRY HISTORY: this bead is the EXTERNALLY BLOCKED child of the bf-2ji9i split.
-# It has been probed 68 times across 2026-07-26–28 with a byte-identical blocked result
+# It has been probed 69 times across 2026-07-26–28 with a byte-identical blocked result
 # each time — deployment has not landed anywhere reachable. A read-only observer
 # here cannot obtain the DATABASE_URL/S3 creds because those credentials ARE the
 # nd-1fkb grant set (OpenBao token + cluster-admin on iad-acb + GarageBucket/
@@ -90,9 +90,9 @@
 #   3. GarageBucket/GarageKey creation (cannot verify without #2)
 # These docs estimated "1-2 business days"; 25 days have elapsed with no unblock.
 #
-# ── DEPENDENCY CHAIN (re-resolved this run, 2026-07-28) ─────────────────────
+# ── DEPENDENCY CHAIN (re-verified this run, 2026-07-28, probe 70) ────────────────
 #
-#   bf-65pk8  (THIS bead — prod connectivity)  ─► blocked on the external deploy
+#   bf-mw8ea  (THIS bead — prod connectivity)  ─► blocked on the external deploy
 #     ▲ blocks-on: bf-3iggr  ← now CLOSED. Child 2 locked the prod SQL +
 #       S3/DB env-var contract against the REAL ghosts schema (this header's
 #       DATABASE_URL / S3_* / AWS_* contract IS that child's deliverable).
@@ -164,7 +164,7 @@ if [ "$MODE" = "prod" ]; then
   if [ -z "${DATABASE_URL:-}" ]; then
     echo "extract-reference-ghosts: --prod requires DATABASE_URL (and S3 creds) in the env." >&2
     echo "  See the connectivity note at the top of this script — prod drawrace is" >&2
-    echo "  not deployed as of 2026-07-26, so there is nothing to extract yet." >&2
+    echo "  not deployed as of 2026-07-28, so there is nothing to extract yet." >&2
     echo "  Re-run with --self-check (the default) to verify the decode pipeline offline." >&2
     exit 2
   fi
