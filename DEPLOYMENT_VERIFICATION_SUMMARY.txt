@@ -1,0 +1,72 @@
+# Deployment Verification Summary for bf-2y0mc
+
+## Date: 2026-07-28
+
+## Status: ❌ ACCEPTANCE CRITERIA NOT MET
+
+The drawrace namespace on rs-manager EXISTS but is EMPTY.
+
+### What I Found
+
+**Namespace:** drawrace (created 2026-05-05, 84 days old)
+**Resources:** Only kube-root-ca.crt ConfigMap (auto-created)
+**Actual Resources:** NONE
+- No Deployments (drawrace-api, drawrace-validator)
+- No Services
+- No CloudNativePG Postgres cluster
+- No Secrets (DB credentials, S3 credentials)
+- No Redis
+- No IngressRoute
+
+### ArgoCD Status
+No drawrace application registered in ArgoCD on ardenone-manager.
+
+### Root Cause
+This is a **known, tracked blocker**:
+- **nd-1fkb** — BLOCKED: External Coordination Required (23+ days old)
+- Waiting for: OpenBao token, cluster-admin on iad-acb, GarageBucket permissions
+- The code side is 100% complete; blocked on infrastructure team action
+
+### What IS Working
+- ✅ Frontend: https://drawrace.pages.dev (Cloudflare Pages)
+- ✅ Fully functional PWA (verified on Pixel 6)
+- ✅ All code complete (Phases 0-5)
+- ✅ All tests passing
+
+### What is NOT Working
+- ❌ Backend API: api-drawrace.ardenone.com (NXDOMAIN)
+- ❌ No live leaderboard
+- ❌ No ghost submission/matchmaking
+
+## Bead Action: KEEP OPEN
+
+DO NOT CLOSE bf-2y0mc. Acceptance criteria are NOT met:
+- Namespace exists but contains NO actual resources
+- No Deployments, Postgres, Services, or Secrets present
+
+## Next Steps
+
+When nd-1fkb unblocks (infrastructure team provides credentials), re-run verification:
+
+```bash
+# Check DNS
+getent hosts api-drawrace.ardenone.com
+
+# Check API health
+curl -f https://api-drawrace.ardenone.com/v1/health
+
+# Check resources
+kubectl --server=http://traefik-rs-manager:8001 \
+  get deploy,svc,cluster.postgresql.cnpg.io,secrets -n drawrace
+
+# Check ArgoCD
+kubectl --server=http://traefik-ardenone-manager:8001 \
+  get applications.argoproj.io -n argocd | grep drawrace
+```
+
+Full report: DEPLOYMENT_VERIFICATION.md
+Blocker details: BLOCKER_SUMMARY.md, memory/drawrace-prod-deployment-blocked-nd-1fkb.md
+
+---
+
+**Task incomplete - external blocker remains active. Bead will auto-retry.**
