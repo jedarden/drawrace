@@ -1,5 +1,5 @@
 {
-  "extracted_at": "2026-07-26T18:16:08.594610417Z",
+  "extracted_at": "2026-07-28T19:45:07.892974701Z",
   "source": {
     "kind": "self-check (committed seed blobs) — NOT production",
     "database": "n/a (offline)",
@@ -20,7 +20,7 @@
   "decode_failures": [],
   "ghosts": [
     {
-      "ghost_id": "95177f41-d580-4c73-8bff-a1a32ad204f6",
+      "ghost_id": "5b6bbc60-f119-4b88-ab16-024aa2fafb62",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 25400,
@@ -106,7 +106,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "70eb6644-091c-4fb2-8b90-0255d3bd6121",
+      "ghost_id": "b41bae86-ffea-40bd-ac01-ae1563957e75",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 29800,
@@ -192,7 +192,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "18483f0b-a1a8-425b-a192-d06431f48683",
+      "ghost_id": "e574287a-4455-4553-9873-a26b039ee0c5",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 32100,
@@ -278,7 +278,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "5ff607b6-5b83-4034-ae16-2a2a5b60231f",
+      "ghost_id": "220cbb9f-f94c-46e1-8b80-a7a1dedd2888",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 33500,
@@ -364,7 +364,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "c6361ff4-9a58-4f1d-ac1a-23649d9a3600",
+      "ghost_id": "6e331351-7bc1-4f53-a99e-36d0cd192571",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 35200,
@@ -426,7 +426,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "c3c200fd-9abd-4f0e-a825-f81774006402",
+      "ghost_id": "08102c84-5200-416d-9a40-88648d2ceb7b",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 37800,
@@ -520,7 +520,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "efa7a6b8-054e-4379-b0d6-ae7d928f4e55",
+      "ghost_id": "40d09349-31e5-47c4-a663-99c16450cf61",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 40100,
@@ -606,7 +606,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "89d8e165-7aa4-42a7-8bc5-cd2492222078",
+      "ghost_id": "56f1d58c-7bbd-49d3-bf67-ff2d6db6b8a3",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 42600,
@@ -692,7 +692,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "0729bcc7-f0a9-4635-9120-75d0b085d90f",
+      "ghost_id": "eda7192c-ef5a-4175-be0c-28402b6da29b",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 44300,
@@ -762,7 +762,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "fbd0c2bb-f5ee-4db6-ac7e-16ddb10ea6ef",
+      "ghost_id": "6f9de890-e6a5-4ec5-8296-ad449f688e68",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 46900,
@@ -832,7 +832,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "9c20f448-29f3-4822-8006-d1223ee1658a",
+      "ghost_id": "61221c0c-bb25-4948-8c25-8a132244a5fa",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 49200,
@@ -902,7 +902,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "2d99aeaf-c95f-4a64-b4fe-77f7b3d676be",
+      "ghost_id": "504f5f16-b76b-45c1-8df1-7c72c877df5e",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 51700,
@@ -988,7 +988,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "2894699b-4ff4-4671-8765-a67206ea24b1",
+      "ghost_id": "a6519736-47c1-470c-8854-daa4f2fb509f",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 53400,
@@ -1074,7 +1074,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "a19b1a99-8147-4555-8bfb-efa674ca8c71",
+      "ghost_id": "4f145a4a-394c-4311-a7ba-104481456a8f",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 56100,
@@ -1160,7 +1160,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "22b6bea2-bce9-4789-928b-fd0cc114db49",
+      "ghost_id": "e0905535-39ea-4cd5-9fc4-bbf282a1bb8c",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 59800,
@@ -1222,7 +1222,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "c9e27416-bde2-4d18-9a04-f9764c6e57ba",
+      "ghost_id": "f68d804c-9a50-46d9-9a0d-5e9d31ed1200",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 63200,
@@ -1308,7 +1308,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "8dcc3fd1-db1e-4cd0-b784-176866016396",
+      "ghost_id": "4724a0f3-457a-4f87-b259-3ac1fb1d0c70",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 67500,
@@ -1386,7 +1386,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "56e9995a-cf12-4bdb-81d9-e147daafcd35",
+      "ghost_id": "b26b2768-6b04-45b6-a17e-db0809c19f59",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 72300,
@@ -1472,7 +1472,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "4d9346d9-95b5-4ea0-b084-00af3780fc86",
+      "ghost_id": "84886fcd-f730-4614-ade0-c582cc7db31d",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 78600,
@@ -1558,7 +1558,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "f1f58e6f-fb82-4298-994c-66c8590c9b2b",
+      "ghost_id": "1d8e382c-f097-4ba9-9b0e-1a52ae9883d0",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 85400,
@@ -1628,7 +1628,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "1795b02a-3082-4e48-9405-b7b03cd09d9e",
+      "ghost_id": "9a2e5cde-73fe-4336-a2e8-c3702c99aac5",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 92700,
@@ -1714,7 +1714,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "f2e3f78c-6d58-4ef3-9f76-d35fd0380c0a",
+      "ghost_id": "ab90ab3f-b3a0-4c5d-85a2-fd89e7e975e0",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 101600,
@@ -1800,7 +1800,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "dfcfdbb7-d292-40cb-8337-bfcbb8945138",
+      "ghost_id": "96afc0bc-6b8e-48fd-96d2-f0f84a699cb7",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 112000,
@@ -1862,7 +1862,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "8ea415a9-1027-48a2-b91a-7d1257925d78",
+      "ghost_id": "0b64b117-b292-4bea-b0e6-c8644c6f0471",
       "track_id": 1,
       "physics_version": 2,
       "time_ms": 124500,
@@ -1932,7 +1932,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "c3f30d2e-b0bb-49c3-acbf-9c4700e5fa42",
+      "ghost_id": "90c77dad-6663-4df5-93a4-31e7434c39da",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 27500,
@@ -2018,7 +2018,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "907523a6-af78-43c1-8d66-5f578259389c",
+      "ghost_id": "7ce920fd-3a20-4a3b-aca2-62d65b8714d8",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 32500,
@@ -2104,7 +2104,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "ba1edde1-4ff4-4770-8fff-b2087fa3bc9f",
+      "ghost_id": "c7ce8d75-0394-44f4-a712-c02d5dbae8a8",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 35000,
@@ -2190,7 +2190,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "dc537119-e802-44be-ad31-3df874a78370",
+      "ghost_id": "3668f39a-8ed2-4d66-89f5-7e3c7e338f0f",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 36500,
@@ -2276,7 +2276,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "eee04718-142d-4ae0-aee0-d3999a30e53e",
+      "ghost_id": "e6818fd3-1687-4b15-9fd4-5840c3c16e37",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 38000,
@@ -2338,7 +2338,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "3a33ffad-22bf-4ebb-9982-c295cfb668dc",
+      "ghost_id": "3a232f72-0c10-4fcd-b712-1b15f832bc81",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 39500,
@@ -2432,7 +2432,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "ccf4e08d-e67d-41ff-be01-785c999092c6",
+      "ghost_id": "74ae5ba6-c19d-4654-97b4-4f691c16895a",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 42500,
@@ -2518,7 +2518,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "ba5b652a-70a6-4715-84dd-1556ec0ccade",
+      "ghost_id": "46bf077c-afb4-4aba-9810-e0866c3bb162",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 44000,
@@ -2604,7 +2604,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "9cede9e2-d432-48a9-85fe-fc9db56d4afb",
+      "ghost_id": "0bac958f-cf12-412b-939b-3e87449e8e18",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 45500,
@@ -2674,7 +2674,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "29a7b0fb-5e53-4589-8c80-0a0e0d2b53dc",
+      "ghost_id": "6ad07baf-aafc-4e36-af7f-bd1ad34d4f09",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 47000,
@@ -2744,7 +2744,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "025447a8-6a70-4f22-adf4-aad2edc00afb",
+      "ghost_id": "c3753a95-8ba5-49cb-879d-2e952195afc1",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 48500,
@@ -2814,7 +2814,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "ad85b633-1643-42e5-8e7f-552c390237e8",
+      "ghost_id": "08eedcc0-4594-45bc-9c57-8717a26345af",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 50000,
@@ -2900,7 +2900,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "95375370-d8a0-41be-bfc7-2617e1940068",
+      "ghost_id": "a9fe79b8-2236-475d-a2c1-35e2899b241d",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 51500,
@@ -2986,7 +2986,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "c3156225-0634-4710-b4a2-a3105beaa8a0",
+      "ghost_id": "ddb99a4a-f734-41fa-9cd2-f839a7af140e",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 57499,
@@ -3072,7 +3072,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "6c8f8057-4793-45fc-a965-6017e5faf280",
+      "ghost_id": "48259518-1cb2-40d0-a4c2-f95de108a28c",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 59999,
@@ -3134,7 +3134,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "f9184726-75cb-423f-88c6-5f6a6dd535a5",
+      "ghost_id": "82719efd-2f1e-4fad-a822-4dc5bc2aec74",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 62499,
@@ -3220,7 +3220,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "d525ef49-e811-4914-a27d-4a03b8d20e36",
+      "ghost_id": "6a623694-e0d7-4290-b87b-837b72c19d96",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 64999,
@@ -3298,7 +3298,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "b00863cb-1cd8-4fb3-957b-45eccff72853",
+      "ghost_id": "be47a877-c8be-4767-87cb-f8c6cdfdcc6d",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 67499,
@@ -3384,7 +3384,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "2df10ece-9b65-4580-84c3-2764c2ce195b",
+      "ghost_id": "c4bcd081-f989-4e26-803b-34e17788a17f",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 69999,
@@ -3470,7 +3470,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "7d94ece1-69ba-4bc1-9c70-7e9dbf098d61",
+      "ghost_id": "dbf84dbb-b8b1-4fc2-94bd-2f2a3e5698af",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 72499,
@@ -3540,7 +3540,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "cd0dac7d-de47-443f-8c95-7fcd583f41ac",
+      "ghost_id": "35759065-d694-4520-bb6c-23992d9f6d77",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 74999,
@@ -3626,7 +3626,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "74aee102-1850-4726-9b3b-a33fd2c2c330",
+      "ghost_id": "d65434f6-2bf2-44ba-80b1-154b89bdbb23",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 77499,
@@ -3712,7 +3712,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "e5ce498a-0428-42cf-8c93-6d59749df965",
+      "ghost_id": "88a1fbba-4acb-481c-89de-02d8cd3564d4",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 79999,
@@ -3774,7 +3774,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "a1c2f4c9-2a32-40da-acf4-4b24caf069d1",
+      "ghost_id": "f805c137-3238-4720-9d5f-2d7415c6dee7",
       "track_id": 2,
       "physics_version": 8,
       "time_ms": 84999,
@@ -3844,7 +3844,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "f4ac7337-d818-4a47-8b03-4c55082d8dbe",
+      "ghost_id": "6c888877-48ff-4016-a2aa-aa5c75f7ed14",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 30250,
@@ -3930,7 +3930,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "5bc13fc1-09ea-4590-96d6-2a0080e31f9d",
+      "ghost_id": "7d2ae734-0495-426d-8c88-f015e0416d5d",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 35750,
@@ -4016,7 +4016,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "f6fd150d-104e-416e-a9a6-cedb2b6cce73",
+      "ghost_id": "a42d7af5-58cf-4e4c-b1f1-a1f5d4eeea7c",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 38500,
@@ -4102,7 +4102,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "ef7e4bc3-741d-4a75-9f11-22621093a2eb",
+      "ghost_id": "1b6d1336-6f66-4974-b8a3-6741cd9a988d",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 40150,
@@ -4188,7 +4188,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "3665b3ed-b62e-4c6b-8c97-e4adc97aa785",
+      "ghost_id": "90b27a84-6bab-4abf-8699-cb2903212db6",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 41800,
@@ -4250,7 +4250,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "d84834a8-9049-4282-bd6d-b82f1aa028aa",
+      "ghost_id": "06388a77-ce9b-47fe-8abc-def8a140da79",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 43450,
@@ -4344,7 +4344,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "5e8abfcd-5074-4616-927a-e4b945841799",
+      "ghost_id": "51f8d448-f4cb-470f-9524-49be188b556b",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 46750,
@@ -4430,7 +4430,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "32f96e8a-aa19-4703-9840-499e6180aa93",
+      "ghost_id": "9f6d7bab-fb7f-4a19-8a5d-56f394886f83",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 48400,
@@ -4516,7 +4516,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "7b6b1c90-6469-4d8b-a290-e57a19ee0282",
+      "ghost_id": "fba26aa3-3d3b-45ab-bd5c-34e84e2443e5",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 50050,
@@ -4586,7 +4586,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "2a75d58c-b63f-42d7-af89-f8de937d25a5",
+      "ghost_id": "95a0334d-b489-4f83-80ab-5b59b6c57c01",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 51700,
@@ -4656,7 +4656,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "c307f700-adfc-4333-b1c0-941474d616b4",
+      "ghost_id": "c6d8f5f5-0a13-4f5f-9317-2f5f3e59b607",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 53350,
@@ -4726,7 +4726,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "8082bf8f-7585-4e88-b32c-546988f28bde",
+      "ghost_id": "956d87b1-15f1-425d-82ea-54924bbe884c",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 55000,
@@ -4812,7 +4812,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "09aac66b-e955-4939-a4e9-536323875451",
+      "ghost_id": "9e04cc86-d5e8-4f06-a551-4fc0d7c983a7",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 56650,
@@ -4898,7 +4898,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "6d0e651f-a486-4a70-ac14-c9ffccd5fd88",
+      "ghost_id": "08359692-af93-479d-8eab-7304b8ca99da",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 63249,
@@ -4984,7 +4984,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "146bf726-757f-4110-a3d2-e6be5f062011",
+      "ghost_id": "77026a7e-661e-4cf8-95af-14feb101b6ce",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 65999,
@@ -5046,7 +5046,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "d9d83086-fef7-48ab-b4e8-02bccfdf7c0f",
+      "ghost_id": "72e64ddf-aa58-42f4-8c8a-ab5a5d95acf6",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 68749,
@@ -5132,7 +5132,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "b3ef0966-670e-4df9-a038-0fc563c2ec03",
+      "ghost_id": "27a39381-2cbd-47de-8a03-ed20744cc986",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 71499,
@@ -5210,7 +5210,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "0b9fc1cf-9d31-43c4-89c5-1c2cf73c6ddc",
+      "ghost_id": "e8c66778-9826-4127-a199-9f8f06d42c63",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 74249,
@@ -5296,7 +5296,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "bb9c096e-69a0-44ae-895f-b1791a5dfe61",
+      "ghost_id": "706c6246-d1da-4acd-9f54-165e589263ed",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 76999,
@@ -5382,7 +5382,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "1117a918-0f89-44bf-b8a1-f18a0265531e",
+      "ghost_id": "9a0d9eb9-be6c-4e2f-84ae-5335e7c5729c",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 79749,
@@ -5452,7 +5452,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "adbba4a8-9c74-49d7-b227-146786c4d454",
+      "ghost_id": "8e5b4a06-3715-4b04-b1ee-2ef2deb009f7",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 82499,
@@ -5538,7 +5538,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "56ff768a-bf0c-4747-85d8-f13ed2e255c3",
+      "ghost_id": "1914ec68-21b2-4360-a591-1bd974a0e99d",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 85249,
@@ -5624,7 +5624,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "f71cae53-bbcd-4f8d-bcb6-9f3e4fdefcf3",
+      "ghost_id": "4e53fd28-a422-43ea-97d5-2a35d72fdd7c",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 87999,
@@ -5686,7 +5686,7 @@
       "polygon_notes": []
     },
     {
-      "ghost_id": "84977b3f-50cb-4c88-ae17-7e26cca5fda5",
+      "ghost_id": "8c73ae69-c25d-4a42-98a0-8ac6672238f1",
       "track_id": 3,
       "physics_version": 8,
       "time_ms": 93499,
