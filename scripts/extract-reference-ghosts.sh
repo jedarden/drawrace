@@ -14,7 +14,7 @@
 # by `ghosts.s3_key`. Extraction is therefore (metadata row) × (blob fetch) ×
 # (blob decode), which is exactly what the underlying binary does.
 #
-# ── PRODUCTION CONNECTIVITY (STILL UNREACHABLE — last verified 2026-07-26) ──
+# ── PRODUCTION CONNECTIVITY (STILL UNREACHABLE — last verified 2026-07-28) ──
 #
 # Production drawrace is NOT deployed, so the literal "extract >=200 real
 # production ghosts" criterion cannot be satisfied today and there is NO
@@ -22,14 +22,14 @@
 # state and the exact unblock probe so the next retry can tell instantly
 # whether deployment has landed.
 #
-# LAST VERIFIED: 2026-07-26, 63rd unblock probe from this box — byte-identical
-# to every prior probe today. Authoritative results:
+# LAST VERIFIED: 2026-07-28, 64th unblock probe from this box — byte-identical
+# to every prior probe. Authoritative results:
 #
 #   * api-drawrace.ardenone.com  →  NXDOMAIN (getent exit 2, no output — the
 #     authoritative DNS signal; curl exit 6 could-not-resolve).
 #   * rs-manager `drawrace` ns  →  AUTHORITATIVELY EMPTY: `get deploy,svc,secret`
 #     → "No resources found", `get secrets -n drawrace` → "No resources found",
-#     `get cm` → only `kube-root-ca.crt` (auto-created, 82d old). No Deployments,
+#     `get cm` → only `kube-root-ca.crt` (auto-created, 84d old). No Deployments,
 #     no Services, no Pods, no Secrets → no DATABASE_URL source, no S3 creds.
 #   * CloudNativePG `cluster.postgresql.cnpg.io`  →  "server doesn't have a
 #     resource type 'cluster'" — the devpod-observer SA this box uses is RBAC-
@@ -61,7 +61,7 @@
 # blocker is the external nd-1fkb grant set (see DEPLOYMENT TRACKER below).
 #
 # RETRY HISTORY: this bead is the EXTERNALLY BLOCKED child of the bf-2ji9i split.
-# It has been probed 63 times on 2026-07-26 with a byte-identical blocked result
+# It has been probed 64 times across 2026-07-26–28 with a byte-identical blocked result
 # each time — deployment has not landed anywhere reachable. A read-only observer
 # here cannot obtain the DATABASE_URL/S3 creds because those credentials ARE the
 # nd-1fkb grant set (OpenBao token + cluster-admin on iad-acb + GarageBucket/
@@ -88,9 +88,9 @@
 #   2. cluster-admin (or scoped perms) on iad-acb (Namespace, CloudNativePG,
 #      Deployments, Services, Ingress, GarageBucket/GarageKey CRDs)
 #   3. GarageBucket/GarageKey creation (cannot verify without #2)
-# These docs estimated "1-2 business days"; 23 days have elapsed with no unblock.
+# These docs estimated "1-2 business days"; 25 days have elapsed with no unblock.
 #
-# ── DEPENDENCY CHAIN (re-resolved this run, 2026-07-26) ─────────────────────
+# ── DEPENDENCY CHAIN (re-resolved this run, 2026-07-28) ─────────────────────
 #
 #   bf-65pk8  (THIS bead — prod connectivity)  ─► blocked on the external deploy
 #     ▲ blocks-on: bf-3iggr  ← now CLOSED. Child 2 locked the prod SQL +
