@@ -22,7 +22,7 @@
 # state and the exact unblock probe so the next retry can tell instantly
 # whether deployment has landed.
 #
-# LAST VERIFIED: 2026-07-28, 67th unblock probe from this box — byte-identical
+# LAST VERIFIED: 2026-07-28, 68th unblock probe from this box — byte-identical
 # to every prior probe. Authoritative results:
 #
 #   * api-drawrace.ardenone.com  →  NXDOMAIN (getent exit 2, no output — the
@@ -61,7 +61,7 @@
 # blocker is the external nd-1fkb grant set (see DEPLOYMENT TRACKER below).
 #
 # RETRY HISTORY: this bead is the EXTERNALLY BLOCKED child of the bf-2ji9i split.
-# It has been probed 66 times across 2026-07-26–28 with a byte-identical blocked result
+# It has been probed 67 times across 2026-07-26–28 with a byte-identical blocked result
 # each time — deployment has not landed anywhere reachable. A read-only observer
 # here cannot obtain the DATABASE_URL/S3 creds because those credentials ARE the
 # nd-1fkb grant set (OpenBao token + cluster-admin on iad-acb + GarageBucket/
