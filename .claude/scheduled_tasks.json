@@ -9,6 +9,16 @@
       "createdBySessionId": "b4cd3a90-44bf-48f5-b7fe-490576368fd4",
       "createdByPid": 3009694,
       "createdByProcStart": "506018206"
+    },
+    {
+      "id": "77d12e9d",
+      "cron": "0 9 * * *",
+      "prompt": "Check if production drawrace deployment has landed by running /home/coding/drawrace/scripts/check-deployment-landed.sh. When deployment lands, update scripts/extract-reference-ghosts.sh header with the new state and close bead bf-9ypvb.",
+      "createdAt": 1785300575522,
+      "recurring": true,
+      "createdBySessionId": "abe8f4e2-e0a2-4d98-b2f0-9536756d9de1",
+      "createdByPid": 3035773,
+      "createdByProcStart": "506113322"
     }
   ]
 }
