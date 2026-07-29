@@ -1,0 +1,11 @@
+2026-07-29 04:59:04 UTC - Drawrace Production Deployment Monitor (Probe #85)
+Bead: bf-9ypvb
+Status: STILL BLOCKED - 0/4 checks passed
+
+[1/4] Deployments - FAIL: No Deployments found
+[2/4] CloudNativePG - FAIL: No Postgres cluster found (API timeout/permission denied)  
+[3/4] Secrets - FAIL: No Secrets found (except kube-root-ca.crt)
+[4/4] DNS - FAIL: api-drawrace.ardenone.com NXDOMAIN
+
+Automated monitoring: Enabled via cron (daily at 09:00 UTC)
+Next check: 2026-07-30 09:00 UTC
