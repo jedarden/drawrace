@@ -1,14 +1,14 @@
 {
   "tasks": [
     {
-      "id": "6d3da380",
+      "id": "34d7dab7",
       "cron": "0 9 * * *",
-      "prompt": "Check if drawrace production deployment has landed by running /home/coding/drawrace/scripts/check-deployment-landed.sh. If deployment is detected (exit code 0), notify immediately to unblock beads bf-65pk8 and bf-9ypvb.",
-      "createdAt": 1785295704088,
+      "prompt": "Run automated monitoring for production drawrace deployment (bead bf-9ypvb). Execute: cd /home/coding/drawrace && ./scripts/check-deployment-landed.sh. If all 4 checks pass (Deployments, CloudNativePG, Secrets, DNS), close the bead and update the unblock probe header.",
+      "createdAt": 1785298792816,
       "recurring": true,
-      "createdBySessionId": "0d684bbf-253d-40f1-844a-ef26d49231af",
-      "createdByPid": 2904497,
-      "createdByProcStart": "505626593"
+      "createdBySessionId": "1f0990d6-0bc5-4bd4-86e8-c3f86ae8cfe5",
+      "createdByPid": 2993599,
+      "createdByProcStart": "505952021"
     }
   ]
 }
