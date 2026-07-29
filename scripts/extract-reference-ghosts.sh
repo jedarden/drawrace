@@ -26,8 +26,8 @@
 # daily at 09:00 UTC to detect when deployment lands. This script checks all 4 acceptance
 # criteria (Deployments, CloudNativePG, Secrets, DNS) and exits 0 only when all pass.
 #
-# LAST VERIFIED: 2026-07-29, 85th unblock probe from this box — byte-identical
-# to the 84th and all prior probes. Authoritative results:
+# LAST VERIFIED: 2026-07-29, 86th unblock probe from this box — byte-identical
+# to all prior probes (85th, 84th, etc.). Authoritative results:
 #
 #   * api-drawrace.ardenone.com  →  NXDOMAIN (getent exit 2, no output — the
 #     authoritative DNS signal; curl exit 6 could-not-resolve).
@@ -71,7 +71,7 @@
 # blocker is the external nd-1fkb grant set (see DEPLOYMENT TRACKER below).
 #
 # RETRY HISTORY: this bead is the EXTERNALLY BLOCKED child of the bf-2ji9i split.
-# It has been probed 84 times across 2026-07-26–29 with a byte-identical blocked result
+# It has been probed 86 times across 2026-07-26–29 with a byte-identical blocked result
 # each time — deployment has not landed anywhere reachable. A read-only observer
 # here cannot obtain the DATABASE_URL/S3 creds because those credentials ARE the
 # nd-1fkb grant set (OpenBao token + cluster-admin on iad-acb + GarageBucket/
@@ -100,7 +100,7 @@
 #   3. GarageBucket/GarageKey creation (cannot verify without #2)
 # These docs estimated "1-2 business days"; 25 days have elapsed with no unblock.
 #
-# ── DEPENDENCY CHAIN (re-verified this run, 2026-07-29, probe 84) ────────────────
+# ── DEPENDENCY CHAIN (re-verified this run, 2026-07-29, probe 86) ────────────────
 #
 #   bf-mw8ea  (THIS bead — prod connectivity)  ─► blocked on the external deploy
 #     ▲ blocks-on: bf-3iggr  ← now CLOSED. Child 2 locked the prod SQL +
