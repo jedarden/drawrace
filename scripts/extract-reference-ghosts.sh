@@ -26,7 +26,7 @@
 # daily at 09:00 UTC to detect when deployment lands. This script checks all 4 acceptance
 # criteria (Deployments, CloudNativePG, Secrets, DNS) and exits 0 only when all pass.
 #
-# LAST VERIFIED: 2026-07-29, 79th unblock probe from this box — byte-identical
+# LAST VERIFIED: 2026-07-29, 80th unblock probe from this box — byte-identical
 # to every prior probe. Authoritative results:
 #
 #   * api-drawrace.ardenone.com  →  NXDOMAIN (getent exit 2, no output — the
