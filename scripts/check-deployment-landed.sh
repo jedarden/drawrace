@@ -46,14 +46,17 @@ echo
 
 # Check 2: CloudNativePG Postgres cluster
 echo -n "[2/4] Checking for CloudNativePG Postgres cluster... "
-POSTGRES=$(kubectl --server=http://traefik-rs-manager:8001 get cluster.postgresql.cnpg.io -n drawrace 2>&1)
+POSTGRES=$(timeout 10 kubectl --server=http://traefik-rs-manager:8001 get cluster.postgresql.cnpg.io -n drawrace 2>&1 || echo "TIMEOUT_OR_ERROR")
 if echo "$POSTGRES" | grep -q "drawrace" && ! echo "$POSTGRES" | grep -q "No resources found"; then
   echo -e "${GREEN}✓ PASS${NC}"
   echo "$POSTGRES"
   ((checks_passed++))
 else
   echo -e "${RED}✗ FAIL${NC}"
-  echo "       No CloudNativePG cluster found"
+  echo "       No CloudNativePG cluster found (or API timeout/permission denied)"
+  if echo "$POSTGRES" | grep -qi "timeout\|error\|cannot"; then
+    echo "       Note: postgresql.cnpg.io API may not be accessible via read-only proxy"
+  fi
 fi
 echo
 

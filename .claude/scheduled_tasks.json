@@ -19,6 +19,16 @@
       "createdBySessionId": "abe8f4e2-e0a2-4d98-b2f0-9536756d9de1",
       "createdByPid": 3035773,
       "createdByProcStart": "506113322"
+    },
+    {
+      "id": "6d0ac5d3",
+      "cron": "0 9 * * *",
+      "prompt": "Run the drawrace deployment landing check for bead bf-9ypvb. Execute /home/coding/drawrace/scripts/check-deployment-landed.sh and log results. When all 4 acceptance criteria pass (Deployments, CloudNativePG, Secrets, DNS), update the bead status.",
+      "createdAt": 1785301243801,
+      "recurring": true,
+      "createdBySessionId": "b06adb16-759e-4437-ace8-fdfae9e779bb",
+      "createdByPid": 3053163,
+      "createdByProcStart": "506161209"
     }
   ]
 }
