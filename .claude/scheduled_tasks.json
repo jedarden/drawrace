@@ -1,0 +1,14 @@
+{
+  "tasks": [
+    {
+      "id": "6d3da380",
+      "cron": "0 9 * * *",
+      "prompt": "Check if drawrace production deployment has landed by running /home/coding/drawrace/scripts/check-deployment-landed.sh. If deployment is detected (exit code 0), notify immediately to unblock beads bf-65pk8 and bf-9ypvb.",
+      "createdAt": 1785295704088,
+      "recurring": true,
+      "createdBySessionId": "0d684bbf-253d-40f1-844a-ef26d49231af",
+      "createdByPid": 2904497,
+      "createdByProcStart": "505626593"
+    }
+  ]
+}

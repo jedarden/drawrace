@@ -14,7 +14,7 @@
 # by `ghosts.s3_key`. Extraction is therefore (metadata row) × (blob fetch) ×
 # (blob decode), which is exactly what the underlying binary does.
 #
-# ── PRODUCTION CONNECTIVITY (STILL UNREACHABLE — last verified 2026-07-28) ──
+# ── PRODUCTION CONNECTIVITY (STILL UNREACHABLE — last verified 2026-07-29) ──
 #
 # Production drawrace is NOT deployed, so the literal "extract >=200 real
 # production ghosts" criterion cannot be satisfied today and there is NO
@@ -22,7 +22,11 @@
 # state and the exact unblock probe so the next retry can tell instantly
 # whether deployment has landed.
 #
-# LAST VERIFIED: 2026-07-28, 78th unblock probe from this box — byte-identical
+# AUTOMATED MONITORING: Bead bf-9ypvb runs /home/coding/drawrace/scripts/check-deployment-landed.sh
+# daily at 09:00 UTC to detect when deployment lands. This script checks all 4 acceptance
+# criteria (Deployments, CloudNativePG, Secrets, DNS) and exits 0 only when all pass.
+#
+# LAST VERIFIED: 2026-07-29, 79th unblock probe from this box — byte-identical
 # to every prior probe. Authoritative results:
 #
 #   * api-drawrace.ardenone.com  →  NXDOMAIN (getent exit 2, no output — the
@@ -37,7 +41,13 @@
 #     confirmatory on its own; the empty deploy/svc/secret checks above are
 #     authoritative.
 #   * No `drawrace` namespace on any other reachable cluster: apexalgo-iad,
-#     ardenone-cluster, ardenone-manager, ord-devimprint, iad-kalshi, iad-options
+#     ardenone-cluster, ardenone-manager, ord-devimprint, iad-kalshi, iad-options.
+#
+# MONITORING BEAD: bf-9ypvb tracks the unblock condition with automated daily
+# checks. When all 4 acceptance criteria pass, that bead will close and this header
+# will be updated with the working connectivity path.
+#
+# === END UNBLOCK PROBE ===
 #     all return NotFound. The ardenone-manager-24h admin kubeconfig
 #     (cluster-admin, direct) also returns NotFound for the drawrace ns.
 #   * iad-acb — the *intended* target cluster (see BLOCKER_SUMMARY.md) — its API
