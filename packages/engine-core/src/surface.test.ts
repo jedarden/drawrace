@@ -10,6 +10,10 @@ import {
   type SurfaceSegment,
 } from "./surface.js";
 
+// Reduce determinism run count locally for faster feedback, keep 100 runs in CI for thorough validation
+// See: docs/notes/vitest-timeout-investigation.md (nd-3ag7, nd-tooy)
+const DETERMINISM_RUN_COUNT = process.env.CI ? 100 : 20;
+
 // ---------------------------------------------------------------------------
 // parseSurfaces
 // ---------------------------------------------------------------------------
@@ -329,7 +333,7 @@ describe("createSurfaceContactFilter", () => {
 // ---------------------------------------------------------------------------
 
 describe("Surface determinism", () => {
-  it("produces identical streamHash across 100 runs on a multi-surface track", async () => {
+  it(`produces identical streamHash across ${DETERMINISM_RUN_COUNT} runs on a multi-surface track`, async () => {
     // Use the real hills-01 track with surfaces from JSON
     const track = {
       id: "surface-test",
@@ -366,7 +370,7 @@ describe("Surface determinism", () => {
     };
 
     const hashes: string[] = [];
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < DETERMINISM_RUN_COUNT; i++) {
       const result = createHeadlessRace({ seed: 42, track, wheel });
       hashes.push(result.streamHash);
     }
