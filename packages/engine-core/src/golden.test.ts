@@ -20,6 +20,10 @@ import { PHYSICS_VERSION } from "./version.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Reduce determinism run count locally for faster feedback, keep 100 runs in CI for thorough validation
+// See: docs/notes/vitest-timeout-investigation.md (nd-3ag7, nd-tooy)
+const DETERMINISM_RUN_COUNT = process.env.CI ? 100 : 20;
+
 const TEST_TRACK: TrackDef = {
   id: "hills-01",
   world: { gravity: [0, 10], pixelsPerMeter: 30 },
@@ -255,13 +259,13 @@ function captureWheelPositionAtTick(
 // ---------------------------------------------------------------------------
 
 describe("Physics golden (Layer 2) — single wheel", () => {
-  it("produces identical streamHash across 100 consecutive runs", () => {
+  it(`produces identical streamHash across ${DETERMINISM_RUN_COUNT} consecutive runs`, () => {
     const goldenFile = loadGoldens();
     const entry = goldenFile.goldens.find(isSingleWheel)!;
     expect(entry).toBeDefined();
 
     const results: string[] = [];
-    for (let _i = 0; _i < 100; _i++) {
+    for (let _i = 0; _i < DETERMINISM_RUN_COUNT; _i++) {
       const result = createHeadlessRace({
         seed: entry.seed,
         track: TEST_TRACK,
@@ -570,13 +574,13 @@ describe("Physics golden (Layer 2) — swap scenarios (legacy swaps.json)", () =
     expect(result.physicsVersion).toBe(entry.physicsVersion);
   });
 
-  it("produces identical streamHash across 100 runs for seeded 5-swap run", () => {
+  it(`produces identical streamHash across ${DETERMINISM_RUN_COUNT} runs for seeded 5-swap run`, () => {
     const swapFile = loadSwapGoldens();
     const entry = swapFile.swapGoldens.find((g) => g.id === "swap-5-determinism")!;
     expect(entry).toBeDefined();
 
     const hashes: string[] = [];
-    for (let _i = 0; _i < 100; _i++) {
+    for (let _i = 0; _i < DETERMINISM_RUN_COUNT; _i++) {
       hashes.push(
         runHeadless({ seed: entry.seed, track: TEST_TRACK, wheels: entry.wheels })
           .streamHash,
