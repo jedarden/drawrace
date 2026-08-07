@@ -96,7 +96,8 @@ spec:
     namespace: garage-operator
 
   # Secret name where S3 credentials will be stored
-  secretName: drawrace-postgres-backup-s3-credentials
+  # Must match the secret name referenced in postgres-cluster.yaml
+  secretName: drawrace-postgres-backup-s3
 
   # Bucket permissions
   bucketPermissions:
