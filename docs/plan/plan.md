@@ -488,7 +488,12 @@ Mid-race wheel swaps (§Gameplay 3) are also tick-indexed. At `pointerup` the cl
 
 ### 7. Difficulty & Progression
 
-**v1 shipped with three tracks** (`apps/web/public/tracks/hills-01.json`, `apps/web/public/tracks/canyon-02.json`, `apps/web/public/tracks/dunes-03.json`, wired into `apps/web/src/App.tsx`). Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded during v1 development (tracks shipped 2026-04) to give players more variety at launch.
+**Three tracks shipped in v1 (2026-04)** — All three tracks are live and wired into the app:
+- `apps/web/public/tracks/hills-01.json` (numeric_id: 1, "Scribble Slope")
+- `apps/web/public/tracks/canyon-02.json` (numeric_id: 2, "Canyon Run")
+- `apps/web/public/tracks/dunes-03.json` (numeric_id: 3, "Dune Drifter")
+
+Tracks are registered in `apps/web/src/App.tsx` and selectable via the track switcher on the Draw screen. Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded during v1 development to give players more variety at launch.
 
 **Post-v1 progression outline** — items shipped as of 2026-04/2026-05:
 
@@ -2931,7 +2936,12 @@ Deliverables:
 ### v1 Cut Line (explicit non-goals)
 
 Items explicitly **out** of v1 — do not scope-creep:
-- Multiple tracks ~~(one track launches; track 2 is the first post-v1 feature)~~ ✅ **SHIPPED 2026-04**: Three tracks shipped (`apps/web/public/tracks/hills-01.json`, `apps/web/public/tracks/canyon-02.json`, `apps/web/public/tracks/dunes-03.json`), wired into `apps/web/src/App.tsx`.
+
+- ~~Multiple tracks~~ **SHIPPED 2026-04**: Three tracks live in production:
+  - `apps/web/public/tracks/hills-01.json` (numeric_id: 1, "Scribble Slope")
+  - `apps/web/public/tracks/canyon-02.json` (numeric_id: 2, "Canyon Run")
+  - `apps/web/public/tracks/dunes-03.json` (numeric_id: 3, "Dune Drifter")
+  All three tracks are wired into `apps/web/src/App.tsx` and playable via the track switcher.
 - Accounts, login, password, email.
 - Real-time multiplayer ~~(architecture is ready; feature is not v1)~~ ✅ **SHIPPED 2026-05**: Live racing coordination service at `crates/live` with `Dockerfile.live` and `k8s/live-deployment.yaml`.
 - Custom car bodies / cosmetics ~~(basic cosmetic wheel trails shipped, full custom bodies pending)~~ ✅ **SHIPPED 2026-04**: Cosmetic wheel trails (`apps/web/src/Trails.ts`, progression system).
