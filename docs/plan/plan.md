@@ -489,11 +489,16 @@ Mid-race wheel swaps (§Gameplay 3) are also tick-indexed. At `pointerup` the cl
 ### 7. Difficulty & Progression
 
 **Three tracks shipped in v1 (2026-04)** — All three tracks are live and wired into the app:
-- `apps/web/public/tracks/hills-01.json` (numeric_id: 1, "Scribble Slope")
-- `apps/web/public/tracks/canyon-02.json` (numeric_id: 2, "Canyon Run")
-- `apps/web/public/tracks/dunes-03.json` (numeric_id: 3, "Dune Drifter")
 
-Tracks are registered in `apps/web/src/App.tsx` and selectable via the track switcher on the Draw screen. Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded during v1 development to give players more variety at launch.
+| Track | File | Numeric ID | Target Time | Length | Characteristics |
+|-------|------|------------|-------------|--------|-----------------|
+| **Scribble Slope** | `apps/web/public/tracks/hills-01.json` | 1 | 45s | 40m | Four-zone tutorial track. Zone A (0-8m): normal warmup flats. Zone B (8-18m): snow surface uphill climb with box obstacles. Zone C (18-28m): continued snow with bumpy terrain. Zone D (28-40m): water crossing followed by ramp and pit hazard finish. |
+| **Canyon Run** | `apps/web/public/tracks/canyon-02.json` | 2 | 50s | 40m | Five-zone canyon descent track. Zone A (0-8m): normal gentle warmup. Zone B (8-16m): mud surface downhill into a pit hazard canyon section. Zone C (16-24m): rock surface steep uphill ramp climb. Zone D (24-32m): ice surface technical section with three box obstacles. Zone E (32-40m): normal surface finish plateau. |
+| **Dune Drifter** | `apps/web/public/tracks/dunes-03.json` | 3 | 55s | 48m | Five-zone desert endurance track (longest of the three). Zone A (0-8m): normal warmup flats. Zone B (8-22m): water shallow crossing transitioning to normal dune terrain with central pit hazard. Zone C (22-30m): rock surface steep uphill ramp. Zone D (30-38m): ice surface technical section with three box obstacles. Zone E (38-48m): snow surface longest finish stretch. |
+
+All three tracks are registered in `apps/web/src/App.tsx` and selectable via the track switcher on the Draw screen. Player skill expression is in the wheel shape space, and the rank bucket matchmaking provides the progression signal. The original "single polished track" plan was expanded during v1 development to give players more variety at launch.
+
+**Track progression design:** Each track introduces distinct surface combinations and geometry challenges. `hills-01` serves as the tutorial track with clear zone transitions and forgiving terrain. `canyon-02` adds a mud descent and steep rock climb, testing wheel stability on downhill sections. `dunes-03` is the endurance test—longest distance, most surface type transitions, and the longest ice→snow finish sequence requiring late-race wheel swaps.
 
 **Post-v1 progression outline** — items shipped as of 2026-04/2026-05:
 
