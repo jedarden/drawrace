@@ -3,7 +3,7 @@
 /// This module loads the engine-core WASM module using the content-hash
 /// metadata file, verifies the physics_version export, and provides
 /// access to the WASM instance.
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::Deserialize;
 use std::path::PathBuf;
 use wasmtime::{Engine, Linker, Module, Store};
@@ -48,30 +48,32 @@ impl EngineCoreWasm {
             .join(&metadata.wasm_file);
 
         let wasm_bytes = std::fs::read(&wasm_path)
-            .with_context(|| format!("Failed to read WASM file: {}", wasm_path.display()))?;
+            .map_err(|e| anyhow::anyhow!("Failed to read WASM file: {}: {}", wasm_path.display(), e))?;
 
         let mut config = wasmtime::Config::new();
         config.wasm_simd(true);
         config.wasm_multi_memory(true);
 
-        let engine = Engine::new(&config).context("Failed to create WASM engine")?;
+        let engine = Engine::new(&config)
+            .map_err(|e| anyhow::anyhow!("Failed to create WASM engine: {}", e))?;
 
-        let module = Module::new(&engine, &wasm_bytes).context("Failed to load WASM module")?;
+        let module = Module::new(&engine, &wasm_bytes)
+            .map_err(|e| anyhow::anyhow!("Failed to load WASM module: {}", e))?;
 
         let mut store = Store::new(&engine, ());
         let linker = Linker::new(&engine);
         let instance = linker
             .instantiate(&mut store, &module)
-            .context("Failed to instantiate WASM module")?;
+            .map_err(|e| anyhow::anyhow!("Failed to instantiate WASM module: {}", e))?;
 
         // Get and verify physics_version export
         let physics_version_func = instance
             .get_typed_func::<(), u32>(&mut store, "physics_version")
-            .context("physics_version export not found")?;
+            .map_err(|e| anyhow::anyhow!("physics_version export not found: {}", e))?;
 
         let wasm_physics_version = physics_version_func
             .call(&mut store, ())
-            .context("physics_version call failed")?;
+            .map_err(|e| anyhow::anyhow!("physics_version call failed: {}", e))?;
 
         // Verify the physics version matches the metadata
         if wasm_physics_version != metadata.physics_version {
@@ -93,10 +95,10 @@ impl EngineCoreWasm {
     /// Read the metadata JSON file.
     fn read_metadata(path: &PathBuf) -> Result<EngineCoreMetadata> {
         let content = std::fs::read_to_string(path)
-            .with_context(|| format!("Failed to read metadata file: {}", path.display()))?;
+            .map_err(|e| anyhow::anyhow!("Failed to read metadata file: {}: {}", path.display(), e))?;
 
         let metadata: EngineCoreMetadata =
-            serde_json::from_str(&content).context("Failed to parse metadata JSON")?;
+            serde_json::from_str(&content).map_err(|e| anyhow::anyhow!("Failed to parse metadata JSON: {}", e))?;
 
         Ok(metadata)
     }
