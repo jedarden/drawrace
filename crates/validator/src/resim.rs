@@ -3,7 +3,7 @@
 /// This module loads the resim.wasm module and provides a high-level
 /// interface for running re-simulations with wheel swaps, track data,
 /// and reading deterministic results.
-use anyhow::{Context, Result};
+use anyhow::Result;
 use drawrace_api::blob::WheelEntry;
 use std::path::PathBuf;
 use wasmtime::{Engine, Linker, Module, Store};
@@ -25,11 +25,12 @@ impl ResimEngine {
         let wasm_path = Self::find_resim_path()?;
 
         let wasm_bytes = std::fs::read(&wasm_path)
-            .with_context(|| format!("Failed to read WASM file: {}", wasm_path.display()))?;
+            .map_err(|e| anyhow::anyhow!("Failed to read WASM file: {}: {}", wasm_path.display(), e))?;
 
         let config = wasmtime::Config::new();
 
-        let engine = Engine::new(&config).context("Failed to create WASM engine")?;
+        let engine = Engine::new(&config)
+            .map_err(|e| anyhow::anyhow!("Failed to create WASM engine: {}", e))?;
 
         let module = Module::new(&engine, &wasm_bytes).map_err(|e| {
             anyhow::anyhow!(
@@ -65,15 +66,15 @@ impl ResimEngine {
         let linker = Linker::new(&engine);
         let instance = linker
             .instantiate(&mut store, &module)
-            .context("Failed to instantiate WASM module")?;
+            .map_err(|e| anyhow::anyhow!("Failed to instantiate WASM module: {}", e))?;
 
         let physics_version_func = instance
             .get_typed_func::<(), u32>(&mut store, "physics_version")
-            .context("physics_version export not found")?;
+            .map_err(|e| anyhow::anyhow!("physics_version export not found: {}", e))?;
 
         let physics_version = physics_version_func
             .call(&mut store, ())
-            .context("physics_version call failed")?;
+            .map_err(|e| anyhow::anyhow!("physics_version call failed: {}", e))?;
 
         Ok(Self {
             engine,
@@ -155,12 +156,12 @@ impl ResimEngine {
         let linker = Linker::new(&self.engine);
         let instance = linker
             .instantiate(&mut store, &self.module)
-            .context("Failed to instantiate WASM module")?;
+            .map_err(|e| anyhow::anyhow!("Failed to instantiate WASM module: {}", e))?;
 
         // Get exported memory
         let memory = instance
             .get_memory(&mut store, "memory")
-            .context("memory export not found")?;
+            .ok_or_else(|| anyhow::anyhow!("memory export not found"))?;
 
         // Ensure memory is large enough
         let memory_size = memory.size(&store) * 65536; // pages to bytes
@@ -190,11 +191,11 @@ impl ResimEngine {
         // Get WASM functions
         let resim_init = instance
             .get_typed_func::<(), u32>(&mut store, "resim_init")
-            .context("resim_init export not found")?;
+            .map_err(|e| anyhow::anyhow!("resim_init export not found: {}", e))?;
 
         let resim_step = instance
             .get_typed_func::<(), u32>(&mut store, "resim_step")
-            .context("resim_step export not found")?;
+            .map_err(|e| anyhow::anyhow!("resim_step export not found: {}", e))?;
 
         // Initialize simulation
         let init_result = resim_init.call(&mut store, ())?;
@@ -248,12 +249,12 @@ impl ResimEngine {
         let linker = Linker::new(&self.engine);
         let instance = linker
             .instantiate(&mut store, &self.module)
-            .context("Failed to instantiate WASM module")?;
+            .map_err(|e| anyhow::anyhow!("Failed to instantiate WASM module: {}", e))?;
 
         // Get exported memory
         let memory = instance
             .get_memory(&mut store, "memory")
-            .context("memory export not found")?;
+            .ok_or_else(|| anyhow::anyhow!("memory export not found"))?;
 
         // Ensure memory is large enough
         let memory_size = memory.size(&store) * 65536;
@@ -283,11 +284,11 @@ impl ResimEngine {
         // Get WASM functions
         let resim_init = instance
             .get_typed_func::<(), u32>(&mut store, "resim_init")
-            .context("resim_init export not found")?;
+            .map_err(|e| anyhow::anyhow!("resim_init export not found: {}", e))?;
 
         let resim_step = instance
             .get_typed_func::<(), u32>(&mut store, "resim_step")
-            .context("resim_step export not found")?;
+            .map_err(|e| anyhow::anyhow!("resim_step export not found: {}", e))?;
 
         // Initialize simulation
         let init_result = resim_init.call(&mut store, ())?;
