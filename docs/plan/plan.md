@@ -2861,7 +2861,7 @@ Deliverables:
 
 **Exit criteria:** install PWA on a Pixel 6; draw an initial wheel; race; redraw the wheel at least once mid-race and observe the hot-swap; finish; see a finish time; retry. 60fps on Pixel 6; 30fps on a Redmi 9 class device (the targeted floor). `drawrace.pages.dev` resolves and serves the PWA. Phone-smoke (Layer 9) specifically exercises a multi-swap run.
 
-> **Status (2026-07-02):** Phase 1 complete with full mid-race redraw functionality. The mid-race redraw epic (drawrace-vgn.8) shipped and closed 2026-04-24 (see PROGRESS.md 'Mid-Race Wheel Redraw Pass (drawrace-vgn.8) — CLOSED'), bringing AWD twin-wheel hot-swap, zone-based terrain, and surface types to v1. All Phase 1 deliverables verified via phone-smoke on real Pixel 6 hardware.
+> **Status (2026-08-09):** Phase 1 complete with full mid-race redraw functionality. The mid-race redraw epic (drawrace-vgn.8) shipped and closed 2026-04-24 (see PROGRESS.md 'Mid-Race Wheel Redraw Pass (drawrace-vgn.8) — CLOSED'), bringing AWD twin-wheel hot-swap, zone-based terrain, and surface types to v1. All Phase 1 deliverables verified via phone-smoke on real Pixel 6 hardware.
 
 ---
 
