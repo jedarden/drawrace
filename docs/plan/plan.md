@@ -1674,7 +1674,7 @@ cd apps/web
 npx wrangler pages deploy dist/ --project-name=drawrace --branch=main
 ```
 
-This gets the Phase 1 MVP live immediately, before the Argo CI pipeline exists. The URL will be `drawrace.pages.dev` (or a custom domain once DNS is configured).
+This gets the Phase 1 MVP live immediately, before the Argo CI pipeline exists. The URL is `drawrace.pages.dev` (or a custom domain once DNS is configured).
 
 #### Step 5 — Custom domain (Phase 4+)
 
