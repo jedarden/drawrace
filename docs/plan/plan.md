@@ -78,7 +78,7 @@ Browser PWA ──► Rackspace Spot ingress (Traefik + cert-manager)
 
 Argo Workflows on iad-ci builds images → Docker Hub →
 ArgoCD on rs-manager syncs manifests from declarative-config → spot cluster
-```text
+```
 
 ### Key Constraints (binding)
 
