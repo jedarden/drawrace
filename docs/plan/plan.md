@@ -56,7 +56,7 @@ This plan synthesizes the following inputs (kept for reference):
 
 ### Topology at a Glance
 
-```
+```text
 Player phone
     │
     ▼
@@ -78,7 +78,7 @@ Browser PWA ──► Rackspace Spot ingress (Traefik + cert-manager)
 
 Argo Workflows on iad-ci builds images → Docker Hub →
 ArgoCD on rs-manager syncs manifests from declarative-config → spot cluster
-```
+```text
 
 ### Key Constraints (binding)
 
@@ -163,7 +163,7 @@ Total stroke travel is accumulated as Euclidean distance between consecutive raw
 
 On pointerup, test distance from the last sample to the first sample. The threshold scales with the bounding-box diagonal of the stroke so that small drawings have a proportionally tighter closure requirement:
 
-```
+```javascript
 closureThreshold = clamp(0.15 * bboxDiagonal, 20px, 60px)
 if distance(last, first) < closureThreshold:
     snap: append a copy of first as the last vertex
@@ -177,7 +177,7 @@ We always close the polygon — an "open" stroke is still treated as a closed sh
 
 We run `simplify-js` with `highQuality: true` (pure RDP, no radial prepass). Tolerance is adaptive to the stroke's scale:
 
-```
+```javascript
 tolerance = clamp(0.008 * bboxDiagonal, 1.5, 5.0)  // CSS pixels
 simplified = simplify(rawPoints, tolerance, /* highQuality */ true)
 ```
@@ -190,7 +190,7 @@ The axle is the area-weighted centroid of the simplified polygon, not the boundi
 
 **Pseudocode — full draw pipeline**
 
-```
+```javascript
 on pointerdown(e):
     canvas.setPointerCapture(e.pointerId)
     activePointerId = e.pointerId
@@ -249,7 +249,7 @@ We pay the cost of wiring poly-decomp-es ourselves — Matter's auto-integration
 
 Planck's `b2PolygonShape` requires a **convex polygon with ≤ 8 vertices per fixture**. We always route through decomposition rather than branching on convexity — it's cheaper to decompose a trivially-convex shape (returns one piece) than to maintain two codepaths.
 
-```
+```javascript
 verts = ensureCCW(bodyLocal)              // poly-decomp-es makeCCW
 pieces = quickDecomp(verts)               // array of convex sub-polygons
 if len(pieces) > 8:                       // cap for pathological concavity
