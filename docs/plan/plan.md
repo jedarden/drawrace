@@ -1746,7 +1746,7 @@ The architecture is already most of the way there:
 6. **Matchmaking upgrade.** The existing matchmaker gains a "live" mode: instead of returning 3 ghosts, it returns a `race_url` and puts the player in a waiting pool partitioned by bucket. After a timeout (say 8s), fill empty slots with ghosts from the same bucket — so the lobby never stalls. The same bucket taxonomy used by ghost matchmaking carries over unchanged.
 7. **Spot caveat.** Live racing is the one piece that cares about preemption. Mitigation: longer grace period (60s), drain open rooms before terminating, and for real scale we pin `drawrace-live` to an on-demand node pool while keeping everything else on spot. That's a scheduling change, not an architecture change.
 
-The v1 ghost system thus becomes the v2 "AI opponents / backfill" system, the binary replay format doubles as a live snapshot frame, and the physics WASM module that validates submissions is the same module that arbitrates live races. Nothing in v1 needs to be thrown away to support v2.
+The v1 ghost system is the v2 "AI opponents / backfill" system, the binary replay format doubles as a live snapshot frame, and the physics WASM module that validates submissions is the same module that arbitrates live races. Nothing in v1 requires throwing away to support v2.
 
 ---
 
@@ -2820,7 +2820,7 @@ The arc is: Layers 1–2 catch **99% of bugs in <1 minute**; Layers 3–6 catch 
 
 ## Roadmap & Delivery Plan
 
-A phased plan that trades speed for safety up front: the determinism harness (Phase 0) must land first because every downstream phase leans on it. Nothing ships to real users until Phase 4.
+A phased plan that trades speed for safety up front: the determinism harness (Phase 0) lands first because every downstream phase leans on it. Nothing ships to real users until Phase 4.
 
 Estimated wall-clock for a two-person team: **~10 weeks**. Solo: ~16 weeks.
 
