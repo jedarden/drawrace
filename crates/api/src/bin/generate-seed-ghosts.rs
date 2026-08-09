@@ -7,7 +7,7 @@
 use std::fs;
 use uuid::Uuid;
 
-const PHYSICS_VERSION: u8 = 2;
+const PHYSICS_VERSION: u8 = 8;
 const TRACK_ID: u16 = 1;
 const HEADER_SIZE: usize = 36;
 const SEED_PLAYER_UUID: &str = "00000000-0000-4000-8000-000000000001";
