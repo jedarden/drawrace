@@ -517,6 +517,24 @@ fn get_seeds(target_time_ms: u32) -> Vec<SeedGhost> {
             ],
         },
         SeedGhost {
+            name: "Shuffle",
+            time_ms: novice_base + novice_delta * 10,
+            vertices: &[
+                (0.70, 0.0),
+                (0.63, 0.35),
+                (0.35, 0.63),
+                (0.0, 0.70),
+                (-0.35, 0.63),
+                (-0.63, 0.35),
+                (-0.70, 0.0),
+                (-0.63, -0.35),
+                (-0.35, -0.63),
+                (0.0, -0.70),
+                (0.35, -0.63),
+                (0.63, -0.35),
+            ],
+        },
+        SeedGhost {
             name: "Dawdle",
             time_ms: novice_base + novice_delta * 11,
             vertices: &[
@@ -629,37 +647,100 @@ fn generate_stroke(vertices: &[(f64, f64)]) -> Vec<(i16, i16, u16)> {
     points
 }
 
+/// Parse track identifier from various input formats.
+fn parse_track_identifier(input: &str) -> u16 {
+    match input {
+        "hills-01" | "track_1" | "1" => 1,
+        "canyon-02" | "track_2" | "2" => 2,
+        "dunes-03" | "track_3" | "3" => 3,
+        other => {
+            // Try to parse as integer first
+            if let Ok(id) = other.parse::<u16>() {
+                if (1..=3).contains(&id) {
+                    id
+                } else {
+                    eprintln!("Error: track_id must be 1, 2, or 3, got {}", id);
+                    process::exit(1);
+                }
+            } else {
+                eprintln!("Error: unknown track '{}'. Use: hills-01, canyon-02, dunes-03, or track ID 1-3", other);
+                process::exit(1);
+            }
+        }
+    }
+}
+
+/// Get default target time for a track based on track metadata.
+fn get_default_target_time(track_id: u16) -> u32 {
+    match track_id {
+        1 => 38_000, // hills-01 target
+        2 => 50_000, // canyon-02 target
+        3 => 55_000, // dunes-03 target
+        _ => unreachable!(),
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
-        eprintln!("Usage: {} <TRACK_ID> [TARGET_TIME_MS]", args[0]);
-        eprintln!("\nExample: {} 2 50000", args[0]);
-        eprintln!("  (generates 25 seeds for track 2 with 50s target time)");
+        eprintln!("Usage: {} --track <TRACK_ID|TRACK_NAME> [TARGET_TIME_MS]", args[0]);
+        eprintln!("   OR:  {} <TRACK_ID|TRACK_NAME> [TARGET_TIME_MS]", args[0]);
+        eprintln!("\nExamples:");
+        eprintln!("  {} --track canyon-02 50000", args[0]);
+        eprintln!("  {} --track dunes-03", args[0]);
+        eprintln!("  {} --track_2 50000", args[0]);
+        eprintln!("  {} --track_3", args[0]);
+        eprintln!("  {} 2 50000            (legacy positional format)", args[0]);
+        eprintln!("  (generates 25 seeds for the specified track)");
         process::exit(1);
     }
 
-    let track_id: u16 = args[1]
-        .parse()
-        .map_err(|_| format!("Invalid track_id '{}': must be an integer", args[1]))?;
+    // Enhanced argument parsing supporting both --track flag and positional arguments
+    let (track_id, target_time_ms) = if args[1].starts_with("--track") {
+        // Handle --track format (supports both --track canyon-02 and --track_2)
+        let track_value = if args[1].starts_with("--track_") {
+            // --track_2 or --track_3 format (no space)
+            &args[1][8..] // Extract after --track_
+        } else if args[1].starts_with("--track=") {
+            // --track=canyon-02 format
+            &args[1][7..]
+        } else if args[1] == "--track" && args.len() >= 3 {
+            // --track 2 format (space-separated)
+            &args[2]
+        } else {
+            eprintln!("Error: --track requires a track identifier");
+            eprintln!("Use: --track canyon-02, --track dunes-03, --track_2, --track_3");
+            process::exit(1);
+        };
 
-    if !(1..=3).contains(&track_id) {
-        eprintln!("Error: track_id must be 1, 2, or 3, got {}", track_id);
-        process::exit(1);
-    }
+        let track_id = parse_track_identifier(track_value);
 
-    // Default target times based on track metadata
-    let target_time_ms: u32 = if args.len() >= 3 {
-        args[2]
-            .parse()
-            .map_err(|_| format!("Invalid target_time_ms '{}': must be an integer", args[2]))?
+        // Find the positional index for target time
+        let target_time_ms = if args.len() > 2 {
+            // Check if the last argument is a number (target time)
+            let last_arg = &args[args.len() - 1];
+            if last_arg.chars().all(|c| c.is_ascii_digit()) {
+                last_arg.parse()
+                    .map_err(|_| format!("Invalid target_time_ms '{}': must be an integer", last_arg))?
+            } else {
+                get_default_target_time(track_id)
+            }
+        } else {
+            get_default_target_time(track_id)
+        };
+
+        (track_id, target_time_ms)
     } else {
-        match track_id {
-            1 => 38_000, // hills-01 target
-            2 => 50_000, // canyon-02 target
-            3 => 55_000, // dunes-03 target
-            _ => unreachable!(),
-        }
+        // Legacy positional argument format
+        let track_id = parse_track_identifier(&args[1]);
+        let target_time_ms = if args.len() >= 3 {
+            args[2].parse()
+                .map_err(|_| format!("Invalid target_time_ms '{}': must be an integer", args[2]))?
+        } else {
+            get_default_target_time(track_id)
+        };
+        (track_id, target_time_ms)
     };
 
     println!("Generating seed ghost blob files for track {}...", track_id);
