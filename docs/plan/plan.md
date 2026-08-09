@@ -341,7 +341,7 @@ The table has two "feel levers" designers should touch first if playtesting come
 
 ### 5. Track Design Format
 
-Tracks are static JSON assets under `/public/tracks/`. The game reads a track manifest at boot and lazy-loads the selected track. No code change is required to add a track.
+Tracks are static JSON assets under `apps/web/public/tracks/`. The game reads a track manifest at boot and lazy-loads the selected track. No code change is required to add a track.
 
 ```json
 {
