@@ -542,10 +542,10 @@ spec:
             git config user.name "jedarden"
             git config user.email "github@jedarden.com"
 
-            # Commit and push
+            # Commit and push with authentication
             git add {{inputs.parameters.path}}/images.txt
             git diff --cached --quiet || git commit -m "drawrace: update images to ${SHA}"
-            git push
+            git push https://x-access-token:${GH_TOKEN}@github.com/jedarden/declarative-config
 
             echo "Updated declarative-config images.txt to git SHA ${SHA}"
         env:
