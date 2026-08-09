@@ -2964,8 +2964,8 @@ Items explicitly **out** of v1 — do not scope-creep:
 3. **Wheel constraints mode.** Convex-only, vertex-capped, diameter-capped.
 4. *(Removed — replay-as-input is already v1. Ghost blobs store `(seed, polygon, stroke, track_id, finish_time)` and both client and server re-simulate.)*
 5. ~~**Real-time live racing.**~~ ✅ **SHIPPED 2026-05**: Live race coordination service at `crates/live` with `Dockerfile.live` and `k8s/live-deployment.yaml`.
-6. ~~**Recovery phrase**~~ ✅ **SHIPPED**: Cross-device identity without accounts (`apps/web/src/recovery-phrase.ts`, `crates/api/migrations/010_recovery_phrase.sql`).
-7. ~~**Track editor.**~~ ✅ **SHIPPED**: Web-based polyline editor with community tracks and moderation (`apps/web/src/TrackEditor.tsx`, `apps/web/src/TrackModeration.tsx`, `crates/api/migrations/011_community_tracks.sql`, `crates/api/src/handlers/tracks.rs`).
+6. ~~**Recovery phrase**~~ ✅ **SHIPPED 2026-05-08**: Cross-device identity without accounts (`apps/web/src/recovery-phrase.ts`, `crates/api/migrations/010_recovery_phrase.sql`).
+7. ~~**Track editor.**~~ ✅ **SHIPPED 2026-06-10**: Web-based polyline editor with community tracks and moderation (`apps/web/src/TrackEditor.tsx`, `apps/web/src/TrackModeration.tsx`, `crates/api/migrations/011_community_tracks.sql`, `crates/api/src/handlers/tracks.rs`).
 8. ~~**Cosmetic wheel trails.**~~ ✅ **SHIPPED 2026-04**: Unlockable by total distance raced (`apps/web/src/Trails.ts`, progression system).
 9. **Native app wrappers** (optional): Capacitor or Expo over the same PWA. Only if install-friction data shows PWA install rates are poor.
 
