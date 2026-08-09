@@ -96,7 +96,7 @@ ArgoCD on rs-manager syncs manifests from declarative-config → spot cluster
 See [Roadmap & Delivery Plan](#roadmap--delivery-plan) for the phased plan. In short:
 
 1. **Phase 0 (1–2 wks):** Workspace scaffolding, engine-core extracted as a pure package, determinism harness in place. This must come first — every other layer depends on it.
-2. **Phase 1 (2–3 wks):** Drawing pipeline + single offline race against bundled tutorial ghosts. No backend yet. Ship to `dev.drawrace.example` (Cloudflare Pages preview).
+2. **Phase 1 (2–3 wks):** Drawing pipeline + single offline race against bundled tutorial ghosts. No backend yet. Deploys to `dev.drawrace.example` (Cloudflare Pages preview).
 3. **Phase 2 (2 wks):** Backend on Rackspace Spot: api + validator + storage. Submit/fetch ghosts over real HTTP. Matchmaking against seed ghosts.
 4. **Phase 3 (1–2 wks):** Visual polish pass (wobble, parallax, confetti, sound), accessibility audit, perf pass on Redmi 9-class devices.
 5. **Phase 4 (1 wk):** Beta with ~30 invited players to seed the leaderboard, anti-cheat dry-run, load test.
