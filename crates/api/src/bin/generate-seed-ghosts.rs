@@ -1,14 +1,79 @@
 //! Generate seed ghost blob files for the seed pool.
 //!
 //! This binary creates 25 ghost blob files covering all 5 buckets (elite, advanced,
-//! skilled, mid, novice) and saves them to seeds/track_1/ directory for bundling
+//! skilled, mid, novice) and saves them to seeds/track_<id>/ directory for bundling
 //! into the Docker image.
 
+use clap::Parser;
 use std::fs;
+use std::str::FromStr;
 use uuid::Uuid;
 
+/// Track identifier that can be parsed from either numeric IDs or string aliases
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TrackId {
+    Hills01,
+    Canyon02,
+    Dunes03,
+}
+
+impl TrackId {
+    /// Returns the numeric track ID
+    fn numeric_id(self) -> u16 {
+        match self {
+            TrackId::Hills01 => 1,
+            TrackId::Canyon02 => 2,
+            TrackId::Dunes03 => 3,
+        }
+    }
+
+    /// Returns the directory name for this track
+    fn dir_name(self) -> &'static str {
+        match self {
+            TrackId::Hills01 => "track_1",
+            TrackId::Canyon02 => "track_2",
+            TrackId::Dunes03 => "track_3",
+        }
+    }
+
+    /// Returns the string alias for this track
+    fn alias(self) -> &'static str {
+        match self {
+            TrackId::Hills01 => "hills-01",
+            TrackId::Canyon02 => "canyon-02",
+            TrackId::Dunes03 => "dunes-03",
+        }
+    }
+}
+
+impl FromStr for TrackId {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "1" | "hills-01" | "hills_01" => Ok(TrackId::Hills01),
+            "2" | "canyon-02" | "canyon_02" => Ok(TrackId::Canyon02),
+            "3" | "dunes-03" | "dunes_03" => Ok(TrackId::Dunes03),
+            _ => Err(format!(
+                "Invalid track identifier: '{}'. Valid options: 1, 2, 3, hills-01, canyon-02, dunes-03",
+                s
+            )),
+        }
+    }
+}
+
+/// Command-line arguments for generate-seed-ghosts
+#[derive(Parser, Debug)]
+#[command(name = "generate-seed-ghosts")]
+#[command(about = "Generate seed ghost blob files for the seed pool")]
+#[command(version)]
+struct Args {
+    /// Track identifier (1-3, or hills-01, canyon-02, dunes-03)
+    #[arg(short, long, default_value = "1")]
+    track: TrackId,
+}
+
 const PHYSICS_VERSION: u8 = 8;
-const TRACK_ID: u16 = 1;
 const HEADER_SIZE: usize = 36;
 const SEED_PLAYER_UUID: &str = "00000000-0000-4000-8000-000000000001";
 
@@ -525,7 +590,7 @@ const SEEDS: &[SeedGhost] = &[
 ];
 
 /// Encode a seed ghost into the DRGH binary format (v2 with wheels[]).
-fn encode_seed_blob(seed: &SeedGhost, submitted_at: i64) -> Vec<u8> {
+fn encode_seed_blob(seed: &SeedGhost, track_id: u16, submitted_at: i64) -> Vec<u8> {
     let vertex_count = seed.vertices.len() as u8;
     assert!(
         (8..=32).contains(&vertex_count),
@@ -549,7 +614,7 @@ fn encode_seed_blob(seed: &SeedGhost, submitted_at: i64) -> Vec<u8> {
     // Magic "DRGH"
     buf[0..4].copy_from_slice(b"DRGH");
     buf[4] = PHYSICS_VERSION;
-    buf[5..7].copy_from_slice(&TRACK_ID.to_le_bytes());
+    buf[5..7].copy_from_slice(&track_id.to_le_bytes());
     buf[7] = 0; // flags
     buf[8..12].copy_from_slice(&seed.time_ms.to_le_bytes());
     buf[12..20].copy_from_slice(&submitted_at.to_le_bytes());
@@ -617,10 +682,15 @@ fn generate_stroke(vertices: &[(f64, f64)]) -> Vec<(i16, i16, u16)> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Generating seed ghost blob files...");
+    let args = Args::parse();
+    let track_id = args.track.numeric_id();
+    let track_dir = args.track.dir_name();
+    let track_alias = args.track.alias();
+
+    println!("Generating seed ghost blob files for track: {} ({})...", track_alias, track_id);
 
     let workspace_root = std::env::current_dir()?;
-    let seeds_dir = workspace_root.join("seeds").join("track_1");
+    let seeds_dir = workspace_root.join("seeds").join(track_dir);
 
     // Create output directory
     fs::create_dir_all(&seeds_dir)?;
@@ -628,7 +698,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let now_millis = chrono::Utc::now().timestamp_millis();
 
     for (i, seed) in SEEDS.iter().enumerate() {
-        let blob = encode_seed_blob(seed, now_millis - (SEEDS.len() - i) as i64 * 1000);
+        let blob = encode_seed_blob(seed, track_id, now_millis - (SEEDS.len() - i) as i64 * 1000);
         let filename = format!("seed-{:03}.blob", i);
         let filepath = seeds_dir.join(&filename);
 
