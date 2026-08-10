@@ -3,6 +3,7 @@ import { processDraw, validateConstraints, type DrawResult, type Point, type Dra
 import { getHaptics } from "./Haptics.js";
 import { getSoundManager } from "./Sound.js";
 import { getDeterministicNow } from "./test-hooks.js";
+import { isOnline } from "./api-config.js";
 
 export interface StrokePoint extends Point {
   t: number;
@@ -34,6 +35,7 @@ export function DrawScreen({ onComplete, onOpenSettings, constraints, trackName,
   const [canRace, setCanRace] = useState(false);
   const [previewResult, setPreviewResult] = useState<DrawResult | null>(null);
   const [constraintViolation, setConstraintViolation] = useState<ConstraintViolation | null>(null);
+  const [online, setOnline] = useState(isOnline());
   const activeConstraints = useMemo(() => {
     const modes: string[] = [];
     if (constraints?.singleStroke) modes.push("Single-Stroke");
@@ -444,27 +446,38 @@ export function DrawScreen({ onComplete, onOpenSettings, constraints, trackName,
         </div>
       )}
       {!isDailyChallenge && onShowDailyChallenge && (
-        <button
-          onClick={() => {
-            sound.playUiTap();
-            haptics.uiTap();
-            onShowDailyChallenge();
-          }}
-          aria-label="Open daily challenge"
-          style={{
-            padding: "10px 20px",
-            fontSize: 14,
-            fontWeight: 600,
-            fontFamily: "inherit",
-            backgroundColor: "#4A7C59",
-            color: "#F4EAD5",
-            border: "2px solid #2B2118",
-            borderRadius: 8,
-            cursor: "pointer",
-          }}
-        >
-          Daily Challenge
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
+          <button
+            onClick={() => {
+              if (online) {
+                sound.playUiTap();
+                haptics.uiTap();
+                onShowDailyChallenge();
+              }
+            }}
+            disabled={!online}
+            aria-label={online ? "Open daily challenge" : "Daily challenge unavailable - needs connection"}
+            style={{
+              padding: "10px 20px",
+              fontSize: 14,
+              fontWeight: 600,
+              fontFamily: "inherit",
+              backgroundColor: online ? "#4A7C59" : "#6E5F48",
+              color: "#F4EAD5",
+              border: "2px solid #2B2118",
+              borderRadius: 8,
+              cursor: online ? "pointer" : "not-allowed",
+              opacity: online ? 1 : 0.6,
+            }}
+          >
+            Daily Challenge
+          </button>
+          {!online && (
+            <div style={{ fontSize: 12, color: "#6E5F48", fontStyle: "italic" }}>
+              needs connection
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
