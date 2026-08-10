@@ -226,7 +226,7 @@ export function encodeGhostForShare(input: GhostShareInput): string {
   for (const w of wheels) {
     wheelsSize += 4 + 1 + w.vertices.length * 4; // swap_tick + vertex_count + vertices
   }
-  const totalSize = 13 + wheelsSize; // 4+1+2+1+4+4+1 = 17 header, minus 4 for no uuid/timestamp, minus stroke data
+  const totalSize = 17 + wheelsSize; // 4+1+2+1+4+4+1 = 17 byte header, plus wheels data
 
   const buf = new ArrayBuffer(totalSize);
   const view = new DataView(buf);
