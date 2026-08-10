@@ -7,6 +7,7 @@ import { getHaptics } from "./Haptics.js";
 import { ensureRecoveryPhrase, wasRecoveryPhraseShown, markRecoveryPhraseShown, formatRecoveryPhrase } from "./recovery-phrase.js";
 import { encodeGhostForShare } from "./ghost-blob.js";
 import { PHYSICS_VERSION as PHYSICS_VERSION_VALUE } from "@drawrace/engine-core";
+import { QRCodeModal } from "./QRCodeModal.js";
 
 export function encodeWheelForShare(vertices: Array<{ x: number; y: number }>, trackId: number): string {
   const payload = { v: vertices.map(p => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]), t: trackId, pv: PHYSICS_VERSION_VALUE };
@@ -60,6 +61,7 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
   const [recoveryPhrase, setRecoveryPhrase] = useState<string[] | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [ghostShareCopied, setGhostShareCopied] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
   const handleShare = useCallback(() => {
     const encoded = encodeWheelForShare(wheelDraw.vertices, trackId);
@@ -120,6 +122,52 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
 
     getSoundManager().playUiTap();
     getHaptics().uiTap();
+  }, [trackId, finishTimeMs, raceSeed, swapLog]);
+
+  const handleShowQR = useCallback(() => {
+    if (raceSeed === undefined) return;
+
+    // Convert swap log from engine format to ghost-blob format
+    const wheels = swapLog.map(swap => ({
+      swapTick: swap.swap_tick,
+      vertices: swap.polygon.map(([x, y]) => ({ x, y })),
+    }));
+
+    const encoded = encodeGhostForShare({
+      trackId,
+      finishTimeMs,
+      seed: raceSeed,
+      wheels,
+    });
+
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("ghost", encoded);
+
+    setShowQR(true);
+    getSoundManager().playUiTap();
+    getHaptics().uiTap();
+  }, [trackId, finishTimeMs, raceSeed, swapLog]);
+
+  const ghostShareUrl = useMemo(() => {
+    if (raceSeed === undefined) return null;
+
+    const wheels = swapLog.map(swap => ({
+      swapTick: swap.swap_tick,
+      vertices: swap.polygon.map(([x, y]) => ({ x, y })),
+    }));
+
+    const encoded = encodeGhostForShare({
+      trackId,
+      finishTimeMs,
+      seed: raceSeed,
+      wheels,
+    });
+
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("ghost", encoded);
+    return url.toString();
   }, [trackId, finishTimeMs, raceSeed, swapLog]);
 
   const online = isOnline();
@@ -380,6 +428,26 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
         {ghostShareCopied ? "Challenge link copied!" : "Challenge a Friend"}
       </button>
 
+      <button
+        onClick={handleShowQR}
+        aria-label="Show QR code for this challenge"
+        disabled={!ghostShareUrl}
+        style={{
+          padding: "10px 32px",
+          fontSize: 16,
+          fontWeight: 600,
+          fontFamily: "inherit",
+          backgroundColor: "#6FA8C9",
+          color: "#2B2118",
+          border: "2px solid #2B2118",
+          borderRadius: 8,
+          cursor: ghostShareUrl ? "pointer" : "not-allowed",
+          opacity: ghostShareUrl ? 1 : 0.5,
+        }}
+      >
+        Show QR
+      </button>
+
       {online && (
         <button
           onClick={() => {
@@ -527,6 +595,18 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
             </div>
           </div>
         </div>
+      )}
+
+      {/* QR Code modal */}
+      {showQR && ghostShareUrl && (
+        <QRCodeModal
+          url={ghostShareUrl}
+          onClose={() => {
+            getSoundManager().playUiTap();
+            getHaptics().uiTap();
+            setShowQR(false);
+          }}
+        />
       )}
     </div>
   );
