@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { fetchDailyChallenge, fetchDailyGhosts, type DailyChallengeResponse, type GhostData } from "./api.js";
+import { fetchDailyChallenge, fetchDailyGhosts, isOnline, type DailyChallengeResponse, type GhostData } from "./api.js";
 import type { ChallengeModifiers } from "@drawrace/engine-core";
 
 interface DailyChallengeScreenProps {
@@ -40,6 +40,7 @@ export function DailyChallengeScreen({ onStart, onBack }: DailyChallengeScreenPr
   const [ghosts, setGhosts] = useState<GhostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(getTimeUntilNextChallenge());
+  const online = isOnline();
 
   useEffect(() => {
     let cancelled = false;
@@ -124,9 +125,18 @@ export function DailyChallengeScreen({ onStart, onBack }: DailyChallengeScreenPr
           fontFamily: '"Caveat", "Patrick Hand", "Comic Sans MS", cursive, system-ui, sans-serif',
           color: "#2B2118",
           gap: 16,
+          padding: 24,
+          boxSizing: "border-box",
         }}
       >
-        <div style={{ fontSize: 32, fontWeight: "bold" }}>Daily Challenge Unavailable</div>
+        <div style={{ fontSize: 32, fontWeight: "bold", textAlign: "center" }}>
+          Daily Challenge Unavailable
+        </div>
+        <div style={{ fontSize: 16, color: "#6E5F48", textAlign: "center", maxWidth: 320 }}>
+          {online
+            ? "No daily challenge is configured for today. Check back soon!"
+            : "Daily Challenge requires backend servers. This build is running in offline mode."}
+        </div>
         <button
           onClick={onBack}
           aria-label="Go back to main menu"
