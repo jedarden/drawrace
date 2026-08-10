@@ -96,8 +96,9 @@ export function App() {
     return 0;
   });
 
-  // Physics version mismatch warning
+  // Physics version mismatch warnings
   const [versionMismatch, setVersionMismatch] = useState<{ show: boolean; fromVersion?: number } | null>(null);
+  const [ghostVersionMismatch, setGhostVersionMismatch] = useState<{ show: boolean; fromVersion?: number } | null>(null);
 
   // Race run index and seed
   const [runIndex, setRunIndex] = useState(0);
@@ -241,7 +242,7 @@ export function App() {
         `Ghost was recorded with physics version ${physicsVersion}, ` +
         `current version is ${PHYSICS_VERSION}. Replay may not be accurate.`
       );
-      // Could show a UI toast here, but console warning is sufficient for now
+      setGhostVersionMismatch({ show: true, fromVersion: physicsVersion });
     }
 
     const trackInfo = TRACKS.find((t) => t.numeric_id === trackId) ?? TRACKS[0];
@@ -605,6 +606,64 @@ export function App() {
             <button
               onClick={() => setVersionMismatch(null)}
               aria-label="Close version warning"
+              style={{
+                padding: "12px 24px",
+                fontSize: 16,
+                fontWeight: 600,
+                fontFamily: "inherit",
+                backgroundColor: "#D94F3A",
+                color: "#2B2118",
+                border: "2px solid #2B2118",
+                borderRadius: 8,
+                cursor: "pointer",
+                width: "100%",
+              }}
+            >
+              Got it, I understand
+            </button>
+          </div>
+        </div>
+      )}
+      {ghostVersionMismatch && ghostVersionMismatch.show && (
+        <div
+          role="alert"
+          aria-live="polite"
+          aria-label="Ghost replay version mismatch warning"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(43, 33, 24, 0.8)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#F4EAD5",
+              borderRadius: 16,
+              padding: 24,
+              maxWidth: 400,
+              width: "100%",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+              border: "3px solid #D94F3A",
+            }}
+          >
+            <h3 style={{ margin: "0 0 16px 0", fontSize: 20, color: "#D94F3A" }}>
+              Ghost Replay Version Mismatch
+            </h3>
+            <p style={{ margin: "0 0 16px 0", fontSize: 14, color: "#2B2118", lineHeight: 1.5 }}>
+              This ghost run was recorded with an older version of the game (version {ghostVersionMismatch.fromVersion})
+              and may not replay exactly. You can still race against it, but the ghost's movement might differ from the original run.
+            </p>
+            <button
+              onClick={() => setGhostVersionMismatch(null)}
+              aria-label="Close ghost version warning"
               style={{
                 padding: "12px 24px",
                 fontSize: 16,
