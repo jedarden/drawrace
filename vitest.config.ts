@@ -30,5 +30,6 @@ export default defineConfig({
     // This prevents "[vitest-worker]: Timeout calling 'onTaskUpdate'" errors
     // when running long-running physics simulations
     hookTimeout: 300_000, // 5 minutes for test hooks (beforeAll, afterAll, etc.)
+    workerTimeout: 300_000, // 5 minutes for worker communication timeout (onTaskUpdate)
   },
 });
