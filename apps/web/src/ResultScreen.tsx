@@ -68,10 +68,27 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
     const url = new URL(window.location.href);
     url.search = "";
     url.searchParams.set("wheel", encoded);
-    navigator.clipboard.writeText(url.toString()).then(() => {
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2000);
-    });
+    const shareUrl = url.toString();
+
+    // Try native share first, fall back to clipboard
+    if (navigator.share) {
+      navigator.share({
+        title: 'DrawRace Wheel',
+        url: shareUrl,
+      }).catch(() => {
+        // User cancelled or share failed, fall back to clipboard
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          setShareCopied(true);
+          setTimeout(() => setShareCopied(false), 2000);
+        });
+      });
+    } else {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+      });
+    }
+
     getSoundManager().playUiTap();
     getHaptics().uiTap();
   }, [wheelDraw.vertices, trackId]);
