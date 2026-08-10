@@ -5,6 +5,7 @@ import { submitGhost, waitForVerdict, isOnline, type SubmissionVerdict } from ".
 import { getSoundManager } from "./Sound.js";
 import { getHaptics } from "./Haptics.js";
 import { ensureRecoveryPhrase, wasRecoveryPhraseShown, markRecoveryPhraseShown, formatRecoveryPhrase } from "./recovery-phrase.js";
+import { encodeGhostForShare } from "./ghost-blob.js";
 
 export function encodeWheelForShare(vertices: Array<{ x: number; y: number }>, trackId: number): string {
   const payload = { v: vertices.map(p => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]), t: trackId };
@@ -39,6 +40,7 @@ interface ResultScreenProps {
   onShowLeaderboard: () => void;
   isDailyChallenge?: boolean;
   dailyChallengeDate?: string;
+  raceSeed?: number; // Seed for ghost sharing
 }
 
 function formatTime(ms: number): string {
@@ -49,12 +51,13 @@ function formatTime(ms: number): string {
   return `${min}:${sec.toString().padStart(2, "0")}.${frac.toString().padStart(3, "0")}`;
 }
 
-export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId, swapLog, stuck, ghosts, onRetry, onShowLeaderboard, isDailyChallenge, dailyChallengeDate }: ResultScreenProps) {
+export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId, swapLog, stuck, ghosts, onRetry, onShowLeaderboard, isDailyChallenge, dailyChallengeDate, raceSeed }: ResultScreenProps) {
   const [verdict, setVerdict] = useState<SubmissionVerdict | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showRecoveryPhrase, setShowRecoveryPhrase] = useState(false);
   const [recoveryPhrase, setRecoveryPhrase] = useState<string[] | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [ghostShareCopied, setGhostShareCopied] = useState(false);
 
   const handleShare = useCallback(() => {
     const encoded = encodeWheelForShare(wheelDraw.vertices, trackId);
@@ -68,6 +71,54 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
     getSoundManager().playUiTap();
     getHaptics().uiTap();
   }, [wheelDraw.vertices, trackId]);
+
+  const handleChallengeShare = useCallback(() => {
+    // Encode the full ghost run (including wheel swaps) for sharing
+    if (raceSeed === undefined) return;
+
+    // Convert swap log from engine format to ghost-blob format
+    const wheels = swapLog.map(swap => ({
+      swapTick: swap.swap_tick,
+      vertices: swap.polygon.map(([x, y]) => ({ x, y })),
+    }));
+
+    const encoded = encodeGhostForShare({
+      trackId,
+      finishTimeMs,
+      seed: raceSeed,
+      wheels,
+    });
+
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("ghost", encoded);
+
+    const shareText = `I finished the track in ${formatTime(finishTimeMs)}! Can you beat my time?`;
+    const shareUrl = url.toString();
+
+    // Try native share first, fall back to clipboard
+    if (navigator.share) {
+      navigator.share({
+        title: 'DrawRace Challenge',
+        text: shareText,
+        url: shareUrl,
+      }).catch(() => {
+        // User cancelled or share failed, fall back to clipboard
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          setGhostShareCopied(true);
+          setTimeout(() => setGhostShareCopied(false), 2000);
+        });
+      });
+    } else {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        setGhostShareCopied(true);
+        setTimeout(() => setGhostShareCopied(false), 2000);
+      });
+    }
+
+    getSoundManager().playUiTap();
+    getHaptics().uiTap();
+  }, [trackId, finishTimeMs, raceSeed, swapLog]);
 
   const online = isOnline();
 
@@ -307,6 +358,24 @@ export function ResultScreen({ finishTimeMs, wheelDraw, rawStrokePoints, trackId
         }}
       >
         {shareCopied ? "Link copied!" : "Share Wheel"}
+      </button>
+
+      <button
+        onClick={handleChallengeShare}
+        aria-label="Challenge a friend with this race run"
+        style={{
+          padding: "10px 32px",
+          fontSize: 16,
+          fontWeight: 600,
+          fontFamily: "inherit",
+          backgroundColor: "#E8B64C",
+          color: "#2B2118",
+          border: "2px solid #2B2118",
+          borderRadius: 8,
+          cursor: "pointer",
+        }}
+      >
+        {ghostShareCopied ? "Challenge link copied!" : "Challenge a Friend"}
       </button>
 
       {online && (

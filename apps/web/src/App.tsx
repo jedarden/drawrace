@@ -10,6 +10,8 @@ import { DailyChallengeScreen } from "./DailyChallengeScreen.js";
 import { TrackEditor } from "./TrackEditor.js";
 import { TrackModeration } from "./TrackModeration.js";
 import { fetchGhosts, submitCrashReport, submitTrack, type GhostData } from "./api.js";
+import { decodeGhostForShare } from "./ghost-blob.js";
+import { PHYSICS_VERSION } from "@drawrace/engine-core";
 import { getHaptics } from "./Haptics.js";
 import { getPlayerUuid } from "./player-identity.js";
 import type { DrawResult, WheelSwap, DrawConstraints, ChallengeModifiers } from "@drawrace/engine-core";
@@ -203,6 +205,83 @@ export function App() {
         setShowLanding(false);
         setScreen("race");
         fetchGhosts(trackData.numeric_id).then(setGhosts);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Handle shared ghost links: ?ghost=<base64url>
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const ghostParam = urlParams.get("ghost");
+    if (!ghostParam) return;
+
+    const decoded = decodeGhostForShare(ghostParam);
+    if (!decoded) {
+      console.error("Failed to decode ghost share link");
+      return;
+    }
+
+    const { trackId, finishTimeMs, seed, wheels, physicsVersion } = decoded;
+
+    // Check physics version - show warning if mismatch
+    if (physicsVersion !== PHYSICS_VERSION) {
+      console.warn(
+        `Ghost was recorded with physics version ${physicsVersion}, ` +
+        `current version is ${PHYSICS_VERSION}. Replay may not be accurate.`
+      );
+      // Could show a UI toast here, but console warning is sufficient for now
+    }
+
+    const trackInfo = TRACKS.find((t) => t.numeric_id === trackId) ?? TRACKS[0];
+
+    fetch(`/tracks/${trackInfo.id}.json`)
+      .then((r) => r.json())
+      .then((trackData: TrackData) => {
+        validateTrackData(trackData);
+
+        // Convert ghost wheels to DrawResult (using first wheel)
+        const firstWheel = wheels[0];
+        if (!firstWheel) {
+          console.error("Ghost has no wheels");
+          return;
+        }
+
+        const vertices = firstWheel.vertices;
+        const { cx, cy, area } = areaCentroid(vertices);
+        const convexPieces = convexDecompose(vertices);
+        const bbox = computeBBox(vertices);
+        const ghostDraw: DrawResult = {
+          vertices,
+          centroid: { x: cx, y: cy },
+          convexPieces,
+          isOpenLoop: false,
+          area,
+          bboxDiagonal: bbox.diagonal,
+        };
+
+        // Create challenge ghost data - visually distinct from ranked ghosts
+        const challengeGhost: GhostData = {
+          id: "challenge-ghost",
+          name: "Challenge Ghost",
+          wheelVertices: vertices,
+          finishTimeMs,
+          seed,
+          wheels: wheels.map(w => ({
+            swap_tick: w.swapTick,
+            polygon: w.vertices.map(v => [v.x, v.y] as [number, number]),
+          })),
+        };
+
+        // Add challenge ghost to existing ghosts
+        setGhosts(prevGhosts => [...prevGhosts, challengeGhost]);
+
+        setCurrentTrackIndex(TRACKS.indexOf(trackInfo));
+        setTrack(trackData);
+        setDrawResult(ghostDraw);
+        setRawStrokePoints([]);
+        setRaceSeed(seed); // Use the ghost's seed for the player's run too
+        setShowLanding(false);
+        setScreen("race");
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -405,6 +484,7 @@ export function App() {
           ghosts={ghosts.map((g) => ({ name: g.name, finishTimeMs: g.finishTimeMs }))}
           onRetry={handleRetry}
           onShowLeaderboard={() => setShowLeaderboard(true)}
+          raceSeed={raceSeed}
         />
       )}
       {screen === "daily" && (
@@ -450,6 +530,7 @@ export function App() {
           onShowLeaderboard={() => setShowLeaderboard(true)}
           isDailyChallenge={true}
           dailyChallengeDate={dailyChallengeDate}
+          raceSeed={raceSeed}
         />
       )}
       {screen === "track_editor" && (
