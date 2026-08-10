@@ -276,7 +276,7 @@ The drawn shape is the *vehicle's wheels*, plural — not just a front wheel. Bo
 
 - **Player agency scales.** With only the front wheel drawn, the rear was a constant — so at most ~50% of vehicle behaviour reacted to the drawing. With both wheels drawn, the full behaviour of the car is downstream of what the player draws.
 - **Symmetry matches intuition.** Players who see a polygon drawing expect it to be "the wheel of the car," not "the front wheel of a two-wheel-asymmetric car." Visual parity (front and rear look identical) makes the physics readable.
-- **Moment-of-inertia doubles.** Compensated in §Gameplay 4: chassis density dropped to keep the ~4× chassis-to-wheel mass ratio stable given two drawn wheels instead of one drawn + one cartoon circle.
+- **Moment-of-inertia doubles.** Compensated in §Gameplay 4: chassis density dropped to keep the ~4× chassis-to-wheel mass ratio stable given two drawn wheels instead of the previous design (one drawn front wheel + one cartoon-circle rear wheel).
 
 The chassis is a fixed rectangle, density `1.0` (was 2.0 before the AWD change), mass ≈ 4× typical combined wheel mass, so the wheel-to-chassis mass ratio stays in the same regime the physics tuning was calibrated against. We clamp the effective wheel radius to `[0.3m, 1.5m]` post-normalization to bound the range.
 
