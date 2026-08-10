@@ -1,23 +1,25 @@
 import { useMemo, useEffect, useState, useCallback } from "react";
-import type { DrawResult, WheelSwap } from "@drawrace/engine-core";
+import type { DrawResult, WheelSwap, PHYSICS_VERSION } from "@drawrace/engine-core";
 import type { StrokePoint } from "./DrawScreen.js";
 import { submitGhost, waitForVerdict, isOnline, type SubmissionVerdict } from "./api.js";
 import { getSoundManager } from "./Sound.js";
 import { getHaptics } from "./Haptics.js";
 import { ensureRecoveryPhrase, wasRecoveryPhraseShown, markRecoveryPhraseShown, formatRecoveryPhrase } from "./recovery-phrase.js";
 import { encodeGhostForShare } from "./ghost-blob.js";
+import { PHYSICS_VERSION as PHYSICS_VERSION_VALUE } from "@drawrace/engine-core";
 
 export function encodeWheelForShare(vertices: Array<{ x: number; y: number }>, trackId: number): string {
-  const payload = { v: vertices.map(p => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]), t: trackId };
+  const payload = { v: vertices.map(p => [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]), t: trackId, pv: PHYSICS_VERSION_VALUE };
   return btoa(JSON.stringify(payload));
 }
 
-export function decodeWheelFromShare(encoded: string): { vertices: Array<{ x: number; y: number }>; trackId: number } | null {
+export function decodeWheelFromShare(encoded: string): { vertices: Array<{ x: number; y: number }>; trackId: number; physicsVersion: number } | null {
   try {
     const payload = JSON.parse(atob(encoded));
     if (!Array.isArray(payload.v) || typeof payload.t !== "number") return null;
     const vertices = payload.v.map(([x, y]: [number, number]) => ({ x, y }));
-    return { vertices, trackId: payload.t };
+    const physicsVersion = typeof payload.pv === "number" ? payload.pv : 1; // Default to version 1 if missing (legacy links)
+    return { vertices, trackId: payload.t, physicsVersion };
   } catch {
     return null;
   }
