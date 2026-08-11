@@ -338,8 +338,8 @@ Despite related beads (nd-1fkb, bf-33p57) showing as closed, the actual dependen
 
 ---
 
-**Last Verified:** 2026-08-11 14:45 UTC
-**Verification Method:** Environment variable check, cluster connectivity testing, documentation review
+**Last Verified:** 2026-08-11 18:32 UTC
+**Verification Method:** Environment variable check, cluster connectivity testing, script existence verification, documentation review
 **Blocking Issues:** OpenBao token unavailable, cluster connectivity failing
 **Implementation Status:** Ready for immediate execution (all scripts tested and available)
 **Current Status:** BLOCKED - External dependencies unresolved
@@ -347,9 +347,25 @@ Despite related beads (nd-1fkb, bf-33p57) showing as closed, the actual dependen
 **Primary Blocker:** Infrastructure team coordination for OpenBao token and cluster access
 **Bead Action:** REMAINS OPEN - Cannot complete task without external dependencies
 
-**Re-verification Summary (2026-08-11):**
-- ✅ Scripts still present and executable: `scripts/populate-openbao-postgres.sh`
-- ❌ OPENBAO_TOKEN still empty in environment
-- ❌ Cluster connectivity still failing (traefik-iad-acb:8001 timeout)
+**Re-verification Summary (2026-08-11 18:32 UTC):**
+- ✅ Scripts verified present and executable: `scripts/populate-openbao-postgres.sh`, `scripts/verify-openbao-access.sh`
+- ✅ Script contents verified: complete implementation with openssl rand for secure password generation
+- ❌ OPENBAO_TOKEN environment variable still empty
+- ❌ OPENBAO_ADDR environment variable not set
+- ❌ Cluster connectivity still failing: traefik-iad-acb:8001 timeout (dial tcp 100.125.171.118:8001: i/o timeout)
 - ✅ All technical implementation remains ready for immediate execution
-- ⏳ Awaiting infrastructure team coordination for OpenBao token provision and cluster access restoration  
+- ⏳ Awaiting infrastructure team coordination for OpenBao token provision and cluster access restoration
+
+**Technical Readiness Confirmed:**
+- Postgres username: drawrace
+- Password generation: openssl rand -base64 32 (32 characters, cryptographically secure)
+- OpenBao path: secret/data/rs-manager/drawrace/postgres
+- Target Kubernetes Secret: drawrace-postgres-credentials
+- ExternalSecret: drawrace-postgres-credentials
+
+**Execution Plan (Once Blockers Resolve):**
+1. Set OPENBAO_TOKEN environment variable
+2. Set OPENBAO_ADDR=http://openbao.external-secrets.svc.cluster.local:8200
+3. Run: ./scripts/populate-openbao-postgres.sh
+4. Verify ExternalSecret sync status
+5. Total time: <5 minutes  
