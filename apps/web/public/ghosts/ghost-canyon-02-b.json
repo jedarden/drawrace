@@ -1,7 +1,7 @@
 {
   "id": "ghost-canyon-02-b",
   "name": "MudCrawler",
-  "trackId": "canyon-02",
+  "trackId": 2,
   "seed": 2002,
   "finishTimeMs": 45000,
   "finishTicks": 2700,

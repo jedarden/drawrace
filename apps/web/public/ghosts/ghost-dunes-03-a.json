@@ -1,7 +1,7 @@
 {
   "id": "ghost-dunes-03-a",
   "name": "DuneRacer",
-  "trackId": "dunes-03",
+  "trackId": 3,
   "seed": 3001,
   "finishTimeMs": 36000,
   "finishTicks": 2160,

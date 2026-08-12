@@ -1,7 +1,7 @@
 {
   "id": "ghost-canyon-02-a",
   "name": "CanyonRunner",
-  "trackId": "canyon-02",
+  "trackId": 2,
   "seed": 2001,
   "finishTimeMs": 32000,
   "finishTicks": 1920,

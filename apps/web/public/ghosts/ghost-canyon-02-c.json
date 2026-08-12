@@ -1,7 +1,7 @@
 {
   "id": "ghost-canyon-02-c",
   "name": "IceSlider",
-  "trackId": "canyon-02",
+  "trackId": 2,
   "seed": 2003,
   "finishTimeMs": 62000,
   "finishTicks": 3720,
