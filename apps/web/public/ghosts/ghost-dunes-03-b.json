@@ -1,7 +1,7 @@
 {
   "id": "ghost-dunes-03-b",
   "name": "SandSkipper",
-  "trackId": "dunes-03",
+  "trackId": 3,
   "seed": 3002,
   "finishTimeMs": 50000,
   "finishTicks": 3000,

@@ -1,7 +1,7 @@
 {
   "id": "ghost-dunes-03-c",
   "name": "SnowPlow",
-  "trackId": "dunes-03",
+  "trackId": 3,
   "seed": 3003,
   "finishTimeMs": 68000,
   "finishTicks": 4080,
