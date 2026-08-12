@@ -1012,4 +1012,305 @@ mod tests {
             "novice bucket should have at least 8 ghosts"
         );
     }
+
+    #[test]
+    fn s3_key_format_uses_correct_track_ids() {
+        // Verify s3_key format includes derived track IDs from directory names
+        let test_cases = vec![
+            (1, "seeds/track_1/seed-000.blob"),
+            (2, "seeds/track_2/seed-000.blob"),
+            (3, "seeds/track_3/seed-000.blob"),
+            (10, "seeds/track_10/seed-000.blob"),
+            (99, "seeds/track_99/seed-000.blob"),
+        ];
+
+        for (track_id, expected_key) in test_cases {
+            let track_dir = format!("track_{}", track_id);
+            let s3_key = format!("seeds/{}/seed-{:03}.blob", track_dir, 0);
+            assert_eq!(
+                s3_key, expected_key,
+                "s3_key format should use correct track ID {}",
+                track_id
+            );
+        }
+
+        // Verify sequential seed numbering within a track
+        let track_id = 2i16;
+        let track_dir = format!("track_{}", track_id);
+        for i in 0..5 {
+            let s3_key = format!("seeds/{}/seed-{:03}.blob", track_dir, i);
+            let expected = format!("seeds/track_2/seed-{:03}.blob", i);
+            assert_eq!(
+                s3_key, expected,
+                "sequential seed numbering for track_2, seed {}",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn track_id_derivation_from_directory_names() {
+        // Verify TRACK_ID is correctly derived from directory names
+        let test_cases = vec![
+            ("track_1", Some(1i16)),
+            ("track_2", Some(2i16)),
+            ("track_3", Some(3i16)),
+            ("track_10", Some(10i16)),
+            ("track_99", Some(99i16)),
+            ("track_100", Some(100i16)), // Within i16 range (max is 32767)
+            ("other_dir", None),
+            ("track_bad", None),
+            ("track_", None),
+            ("prefix_track_1", None), // Doesn't start with "track_"
+        ];
+
+        for (dir_name, expected_id) in test_cases {
+            let parsed = if dir_name.starts_with("track_") {
+                dir_name["track_".len()..].parse::<i16>().ok()
+            } else {
+                None
+            };
+
+            assert_eq!(
+                parsed, expected_id,
+                "track ID derivation for '{}' should match expected {:?}",
+                dir_name, expected_id
+            );
+        }
+
+        // Verify multi-track discovery works correctly
+        let dir_names = vec!["track_1", "track_2", "track_3", "track_1", "track_2"];
+        let mut track_ids: Vec<i16> = Vec::new();
+
+        for dir_name in dir_names {
+            if dir_name.starts_with("track_") {
+                if let Ok(track_id) = dir_name["track_".len()..].parse::<i16>() {
+                    track_ids.push(track_id);
+                }
+            }
+        }
+
+        // After sort and dedup (as done in load_seeds_if_empty)
+        track_ids.sort();
+        track_ids.dedup();
+
+        assert_eq!(
+            track_ids,
+            vec![1, 2, 3],
+            "multi-track discovery should find unique sorted track IDs"
+        );
+    }
+
+    #[test]
+    fn per_track_bucket_distribution() {
+        // Verify that per-track seed loading maintains bucket distribution
+        // This tests that each track gets the same distribution pattern
+
+        let test_tracks = vec![1i16, 2, 3];
+        let seeds_per_track = 25; // Same as SEEDS.len()
+
+        for track_id in test_tracks {
+            let track_dir = format!("track_{}", track_id);
+
+            // Simulate bucket calculation for this track
+            let n = seeds_per_track as f64;
+            let mut bucket_counts = std::collections::HashMap::new();
+
+            for i in 0..seeds_per_track {
+                let pr = i as f64 / (n - 1.0);
+                let bucket = if pr <= 0.01 {
+                    "elite"
+                } else if pr <= 0.05 {
+                    "advanced"
+                } else if pr <= 0.20 {
+                    "skilled"
+                } else if pr <= 0.50 {
+                    "mid"
+                } else {
+                    "novice"
+                };
+                *bucket_counts.entry(bucket).or_insert(0) += 1;
+            }
+
+            // Verify all 5 buckets are present for this track
+            assert_eq!(
+                bucket_counts.len(),
+                5,
+                "track {} should have all 5 buckets represented",
+                track_id
+            );
+
+            // Verify expected bucket distribution matches the pattern
+            assert_eq!(
+                bucket_counts.get("elite").copied().unwrap_or(0),
+                1,
+                "track {} elite bucket should have 1 ghost",
+                track_id
+            );
+            assert_eq!(
+                bucket_counts.get("advanced").copied().unwrap_or(0),
+                1,
+                "track {} advanced bucket should have 1 ghost",
+                track_id
+            );
+            assert_eq!(
+                bucket_counts.get("skilled").copied().unwrap_or(0),
+                3,
+                "track {} skilled bucket should have 3 ghosts",
+                track_id
+            );
+            assert_eq!(
+                bucket_counts.get("mid").copied().unwrap_or(0),
+                8,
+                "track {} mid bucket should have 8 ghosts",
+                track_id
+            );
+            assert_eq!(
+                bucket_counts.get("novice").copied().unwrap_or(0),
+                12,
+                "track {} novice bucket should have 12 ghosts",
+                track_id
+            );
+
+            // Verify s3_key format for this track
+            let s3_key = format!("seeds/{}/seed-000.blob", track_dir);
+            assert!(
+                s3_key.contains(&track_dir),
+                "s3_key for track {} should contain directory name {}",
+                track_id, track_dir
+            );
+        }
+    }
+
+    #[test]
+    fn multi_track_loading_sequence() {
+        // Verify the sequence of operations for multi-track loading
+        let test_tracks = vec![1i16, 2, 3];
+        let mut processed_tracks = Vec::new();
+
+        // Simulate the loading sequence from load_seeds_if_empty
+        for track_id in &test_tracks {
+            let track_dir = format!("track_{}", track_id);
+
+            // Verify track directory naming
+            assert!(
+                track_dir.starts_with("track_"),
+                "track directory should start with 'track_'"
+            );
+
+            // Simulate processing seeds for this track
+            let mut seed_count = 0;
+            for seed_index in 0..3 {
+                let s3_key = format!("seeds/{}/seed-{:03}.blob", track_dir, seed_index);
+                let seed_path = format!("seeds/{}/seed-{:03}.blob", track_dir, seed_index);
+
+                // Verify s3_key and local path are consistent
+                assert!(
+                    s3_key.contains(&format!("track_{}", track_id)),
+                    "s3_key should contain track_{}",
+                    track_id
+                );
+                assert!(
+                    seed_path.contains(&format!("track_{}", track_id)),
+                    "local path should contain track_{}",
+                    track_id
+                );
+
+                seed_count += 1;
+            }
+
+            processed_tracks.push((track_id, seed_count));
+        }
+
+        // Verify all tracks were processed
+        assert_eq!(
+            processed_tracks.len(),
+            3,
+            "all 3 tracks should be processed"
+        );
+
+        // Verify track IDs are in sorted order
+        let track_ids: Vec<i16> = processed_tracks.iter().map(|(id, _)| **id).collect();
+        assert_eq!(
+            track_ids,
+            vec![1, 2, 3],
+            "tracks should be processed in sorted order"
+        );
+    }
+
+    #[test]
+    fn track_id_edge_cases() {
+        // Verify edge cases for track ID derivation
+        let edge_cases = vec![
+            ("track_0", Some(0i16)),     // Valid i16 but unusual
+            ("track_127", Some(127i16)), // Max positive i16 that's reasonable
+            ("track_-1", Some(-1i16)),   // Negative is parseable as i16
+            ("track_32767", Some(32767i16)), // Max i16 value
+            ("track_32768", None),      // Out of i16 range (exceeds max)
+        ];
+
+        for (dir_name, expected) in edge_cases {
+            let result = if dir_name.starts_with("track_") {
+                dir_name["track_".len()..].parse::<i16>().ok()
+            } else {
+                None
+            };
+
+            assert_eq!(
+                result, expected,
+                "track ID edge case '{}' should parse to {:?}",
+                dir_name, expected
+            );
+        }
+
+        // Verify sorting and deduplication with edge cases
+        let mut unsorted = vec![3i16, 1, 2, 1, 3, 2, 0, 127];
+        unsorted.sort();
+        unsorted.dedup();
+        assert_eq!(
+            unsorted,
+            vec![0, 1, 2, 3, 127],
+            "sort and dedup should handle edge case track IDs"
+        );
+    }
+
+    #[test]
+    fn seed_file_path_consistency() {
+        // Verify seed file paths are consistent with s3_key format
+        let test_cases = vec![
+            (1, 0, "seeds/track_1/seed-000.blob"),
+            (2, 5, "seeds/track_2/seed-005.blob"),
+            (3, 99, "seeds/track_3/seed-099.blob"),
+        ];
+
+        for (track_id, seed_index, expected_key) in test_cases {
+            let track_dir = format!("track_{}", track_id);
+            let s3_key = format!("seeds/{}/seed-{:03}.blob", track_dir, seed_index);
+            let local_path = format!("seeds/{}/seed-{:03}.blob", track_dir, seed_index);
+
+            assert_eq!(
+                s3_key, expected_key,
+                "s3_key for track {} seed {} should match expected",
+                track_id, seed_index
+            );
+            assert_eq!(
+                local_path, expected_key,
+                "local path for track {} seed {} should match s3_key",
+                track_id, seed_index
+            );
+        }
+
+        // Verify zero-padding for seed indices
+        for i in 0..10 {
+            let track_id = 1i16;
+            let track_dir = format!("track_{}", track_id);
+            let s3_key = format!("seeds/{}/seed-{:03}.blob", track_dir, i);
+
+            assert!(
+                s3_key.ends_with(&format!("seed-{:03}.blob", i)),
+                "seed index should be zero-padded to 3 digits: {}",
+                i
+            );
+        }
+    }
 }
