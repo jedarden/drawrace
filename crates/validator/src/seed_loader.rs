@@ -13,9 +13,6 @@ use std::fs;
 use std::path::Path;
 use uuid::Uuid;
 
-/// All track IDs that require seed ghosts.
-const ALL_TRACK_IDS: &[i16] = &[1, 2, 3];
-
 /// Seed player UUID - a special player that owns all seed ghosts.
 /// This UUID is consistent across deployments so seed ghosts are
 /// recognizable as non-player content.
@@ -99,6 +96,30 @@ async fn load_seed_ghost(
     Ok(())
 }
 
+/// Discover track directories from the seeds base path.
+fn discover_track_directories(seeds_base_path: &Path) -> Vec<i16> {
+    let mut track_ids: Vec<i16> = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(seeds_base_path) {
+        for entry in entries.filter_map(Result::ok) {
+            let dir_name = entry.file_name();
+            let dir_name_str = dir_name.to_string_lossy();
+
+            // Parse track ID from directory name (track_N -> N)
+            if dir_name_str.starts_with("track_") {
+                if let Ok(track_id) = dir_name_str["track_".len()..].parse::<i16>() {
+                    track_ids.push(track_id);
+                }
+            }
+        }
+    }
+
+    track_ids.sort();
+    track_ids.dedup();
+
+    track_ids
+}
+
 /// Load all seed ghosts from the seeds directory into S3 and Postgres.
 pub async fn load_seed_pool(
     pool: &PgPool,
@@ -112,18 +133,35 @@ pub async fn load_seed_pool(
         return Ok(());
     }
 
+    // Dynamically discover track directories
+    let track_ids = discover_track_directories(seeds_dir);
+
+    if track_ids.is_empty() {
+        tracing::warn!(
+            path = %seeds_dir.display(),
+            "no track directories found (expected format: track_N), skipping seed loading"
+        );
+        return Ok(());
+    }
+
+    tracing::info!(
+        tracks = ?track_ids,
+        "discovered track directories"
+    );
+
     let mut total_loaded = 0;
 
-    // Iterate over all tracks
-    for &track_id in ALL_TRACK_IDS {
+    // Iterate over all discovered tracks
+    for &track_id in &track_ids {
         let track_dir_name = format!("track_{}", track_id);
         let track_dir = seeds_dir.join(&track_dir_name);
 
+        // Verify the track directory exists (should always be true since we discovered it)
         if !track_dir.exists() {
             tracing::warn!(
                 path = %track_dir.display(),
-                "Seeds directory not found for track {}, skipping",
-                track_id
+                track_id,
+                "track directory not found, skipping"
             );
             continue;
         }
@@ -222,21 +260,6 @@ mod tests {
     }
 
     #[test]
-    fn test_all_track_ids_defined() {
-        // Verify all track IDs are defined and include tracks 1, 2, 3
-        assert_eq!(ALL_TRACK_IDS, &[1, 2, 3]);
-        assert!(!ALL_TRACK_IDS.is_empty(), "ALL_TRACK_IDS must not be empty");
-    }
-
-    #[test]
-    fn test_track_ids_sorted() {
-        // Verify track IDs are sorted for deterministic loading order
-        let mut sorted = ALL_TRACK_IDS.to_vec();
-        sorted.sort();
-        assert_eq!(ALL_TRACK_IDS, &sorted[..], "ALL_TRACK_IDS must be sorted");
-    }
-
-    #[test]
     fn test_seed_player_uuid_consistency() {
         // Verify the seed player UUID is the same in both modules
         // (matches SEED_PLAYER_UUID in api/src/seed.rs)
@@ -247,26 +270,93 @@ mod tests {
     }
 
     #[test]
-    fn test_all_tracks_covered() {
-        // Verify all three tracks (1, 2, 3) are included
-        assert_eq!(ALL_TRACK_IDS.len(), 3, "should have exactly 3 tracks");
-        assert!(ALL_TRACK_IDS.contains(&1), "track 1 must be included");
-        assert!(ALL_TRACK_IDS.contains(&2), "track 2 must be included");
-        assert!(ALL_TRACK_IDS.contains(&3), "track 3 must be included");
+    fn test_discover_track_directories_sorts_and_dedups() {
+        // Create a temporary directory with test track subdirectories
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_path = temp_dir.path();
+
+        // Create track directories in non-sorted order with duplicates
+        fs::create_dir(base_path.join("track_3")).unwrap();
+        fs::create_dir(base_path.join("track_1")).unwrap();
+        fs::create_dir(base_path.join("track_2")).unwrap();
+        fs::create_dir(base_path.join("track_5")).unwrap();
+        fs::create_dir(base_path.join("track_4")).unwrap();
+
+        // Also create some non-track directories to ensure they're ignored
+        fs::create_dir(base_path.join("other_dir")).unwrap();
+        fs::create_dir(base_path.join("track_")).unwrap();
+        fs::create_dir(base_path.join("track_abc")).unwrap();
+
+        let track_ids = discover_track_directories(base_path);
+
+        // Should discover all 5 track directories, sorted, with no duplicates
+        assert_eq!(track_ids, vec![1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_discover_track_directories_handles_missing_base() {
+        // Test that missing directories return empty list
+        let missing_path = Path::new("/nonexistent/path/to/seeds");
+        let track_ids = discover_track_directories(missing_path);
+        assert!(track_ids.is_empty());
+    }
+
+    #[test]
+    fn test_discover_track_directories_ignores_invalid_names() {
+        // Create a temporary directory with mixed valid/invalid names
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_path = temp_dir.path();
+
+        // Valid track directories
+        fs::create_dir(base_path.join("track_1")).unwrap();
+        fs::create_dir(base_path.join("track_2")).unwrap();
+
+        // Invalid names that should be ignored
+        fs::create_dir(base_path.join("track_")).unwrap();
+        fs::create_dir(base_path.join("track_abc")).unwrap();
+        fs::create_dir(base_path.join("other_dir")).unwrap();
+        fs::create_dir(base_path.join("not_a_track")).unwrap();
+
+        let track_ids = discover_track_directories(base_path);
+
+        // Should only discover valid track directories
+        assert_eq!(track_ids, vec![1, 2]);
+    }
+
+    #[test]
+    fn test_discover_track_directories_empty_base() {
+        // Create an empty directory
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_path = temp_dir.path();
+
+        let track_ids = discover_track_directories(base_path);
+
+        // Should return empty list
+        assert!(track_ids.is_empty());
     }
 
     #[test]
     fn test_track_directory_format() {
         // Verify track directories follow the expected naming pattern
-        for &track_id in ALL_TRACK_IDS {
-            let expected_dir = format!("track_{}", track_id);
-            // Just verify the format is correct - don't check file existence
-            // since we might not be in an environment with seeds checked out
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_path = temp_dir.path();
+
+        // Create test track directories
+        for track_id in 1..=3 {
+            let track_dir = base_path.join(format!("track_{}", track_id));
+            fs::create_dir(&track_dir).unwrap();
+
+            // Verify the format is correct
             assert!(
-                expected_dir.starts_with("track_"),
+                track_dir.to_str().unwrap().contains("track_"),
                 "track directory should start with 'track_' for track {}",
                 track_id
             );
         }
+
+        let track_ids = discover_track_directories(base_path);
+
+        // Verify we discovered all 3 tracks
+        assert_eq!(track_ids, vec![1, 2, 3]);
     }
 }
