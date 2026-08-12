@@ -91,7 +91,7 @@
 //! or via the wrapper: `scripts/extract-reference-ghosts.sh --self-check`.
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
 use aws_config::BehaviorVersion;
@@ -362,7 +362,7 @@ async fn extract(
 /// the decoder produces real drivable polygons from real DRGH bytes without
 /// needing prod. Output is written to a clearly-labelled `.selfcheck.json` so it
 /// can never be mistaken for a production extraction.
-async fn run_self_check(out_path: &PathBuf) -> Result<()> {
+async fn run_self_check(out_path: &Path) -> Result<()> {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     // crates/validator  ->  repo_root/seeds
     let seeds_root = manifest_dir.join("../../seeds");
@@ -448,7 +448,7 @@ async fn run_self_check(out_path: &PathBuf) -> Result<()> {
     }
 
     let check_path = {
-        let mut p = out_path.clone();
+        let mut p = out_path.to_path_buf();
         let file = p.file_name().unwrap().to_string_lossy().to_string();
         let new_file = file.replace(".json", ".selfcheck.json");
         p.set_file_name(new_file);
@@ -485,7 +485,7 @@ async fn run_self_check(out_path: &PathBuf) -> Result<()> {
     let mut bad = 0usize;
     for g in &dump.ghosts {
         let real = g.wheels.iter().all(|w| {
-            w.vertex_count >= drawrace_api::blob::MIN_VERTEX_COUNT as u8
+            w.vertex_count >= drawrace_api::blob::MIN_VERTEX_COUNT
                 && polygon_signed_area(
                     &w.polygon_vertices
                         .iter()
@@ -732,8 +732,8 @@ mod tests {
             // Real drivable polygons span a non-trivial bbox (not a collapsed line).
             let xs: Vec<_> = w.polygon_vertices.iter().map(|(x, _)| *x).collect();
             let ys: Vec<_> = w.polygon_vertices.iter().map(|(_, y)| *y).collect();
-            let xrange = (*xs.iter().max().unwrap() as i32 - *xs.iter().min().unwrap() as i32);
-            let yrange = (*ys.iter().max().unwrap() as i32 - *ys.iter().min().unwrap() as i32);
+            let xrange = *xs.iter().max().unwrap() as i32 - *xs.iter().min().unwrap() as i32;
+            let yrange = *ys.iter().max().unwrap() as i32 - *ys.iter().min().unwrap() as i32;
             assert!(xrange > 5 && yrange > 5, "wheel[{i}] collapsed bbox");
         }
     }
