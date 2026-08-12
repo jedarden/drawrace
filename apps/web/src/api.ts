@@ -78,7 +78,7 @@ export async function fetchGhosts(trackId: number): Promise<GhostData[]> {
   const playerUuid = getPlayerUuid();
 
   if (!apiUrl) {
-    return fetchBundledGhosts();
+    return fetchBundledGhosts(trackId);
   }
 
   try {
@@ -93,7 +93,7 @@ export async function fetchGhosts(trackId: number): Promise<GhostData[]> {
       },
     );
     if (!resp.ok) {
-      return fetchBundledGhosts();
+      return fetchBundledGhosts(trackId);
     }
     const data: MatchmakeResponse = await resp.json();
     const allGhosts = [...data.ghosts];
@@ -121,9 +121,9 @@ export async function fetchGhosts(trackId: number): Promise<GhostData[]> {
     if (resolved.length > 0) {
       return resolved;
     }
-    return fetchBundledGhosts();
+    return fetchBundledGhosts(trackId);
   } catch {
-    return fetchBundledGhosts();
+    return fetchBundledGhosts(trackId);
   }
 }
 
@@ -173,13 +173,25 @@ async function fetchAndCacheGhost(g: MatchmakeGhost): Promise<{
   return { wheelVertices, wheels };
 }
 
-async function fetchBundledGhosts(): Promise<GhostData[]> {
-  const [g1, g2, g3] = await Promise.all([
-    fetch("/ghosts/ghost-tutorial-a.json").then((r) => r.json()),
-    fetch("/ghosts/ghost-tutorial-b.json").then((r) => r.json()),
-    fetch("/ghosts/ghost-tutorial-c.json").then((r) => r.json()),
-  ]);
-  return [g1, g2, g3];
+async function fetchBundledGhosts(trackId: number): Promise<GhostData[]> {
+  // Map track IDs to their bundled ghost files
+  const trackGhostMap: Record<number, string[]> = {
+    1: ["ghost-tutorial-a.json", "ghost-tutorial-b.json", "ghost-tutorial-c.json"],
+    2: ["ghost-canyon-02-a.json", "ghost-canyon-02-b.json", "ghost-canyon-02-c.json"],
+    3: ["ghost-dunes-03-a.json", "ghost-dunes-03-b.json", "ghost-dunes-03-c.json"],
+  };
+
+  const ghostFiles = trackGhostMap[trackId] || trackGhostMap[1]; // Fallback to tutorial ghosts
+
+  const ghosts = await Promise.all(
+    ghostFiles.map((file) =>
+      fetch(`/ghosts/${file}`)
+        .then((r) => r.json())
+        .catch(() => null)
+    )
+  );
+
+  return ghosts.filter((g): g is GhostData => g !== null);
 }
 
 export interface SubmitInput {
@@ -544,7 +556,7 @@ export async function fetchDailyGhosts(date: string): Promise<GhostData[]> {
   const playerUuid = getPlayerUuid();
 
   if (!apiUrl) {
-    return fetchBundledGhosts();
+    return fetchBundledGhosts(trackId);
   }
 
   try {
@@ -559,7 +571,7 @@ export async function fetchDailyGhosts(date: string): Promise<GhostData[]> {
       },
     );
     if (!resp.ok) {
-      return fetchBundledGhosts();
+      return fetchBundledGhosts(trackId);
     }
     const data: DailyLeaderboardTopResponse = await resp.json();
 
@@ -597,9 +609,9 @@ export async function fetchDailyGhosts(date: string): Promise<GhostData[]> {
     if (resolved.length > 0) {
       return resolved;
     }
-    return fetchBundledGhosts();
+    return fetchBundledGhosts(trackId);
   } catch {
-    return fetchBundledGhosts();
+    return fetchBundledGhosts(trackId);
   }
 }
 
