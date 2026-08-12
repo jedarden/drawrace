@@ -219,6 +219,7 @@ pub async fn update_shadowban_status(pool: &PgPool, player_uuid: Uuid) -> Result
 ///
 /// `Ok(false)` for a player row with the flag unset (or a missing row);
 /// `Ok(true)` when shadowbanned; `Err` only on a database failure.
+#[allow(dead_code)]
 pub async fn is_shadowbanned(pool: &PgPool, player_uuid: Uuid) -> Result<bool> {
     let shadowbanned: Option<bool> =
         sqlx::query_scalar("SELECT shadowbanned FROM players WHERE player_uuid = $1")
@@ -235,6 +236,7 @@ pub async fn is_shadowbanned(pool: &PgPool, player_uuid: Uuid) -> Result<bool> {
 ///
 /// Mostly a diagnostic / monitoring helper — the ban/no-ban decision itself goes
 /// through [`update_shadowban_status`] / [`RollingRejectionWindow::should_shadowban`].
+#[allow(dead_code)]
 pub async fn calculate_rejection_rate(
     pool: &PgPool,
     player_uuid: Uuid,

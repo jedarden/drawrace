@@ -6,10 +6,10 @@
 ///
 /// Ghosts are stored in crates/validator/reference-ghosts.json — a corpus of
 /// >=200 real, drivable ghosts spanning tracks 1/2/3. Every `finish_time_ms` is
-/// physics-derived (produced by running each wheel through the same resim WASM
-/// this test re-simulates with, seed 42), not a hand-picked constant, so the
-/// gate actually tests that shapes still produce the *right* finish under the
-/// current physics.
+/// > physics-derived (produced by running each wheel through the same resim WASM
+/// > this test re-simulates with, seed 42), not a hand-picked constant, so the
+/// > gate actually tests that shapes still produce the *right* finish under the
+/// > current physics.
 ///
 /// The corpus is regenerated deterministically from source — never hand-edited:
 ///

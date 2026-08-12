@@ -13,8 +13,8 @@
 //!
 //! Production drawrace is not deployed (no reachable DB), so the "extract
 //! >=200 real accepted ghosts from production" framing is impossible as
-//! written. The repo does, however, ship two real, drivable, physics-derived
-//! ghost sources, and this binary leverages both:
+//! > written. The repo does, however, ship two real, drivable, physics-derived
+//! > ghost sources, and this binary leverages both:
 //!
 //! 1. **The seed-ghost generator** (`crates/api/src/bin/generate-seed-ghosts*`
 //!    + the committed `seeds/track_{1,2,3}/*.blob` pool it emits). These are

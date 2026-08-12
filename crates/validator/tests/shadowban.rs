@@ -60,7 +60,7 @@ async fn shadowban_excludes_from_leaderboard_and_matchmake() -> Result<()> {
         // For accepted submissions, also create ghost entries
         if !is_rejected {
             let ghost_id = Uuid::new_v4();
-            let time_ms = 25000 + (i as i32 * 100); // Increasing times
+            let time_ms = 25000 + (i * 100); // Increasing times
 
             sqlx::query(
                 "INSERT INTO ghosts (ghost_id, player_uuid, track_id, physics_version, time_ms, is_pb, s3_key)
