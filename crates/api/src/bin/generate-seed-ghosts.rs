@@ -687,7 +687,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let track_dir = args.track.dir_name();
     let track_alias = args.track.alias();
 
-    println!("Generating seed ghost blob files for track: {} ({})...", track_alias, track_id);
+    println!(
+        "Generating seed ghost blob files for track: {} ({})...",
+        track_alias, track_id
+    );
 
     let workspace_root = std::env::current_dir()?;
     let seeds_dir = workspace_root.join("seeds").join(track_dir);

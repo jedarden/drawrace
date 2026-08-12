@@ -123,7 +123,7 @@ fn main() -> Result<()> {
         let linker = wasmtime::Linker::new(&engine);
         let instance = linker
             .instantiate(&mut store, &module)
-            .context("Failed to instantiate WASM")?;
+            .map_err(|e| anyhow::anyhow!("Failed to instantiate WASM: {}", e))?;
 
         let memory = instance
             .get_memory(&mut store, "memory")

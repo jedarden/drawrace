@@ -684,14 +684,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
-        eprintln!("Usage: {} --track <TRACK_ID|TRACK_NAME> [TARGET_TIME_MS]", args[0]);
+        eprintln!(
+            "Usage: {} --track <TRACK_ID|TRACK_NAME> [TARGET_TIME_MS]",
+            args[0]
+        );
         eprintln!("   OR:  {} <TRACK_ID|TRACK_NAME> [TARGET_TIME_MS]", args[0]);
         eprintln!("\nExamples:");
         eprintln!("  {} --track canyon-02 50000", args[0]);
         eprintln!("  {} --track dunes-03", args[0]);
         eprintln!("  {} --track_2 50000", args[0]);
         eprintln!("  {} --track_3", args[0]);
-        eprintln!("  {} 2 50000            (legacy positional format)", args[0]);
+        eprintln!(
+            "  {} 2 50000            (legacy positional format)",
+            args[0]
+        );
         eprintln!("  (generates 25 seeds for the specified track)");
         process::exit(1);
     }
@@ -721,8 +727,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Check if the last argument is a number (target time)
             let last_arg = &args[args.len() - 1];
             if last_arg.chars().all(|c| c.is_ascii_digit()) {
-                last_arg.parse()
-                    .map_err(|_| format!("Invalid target_time_ms '{}': must be an integer", last_arg))?
+                last_arg.parse().map_err(|_| {
+                    format!("Invalid target_time_ms '{}': must be an integer", last_arg)
+                })?
             } else {
                 get_default_target_time(track_id)
             }
@@ -735,7 +742,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Legacy positional argument format
         let track_id = parse_track_identifier(&args[1]);
         let target_time_ms = if args.len() >= 3 {
-            args[2].parse()
+            args[2]
+                .parse()
                 .map_err(|_| format!("Invalid target_time_ms '{}': must be an integer", args[2]))?
         } else {
             get_default_target_time(track_id)

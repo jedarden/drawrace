@@ -47,8 +47,9 @@ impl EngineCoreWasm {
             .ok_or_else(|| anyhow::anyhow!("Invalid metadata path"))?
             .join(&metadata.wasm_file);
 
-        let wasm_bytes = std::fs::read(&wasm_path)
-            .map_err(|e| anyhow::anyhow!("Failed to read WASM file: {}: {}", wasm_path.display(), e))?;
+        let wasm_bytes = std::fs::read(&wasm_path).map_err(|e| {
+            anyhow::anyhow!("Failed to read WASM file: {}: {}", wasm_path.display(), e)
+        })?;
 
         let mut config = wasmtime::Config::new();
         config.wasm_simd(true);
@@ -94,11 +95,12 @@ impl EngineCoreWasm {
 
     /// Read the metadata JSON file.
     fn read_metadata(path: &PathBuf) -> Result<EngineCoreMetadata> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| anyhow::anyhow!("Failed to read metadata file: {}: {}", path.display(), e))?;
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            anyhow::anyhow!("Failed to read metadata file: {}: {}", path.display(), e)
+        })?;
 
-        let metadata: EngineCoreMetadata =
-            serde_json::from_str(&content).map_err(|e| anyhow::anyhow!("Failed to parse metadata JSON: {}", e))?;
+        let metadata: EngineCoreMetadata = serde_json::from_str(&content)
+            .map_err(|e| anyhow::anyhow!("Failed to parse metadata JSON: {}", e))?;
 
         Ok(metadata)
     }

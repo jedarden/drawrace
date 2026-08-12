@@ -33,7 +33,8 @@ impl PhysicsEngine {
         config.wasm_simd(true);
         config.wasm_multi_memory(true);
 
-        let engine = Engine::new(&config).context("Failed to create WASM engine")?;
+        let engine = Engine::new(&config)
+            .map_err(|e| anyhow::anyhow!("Failed to create WASM engine: {}", e))?;
 
         let module = Module::new(&engine, &wasm_bytes).map_err(|e| {
             anyhow::anyhow!(
@@ -68,15 +69,15 @@ impl PhysicsEngine {
         let linker = Linker::new(&engine);
         let instance = linker
             .instantiate(&mut store, &module)
-            .context("Failed to instantiate WASM module")?;
+            .map_err(|e| anyhow::anyhow!("Failed to instantiate WASM module: {}", e))?;
 
         let physics_version_func = instance
             .get_typed_func::<(), u32>(&mut store, "physics_version")
-            .context("physics_version export not found")?;
+            .map_err(|e| anyhow::anyhow!("physics_version export not found: {}", e))?;
 
         let physics_version = physics_version_func
             .call(&mut store, ())
-            .context("physics_version call failed")?;
+            .map_err(|e| anyhow::anyhow!("physics_version call failed: {}", e))?;
 
         tracing::info!(
             physics_version,
@@ -211,7 +212,7 @@ impl RacerSim {
         let linker = Linker::new(&engine);
         let instance = linker
             .instantiate(&mut store, &module)
-            .context("Failed to instantiate WASM module")?;
+            .map_err(|e| anyhow::anyhow!("Failed to instantiate WASM module: {}", e))?;
 
         // Get exported memory
         let memory = instance
@@ -221,11 +222,11 @@ impl RacerSim {
         // Get WASM functions
         let resim_init = instance
             .get_typed_func::<(), i32>(&mut store, "resim_init")
-            .context("resim_init export not found")?;
+            .map_err(|e| anyhow::anyhow!("resim_init export not found: {}", e))?;
 
         let resim_step = instance
             .get_typed_func::<(), i32>(&mut store, "resim_step")
-            .context("resim_step export not found")?;
+            .map_err(|e| anyhow::anyhow!("resim_step export not found: {}", e))?;
 
         // Initialize memory with simulation data
         wasm_abi::init_memory(

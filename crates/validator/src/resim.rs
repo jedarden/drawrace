@@ -24,8 +24,9 @@ impl ResimEngine {
     pub fn load() -> Result<Self> {
         let wasm_path = Self::find_resim_path()?;
 
-        let wasm_bytes = std::fs::read(&wasm_path)
-            .map_err(|e| anyhow::anyhow!("Failed to read WASM file: {}: {}", wasm_path.display(), e))?;
+        let wasm_bytes = std::fs::read(&wasm_path).map_err(|e| {
+            anyhow::anyhow!("Failed to read WASM file: {}: {}", wasm_path.display(), e)
+        })?;
 
         let config = wasmtime::Config::new();
 
