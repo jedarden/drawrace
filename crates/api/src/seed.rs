@@ -3,6 +3,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 const PHYSICS_VERSION: u8 = 2;
+#[allow(dead_code)]
 const HEADER_SIZE: usize = 36;
 
 /// All track IDs that require seed ghosts.
@@ -11,6 +12,7 @@ const ALL_TRACK_IDS: &[i16] = &[1, 2, 3];
 /// Fixed UUID for the seed player — all seed ghosts belong to this identity.
 pub const SEED_PLAYER_UUID: &str = "00000000-0000-4000-8000-000000000001";
 
+#[allow(dead_code)]
 struct SeedGhost {
     #[allow(dead_code)]
     name: &'static str,
@@ -29,6 +31,7 @@ struct SeedGhost {
 /// - novice   (pr >  0.50): 12 ghosts
 ///
 /// Times are ordered fastest to slowest so the percentile mapping is deterministic.
+#[allow(dead_code)]
 const SEEDS: &[SeedGhost] = &[
     // elite
     SeedGhost {
@@ -686,6 +689,7 @@ pub async fn load_seeds_if_empty(
 }
 
 /// Encode a seed ghost into the DRGH binary format (v2 with wheels[]).
+#[allow(dead_code)]
 fn encode_seed_blob(seed: &SeedGhost, submitted_at: i64) -> Vec<u8> {
     let vertex_count = seed.vertices.len() as u8;
     assert!(
@@ -756,6 +760,7 @@ fn encode_seed_blob(seed: &SeedGhost, submitted_at: i64) -> Vec<u8> {
 }
 
 /// Generate synthetic delta-encoded stroke points tracing the polygon outline.
+#[allow(dead_code)]
 fn generate_stroke(vertices: &[(f64, f64)]) -> Vec<(i16, i16, u16)> {
     let mut points = Vec::new();
     let mut prev_x = 0.0_f64;
