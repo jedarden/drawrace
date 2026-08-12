@@ -6,9 +6,6 @@ const PHYSICS_VERSION: u8 = 2;
 #[allow(dead_code)]
 const HEADER_SIZE: usize = 36;
 
-/// All track IDs that require seed ghosts.
-const ALL_TRACK_IDS: &[i16] = &[1, 2, 3];
-
 /// Fixed UUID for the seed player — all seed ghosts belong to this identity.
 pub const SEED_PLAYER_UUID: &str = "00000000-0000-4000-8000-000000000001";
 
@@ -573,27 +570,60 @@ pub async fn load_seeds_if_empty(
 
     let mut total_loaded = 0u32;
 
-    // Iterate over all tracks
-    for &track_id in ALL_TRACK_IDS {
-        let track_dir = format!("track_{}", track_id);
-        let seeds_path = std::path::Path::new("/app/seeds").join(&track_dir);
-        let dev_seeds_path = std::path::Path::new("seeds").join(&track_dir);
+    // Dynamically discover track directories
+    let seeds_base_path = if std::path::Path::new("/app/seeds").exists() {
+        std::path::Path::new("/app/seeds")
+    } else {
+        std::path::Path::new("seeds")
+    };
 
-        // Try to load from local seed files first
-        let seeds_dir = if seeds_path.exists() {
-            seeds_path
-        } else if dev_seeds_path.exists() {
-            dev_seeds_path
-        } else {
+    let mut track_ids: Vec<i16> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(seeds_base_path) {
+        for entry in entries.filter_map(Result::ok) {
+            let dir_name = entry.file_name();
+            let dir_name_str = dir_name.to_string_lossy();
+
+            // Parse track ID from directory name (track_N -> N)
+            if dir_name_str.starts_with("track_") {
+                if let Ok(track_id) = dir_name_str["track_".len()..].parse::<i16>() {
+                    track_ids.push(track_id);
+                }
+            }
+        }
+    }
+
+    if track_ids.is_empty() {
+        tracing::warn!(
+            path = %seeds_base_path.display(),
+            "no track directories found (expected format: track_N), skipping seed loading"
+        );
+        return Ok(());
+    }
+
+    track_ids.sort();
+    track_ids.dedup();
+
+    tracing::info!(
+        tracks = ?track_ids,
+        "discovered track directories"
+    );
+
+    // Iterate over all discovered tracks
+    for track_id in track_ids {
+        let track_dir = format!("track_{}", track_id);
+        let seeds_path = seeds_base_path.join(&track_dir);
+
+        // Verify the track directory exists
+        if !seeds_path.exists() {
             tracing::warn!(
                 track_id,
-                "no seed directory found for track {} (tried {:?} and {:?}), skipping",
-                track_id,
-                seeds_path,
-                dev_seeds_path
+                path = %seeds_path.display(),
+                "track directory not found, skipping"
             );
             continue;
-        };
+        }
+
+        let seeds_dir = &seeds_path;
 
         tracing::info!(
             track_id,
@@ -886,26 +916,28 @@ mod tests {
     }
 
     #[test]
-    fn all_track_ids_covered() {
-        // Verify ALL_TRACK_IDS includes tracks 1, 2, and 3
-        assert_eq!(
-            ALL_TRACK_IDS,
-            &[1, 2, 3],
-            "ALL_TRACK_IDS must include all three tracks"
-        );
-    }
+    fn dynamic_track_discovery_works() {
+        // Verify the parsing logic for discovering track IDs from directory names
+        let test_dir_names = vec!["track_1", "track_2", "track_10", "track_99", "other_dir", "track_bad"];
+        let mut parsed_ids = Vec::new();
 
-    #[test]
-    fn track_ids_sorted() {
-        // Verify track IDs are sorted for deterministic loading order
-        let mut sorted = ALL_TRACK_IDS.to_vec();
+        for dir_name in test_dir_names {
+            if dir_name.starts_with("track_") {
+                if let Ok(track_id) = dir_name["track_".len()..].parse::<i16>() {
+                    parsed_ids.push(track_id);
+                }
+            }
+        }
+
+        // Should parse valid track IDs but skip invalid ones
+        assert_eq!(parsed_ids, vec![1, 2, 10, 99], "should parse track_N directory names correctly");
+
+        // Verify sort and dedup behavior
+        let unsorted = vec![3, 1, 2, 2, 1];
+        let mut sorted = unsorted.clone();
         sorted.sort();
         sorted.dedup();
-        assert_eq!(
-            ALL_TRACK_IDS,
-            &sorted[..],
-            "ALL_TRACK_IDS must be sorted and unique"
-        );
+        assert_eq!(sorted, vec![1, 2, 3], "sort and dedup should produce unique sorted IDs");
     }
 
     #[test]
