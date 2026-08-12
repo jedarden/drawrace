@@ -918,7 +918,14 @@ mod tests {
     #[test]
     fn dynamic_track_discovery_works() {
         // Verify the parsing logic for discovering track IDs from directory names
-        let test_dir_names = vec!["track_1", "track_2", "track_10", "track_99", "other_dir", "track_bad"];
+        let test_dir_names = vec![
+            "track_1",
+            "track_2",
+            "track_10",
+            "track_99",
+            "other_dir",
+            "track_bad",
+        ];
         let mut parsed_ids = Vec::new();
 
         for dir_name in test_dir_names {
@@ -930,14 +937,22 @@ mod tests {
         }
 
         // Should parse valid track IDs but skip invalid ones
-        assert_eq!(parsed_ids, vec![1, 2, 10, 99], "should parse track_N directory names correctly");
+        assert_eq!(
+            parsed_ids,
+            vec![1, 2, 10, 99],
+            "should parse track_N directory names correctly"
+        );
 
         // Verify sort and dedup behavior
         let unsorted = vec![3, 1, 2, 2, 1];
         let mut sorted = unsorted.clone();
         sorted.sort();
         sorted.dedup();
-        assert_eq!(sorted, vec![1, 2, 3], "sort and dedup should produce unique sorted IDs");
+        assert_eq!(
+            sorted,
+            vec![1, 2, 3],
+            "sort and dedup should produce unique sorted IDs"
+        );
     }
 
     #[test]
@@ -1177,7 +1192,8 @@ mod tests {
             assert!(
                 s3_key.contains(&track_dir),
                 "s3_key for track {} should contain directory name {}",
-                track_id, track_dir
+                track_id,
+                track_dir
             );
         }
     }
@@ -1242,11 +1258,11 @@ mod tests {
     fn track_id_edge_cases() {
         // Verify edge cases for track ID derivation
         let edge_cases = vec![
-            ("track_0", Some(0i16)),     // Valid i16 but unusual
-            ("track_127", Some(127i16)), // Max positive i16 that's reasonable
-            ("track_-1", Some(-1i16)),   // Negative is parseable as i16
+            ("track_0", Some(0i16)),         // Valid i16 but unusual
+            ("track_127", Some(127i16)),     // Max positive i16 that's reasonable
+            ("track_-1", Some(-1i16)),       // Negative is parseable as i16
             ("track_32767", Some(32767i16)), // Max i16 value
-            ("track_32768", None),      // Out of i16 range (exceeds max)
+            ("track_32768", None),           // Out of i16 range (exceeds max)
         ];
 
         for (dir_name, expected) in edge_cases {
