@@ -97,3 +97,6 @@ prompt:
       {context_file_contents}
 
       Bead ID: {bead_id}
+
+bead_cli:
+  backend: bead-rs
