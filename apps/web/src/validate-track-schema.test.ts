@@ -20,105 +20,124 @@ describe('validateTrack', () => {
     });
 
     it('should pass validation', () => {
-      expect(result.valid).toBe(true);
+      expect(result.valid, 'Track validation should pass for valid canyon-02.json').toBe(true);
     });
 
     it('should have no errors', () => {
-      expect(result.errors).toEqual([]);
+      expect(result.errors, 'Valid track should have no validation errors').toEqual([]);
     });
 
     it('should have required top-level fields', () => {
-      expect(canyonJson).toHaveProperty('id', 'canyon-02');
-      expect(canyonJson).toHaveProperty('numeric_id', 2);
-      expect(canyonJson).toHaveProperty('name', 'Canyon Run');
-      expect(canyonJson).toHaveProperty('version', 1);
+      expect(canyonJson, 'Track should have id field').toHaveProperty('id', 'canyon-02');
+      expect(canyonJson, 'Track should have numeric_id field').toHaveProperty('numeric_id', 2);
+      expect(canyonJson, 'Track should have name field').toHaveProperty('name', 'Canyon Run');
+      expect(canyonJson, 'Track should have version field').toHaveProperty('version', 1);
     });
 
     it('should have world configuration', () => {
-      expect(canyonJson.world).toHaveProperty('gravity');
-      expect(canyonJson.world.gravity).toEqual([0.0, 10.0]);
-      expect(canyonJson.world).toHaveProperty('pixelsPerMeter', 30);
+      expect(canyonJson.world, 'Track should have world configuration').toHaveProperty('gravity');
+      expect(canyonJson.world.gravity, 'World gravity should be [0.0, 10.0]').toEqual([0.0, 10.0]);
+      expect(canyonJson.world, 'World should have pixelsPerMeter').toHaveProperty('pixelsPerMeter', 30);
     });
 
     it('should have camera configuration', () => {
-      expect(canyonJson.camera).toHaveProperty('followAxis', 'x');
-      expect(canyonJson.camera).toHaveProperty('deadzone');
-      expect(canyonJson.camera.deadzone).toEqual([120, 80]);
-      expect(canyonJson.camera).toHaveProperty('maxZoomOut', 1.0);
+      expect(canyonJson.camera, 'Track should have camera configuration').toHaveProperty('followAxis', 'x');
+      expect(canyonJson.camera, 'Camera should have deadzone').toHaveProperty('deadzone');
+      expect(canyonJson.camera.deadzone, 'Camera deadzone should be [120, 80]').toEqual([120, 80]);
+      expect(canyonJson.camera, 'Camera should have maxZoomOut').toHaveProperty('maxZoomOut', 1.0);
     });
 
     it('should have valid terrain points', () => {
-      expect(Array.isArray(canyonJson.terrain)).toBe(true);
-      expect(canyonJson.terrain.length).toBeGreaterThan(1);
+      expect(Array.isArray(canyonJson.terrain), 'Terrain should be an array').toBe(true);
+      expect(canyonJson.terrain.length, 'Terrain should have at least 2 points').toBeGreaterThan(1);
 
       // Check X coordinates are strictly increasing
       for (let i = 1; i < canyonJson.terrain.length; i++) {
-        expect(canyonJson.terrain[i][0]).toBeGreaterThan(canyonJson.terrain[i - 1][0]);
+        expect(
+          canyonJson.terrain[i][0] > canyonJson.terrain[i - 1][0],
+          `Terrain point ${i} X coordinate (${canyonJson.terrain[i][0]}) should be greater than previous (${canyonJson.terrain[i - 1][0]})`
+        ).toBe(true);
       }
     });
 
     it('should have valid surfaces', () => {
-      expect(Array.isArray(canyonJson.surfaces)).toBe(true);
+      expect(Array.isArray(canyonJson.surfaces), 'Surfaces should be an array').toBe(true);
+      expect(canyonJson.surfaces.length, 'Surfaces array should not be empty').toBeGreaterThan(0);
+
       const validTypes = ['normal', 'ice', 'snow', 'water', 'mud', 'rock'];
 
       for (const surface of canyonJson.surfaces) {
-        expect(surface).toHaveProperty('type');
-        expect(validTypes).toContain(surface.type);
-        expect(Array.isArray(surface.x_range)).toBe(true);
-        expect(surface.x_range).toHaveLength(2);
-        expect(surface.x_range[0]).toBeLessThan(surface.x_range[1]);
+        expect(surface, 'Surface should have type property').toHaveProperty('type');
+        expect(validTypes.includes(surface.type), `Surface type '${surface.type}' should be one of: ${validTypes.join(', ')}`).toBe(true);
+        expect(Array.isArray(surface.x_range), 'Surface x_range should be an array').toBe(true);
+        expect(surface.x_range, 'Surface x_range should have 2 elements').toHaveLength(2);
+        expect(
+          surface.x_range[0] < surface.x_range[1],
+          `Surface x_range[0] (${surface.x_range[0]}) should be less than x_range[1] (${surface.x_range[1]})`
+        ).toBe(true);
       }
     });
 
     it('should have valid obstacles', () => {
-      expect(Array.isArray(canyonJson.obstacles)).toBe(true);
+      expect(Array.isArray(canyonJson.obstacles), 'Obstacles should be an array').toBe(true);
+      expect(canyonJson.obstacles.length, 'Obstacles array should not be empty').toBeGreaterThan(0);
+
       const validTypes = ['box', 'circle'];
 
       for (const obstacle of canyonJson.obstacles) {
-        expect(obstacle).toHaveProperty('type');
-        expect(validTypes).toContain(obstacle.type);
-        expect(Array.isArray(obstacle.pos)).toBe(true);
-        expect(obstacle.pos).toHaveLength(2);
+        expect(obstacle, 'Obstacle should have type property').toHaveProperty('type');
+        expect(validTypes.includes(obstacle.type), `Obstacle type '${obstacle.type}' should be one of: ${validTypes.join(', ')}`).toBe(true);
+        expect(Array.isArray(obstacle.pos), 'Obstacle pos should be an array').toBe(true);
+        expect(obstacle.pos, 'Obstacle pos should have 2 coordinates').toHaveLength(2);
       }
     });
 
     it('should have valid zones', () => {
-      expect(Array.isArray(canyonJson.zones)).toBe(true);
+      expect(Array.isArray(canyonJson.zones), 'Zones should be an array').toBe(true);
+      expect(canyonJson.zones.length, 'Zones array should not be empty').toBeGreaterThan(0);
 
       for (const zone of canyonJson.zones) {
-        expect(zone).toHaveProperty('id');
-        expect(typeof zone.id).toBe('string');
-        expect(typeof zone.x_start).toBe('number');
-        expect(typeof zone.x_end).toBe('number');
-        expect(zone.x_start).toBeLessThan(zone.x_end);
+        expect(zone, 'Zone should have id property').toHaveProperty('id');
+        expect(typeof zone.id === 'string', `Zone id should be a string, got ${typeof zone.id}`).toBe(true);
+        expect(typeof zone.x_start === 'number', `Zone x_start should be a number, got ${typeof zone.x_start}`).toBe(true);
+        expect(typeof zone.x_end === 'number', `Zone x_end should be a number, got ${typeof zone.x_end}`).toBe(true);
+        expect(
+          zone.x_start < zone.x_end,
+          `Zone x_start (${zone.x_start}) should be less than x_end (${zone.x_end})`
+        ).toBe(true);
       }
     });
 
     it('should have valid start position', () => {
-      expect(canyonJson.start).toHaveProperty('pos');
-      expect(Array.isArray(canyonJson.start.pos)).toBe(true);
-      expect(canyonJson.start.pos).toHaveLength(2);
-      expect(canyonJson.start).toHaveProperty('facing', 1);
+      expect(canyonJson.start, 'Track should have start configuration').toHaveProperty('pos');
+      expect(Array.isArray(canyonJson.start.pos), 'Start pos should be an array').toBe(true);
+      expect(canyonJson.start.pos, 'Start pos should have 2 coordinates').toHaveLength(2);
+      expect(canyonJson.start, 'Start should have facing property').toHaveProperty('facing', 1);
     });
 
     it('should have valid finish position', () => {
-      expect(canyonJson.finish).toHaveProperty('pos');
-      expect(Array.isArray(canyonJson.finish.pos)).toBe(true);
-      expect(canyonJson.finish.pos).toHaveLength(2);
-      expect(canyonJson.finish).toHaveProperty('width');
-      expect(canyonJson.finish.width).toBeGreaterThan(0);
+      expect(canyonJson.finish, 'Track should have finish configuration').toHaveProperty('pos');
+      expect(Array.isArray(canyonJson.finish.pos), 'Finish pos should be an array').toBe(true);
+      expect(canyonJson.finish.pos, 'Finish pos should have 2 coordinates').toHaveLength(2);
+      expect(canyonJson.finish, 'Finish should have width property').toHaveProperty('width');
+      expect(canyonJson.finish.width > 0, `Finish width (${canyonJson.finish.width}) should be greater than 0`).toBe(true);
     });
 
     it('should have valid hazards', () => {
-      expect(Array.isArray(canyonJson.hazards)).toBe(true);
+      expect(Array.isArray(canyonJson.hazards), 'Hazards should be an array').toBe(true);
+      expect(canyonJson.hazards.length, 'Hazards array should not be empty').toBeGreaterThan(0);
+
       const validTypes = ['pit'];
 
       for (const hazard of canyonJson.hazards) {
-        expect(hazard).toHaveProperty('type');
-        expect(validTypes).toContain(hazard.type);
-        expect(typeof hazard.x_start).toBe('number');
-        expect(typeof hazard.x_end).toBe('number');
-        expect(hazard.x_start).toBeLessThan(hazard.x_end);
+        expect(hazard, 'Hazard should have type property').toHaveProperty('type');
+        expect(validTypes.includes(hazard.type), `Hazard type '${hazard.type}' should be one of: ${validTypes.join(', ')}`).toBe(true);
+        expect(typeof hazard.x_start === 'number', `Hazard x_start should be a number, got ${typeof hazard.x_start}`).toBe(true);
+        expect(typeof hazard.x_end === 'number', `Hazard x_end should be a number, got ${typeof hazard.x_end}`).toBe(true);
+        expect(
+          hazard.x_start < hazard.x_end,
+          `Hazard x_start (${hazard.x_start}) should be less than x_end (${hazard.x_end})`
+        ).toBe(true);
       }
     });
   });
@@ -135,29 +154,30 @@ describe('validateTrack', () => {
     });
 
     it('should pass validation', () => {
-      expect(result.valid).toBe(true);
+      expect(result.valid, 'Track validation should pass for valid dunes-03.json').toBe(true);
     });
 
     it('should have no errors', () => {
-      expect(result.errors).toEqual([]);
+      expect(result.errors, 'Valid track should have no validation errors').toEqual([]);
     });
 
     it('should have correct track identity', () => {
-      expect(dunesJson).toHaveProperty('id', 'dunes-03');
-      expect(dunesJson).toHaveProperty('numeric_id', 3);
-      expect(dunesJson).toHaveProperty('name', 'Dune Drifter');
+      expect(dunesJson, 'Track should have id field').toHaveProperty('id', 'dunes-03');
+      expect(dunesJson, 'Track should have numeric_id field').toHaveProperty('numeric_id', 3);
+      expect(dunesJson, 'Track should have name field').toHaveProperty('name', 'Dune Drifter');
     });
 
     it('should be longer than canyon-02', () => {
       // dunes-03 is the longest track at 48m
-      expect(dunesJson.terrain[dunesJson.terrain.length - 1][0]).toBe(48);
+      const lastTerrainPoint = dunesJson.terrain[dunesJson.terrain.length - 1][0];
+      expect(lastTerrainPoint, `Final terrain point X should be 48 for dunes-03, got ${lastTerrainPoint}`).toBe(48);
     });
 
     it('should have snow surface on final zone', () => {
       const snowSurface = dunesJson.surfaces?.find((s: any) => s.type === 'snow');
-      expect(snowSurface).toBeDefined();
-      expect(snowSurface.x_range[0]).toBe(38);
-      expect(snowSurface.x_range[1]).toBe(48);
+      expect(snowSurface, 'Dunes track should have snow surface').toBeDefined();
+      expect(snowSurface.x_range[0], `Snow surface should start at x=38, got ${snowSurface.x_range[0]}`).toBe(38);
+      expect(snowSurface.x_range[1], `Snow surface should end at x=48, got ${snowSurface.x_range[1]}`).toBe(48);
     });
   });
 
@@ -169,9 +189,12 @@ describe('validateTrack', () => {
       };
 
       const result = validateTrack(invalidTrack, 'test-track.json');
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors.some(e => e.includes('Missing required field'))).toBe(true);
+      expect(result.valid, 'Track missing required fields should be invalid').toBe(false);
+      expect(result.errors.length, 'Invalid track should have validation errors').toBeGreaterThan(0);
+      expect(
+        result.errors.some(e => e.includes('Missing required field')),
+        'Should report missing required fields error'
+      ).toBe(true);
     });
 
     it('should reject track with invalid numeric_id', () => {
@@ -188,8 +211,11 @@ describe('validateTrack', () => {
       };
 
       const result = validateTrack(invalidTrack, 'test-track.json');
-      expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('numeric_id'))).toBe(true);
+      expect(result.valid, 'Track with negative numeric_id should be invalid').toBe(false);
+      expect(
+        result.errors.some(e => e.includes('numeric_id')),
+        'Should report numeric_id validation error'
+      ).toBe(true);
     });
 
     it('should reject track with non-increasing terrain X coordinates', () => {
@@ -206,8 +232,11 @@ describe('validateTrack', () => {
       };
 
       const result = validateTrack(invalidTrack, 'test-track.json');
-      expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('strictly increasing'))).toBe(true);
+      expect(result.valid, 'Track with non-increasing terrain X coordinates should be invalid').toBe(false);
+      expect(
+        result.errors.some(e => e.includes('strictly increasing')),
+        'Should report terrain X coordinate validation error'
+      ).toBe(true);
     });
 
     it('should reject track with invalid surface type', () => {
@@ -225,8 +254,11 @@ describe('validateTrack', () => {
       };
 
       const result = validateTrack(invalidTrack, 'test-track.json');
-      expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('invalid type'))).toBe(true);
+      expect(result.valid, 'Track with invalid surface type should be invalid').toBe(false);
+      expect(
+        result.errors.some(e => e.includes('invalid type')),
+        'Should report invalid surface type error'
+      ).toBe(true);
     });
 
     it('should reject zone where x_start >= x_end', () => {
@@ -244,8 +276,11 @@ describe('validateTrack', () => {
       };
 
       const result = validateTrack(invalidTrack, 'test-track.json');
-      expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('x_start') && e.includes('x_end'))).toBe(true);
+      expect(result.valid, 'Track with zone where x_start >= x_end should be invalid').toBe(false);
+      expect(
+        result.errors.some(e => e.includes('x_start') && e.includes('x_end')),
+        'Should report zone coordinate validation error'
+      ).toBe(true);
     });
   });
 });
