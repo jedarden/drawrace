@@ -231,11 +231,19 @@ The generated password meets security requirements:
 - Once blockers resolved: 15-20 minutes to complete OpenBao write and verify sync
 - Blocker resolution time: Unknown (depends on admin availability)
 
-**Task Recommendation:** 
+**Task Recommendation:**
 **Keep bead OPEN** until OpenBao token and cluster connectivity are restored. This is a genuine infrastructure blocker, not a task completion issue.
 
 ---
 
+## Recent Verification Attempts
+
+**2026-08-26:** Verification task drawrace-3c1fafb3 attempted to retrieve and validate credentials. ❌ **CANNOT COMPLETE** - blocked on missing OPENBAO_TOKEN and incomplete credential population. See `docs/database-credential-verification-attempt.md` for full details.
+
+---
+
 **Generated:** 2026-08-10  
+**Last Updated:** 2026-08-26  
 **Task:** bf-1hab8  
-**Dependencies:** bf-33p57 (OpenBao access verification) ✅ Complete
+**Dependencies:** bf-33p57 (OpenBao access verification) ✅ Complete  
+**Child Task:** drawrace-3c1fafb3 ❌ CANNOT COMPLETE (blocked on OpenBao token)
