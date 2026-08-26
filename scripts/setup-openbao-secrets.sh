@@ -34,7 +34,7 @@ error() {
 check_access() {
     log "Checking cluster access..."
 
-    if ! kubectl --server=http://traefik-iad-acb:8001 get namespace "$DRAWRACE_NAMESPACE" >/dev/null 2>&1; then
+    if ! kubectl --server=http://traefik-rs-manager:8001 get namespace "$DRAWRACE_NAMESPACE" >/dev/null 2>&1; then
         error "Cannot access drawrace namespace. This script requires write access to the cluster."
     fi
 
@@ -46,11 +46,11 @@ create_garage_resources() {
     log "Creating Garage resources for DrawRace..."
 
     # Check if bucket already exists
-    if kubectl --server=http://traefik-iad-acb:8001 get garagebucket drawrace-ghosts -n "$GARAGE_NAMESPACE" >/dev/null 2>&1; then
+    if kubectl --server=http://traefik-rs-manager:8001 get garagebucket drawrace-ghosts -n "$GARAGE_NAMESPACE" >/dev/null 2>&1; then
         log "GarageBucket drawrace-ghosts already exists, skipping..."
     else
         log "Creating GarageBucket drawrace-ghosts..."
-        kubectl --server=http://traefik-iad-acb:8001 apply -f - <<EOF
+        kubectl --server=http://traefik-rs-manager:8001 apply -f - <<EOF
 apiVersion: garage.rajsingh.info/v1beta0
 kind: GarageBucket
 metadata:
@@ -67,11 +67,11 @@ EOF
     fi
 
     # Create GarageKey for API access
-    if kubectl --server=http://traefik-iad-acb:8001 get garagekey drawrace-api-key -n "$GARAGE_NAMESPACE" >/dev/null 2>&1; then
+    if kubectl --server=http://traefik-rs-manager:8001 get garagekey drawrace-api-key -n "$GARAGE_NAMESPACE" >/dev/null 2>&1; then
         log "GarageKey drawrace-api-key already exists, skipping..."
     else
         log "Creating GarageKey drawrace-api-key..."
-        kubectl --server=http://traefik-iad-acb:8001 apply -f - <<EOF
+        kubectl --server=http://traefik-rs-manager:8001 apply -f - <<EOF
 apiVersion: garage.rajsingh.info/v1beta0
 kind: GarageKey
 metadata:
@@ -96,11 +96,11 @@ EOF
     fi
 
     # Create GarageKey for Postgres backup (reuse CNPG backup bucket)
-    if kubectl --server=http://traefik-iad-acb:8001 get garagekey drawrace-postgres-backup-key -n "$GARAGE_NAMESPACE" >/dev/null 2>&1; then
+    if kubectl --server=http://traefik-rs-manager:8001 get garagekey drawrace-postgres-backup-key -n "$GARAGE_NAMESPACE" >/dev/null 2>&1; then
         log "GarageKey drawrace-postgres-backup-key already exists, skipping..."
     else
         log "Creating GarageKey drawrace-postgres-backup-key..."
-        kubectl --server=http://traefik-iad-acb:8001 apply -f - <<EOF
+        kubectl --server=http://traefik-rs-manager:8001 apply -f - <<EOF
 apiVersion: garage.rajsingh.info/v1beta0
 kind: GarageKey
 metadata:
@@ -133,10 +133,10 @@ extract_s3_credentials() {
     log "Extracting S3 credentials from Garage secrets..."
 
     # Get API S3 credentials
-    if kubectl --server=http://traefik-iad-acb:8001 get secret drawrace-api-s3-temp -n "$GARAGE_NAMESPACE" >/dev/null 2>&1; then
-        AWS_ACCESS_KEY_ID=$(kubectl --server=http://traefik-iad-acb:8001 get secret drawrace-api-s3-temp -n "$GARAGE_NAMESPACE" -o jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
-        AWS_SECRET_ACCESS_KEY=$(kubectl --server=http://traefik-iad-acb:8001 get secret drawrace-api-s3-temp -n "$GARAGE_NAMESPACE" -o jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
-        AWS_ENDPOINT_URL=$(kubectl --server=http://traefik-iad-acb:8001 get secret drawrace-api-s3-temp -n "$GARAGE_NAMESPACE" -o jsonpath='{.data.S3_ENDPOINT}' | base64 -d)
+    if kubectl --server=http://traefik-rs-manager:8001 get secret drawrace-api-s3-temp -n "$GARAGE_NAMESPACE" >/dev/null 2>&1; then
+        AWS_ACCESS_KEY_ID=$(kubectl --server=http://traefik-rs-manager:8001 get secret drawrace-api-s3-temp -n "$GARAGE_NAMESPACE" -o jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
+        AWS_SECRET_ACCESS_KEY=$(kubectl --server=http://traefik-rs-manager:8001 get secret drawrace-api-s3-temp -n "$GARAGE_NAMESPACE" -o jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
+        AWS_ENDPOINT_URL=$(kubectl --server=http://traefik-rs-manager:8001 get secret drawrace-api-s3-temp -n "$GARAGE_NAMESPACE" -o jsonpath='{.data.S3_ENDPOINT}' | base64 -d)
         AWS_REGION="garage"
 
         log "API S3 credentials extracted successfully."
@@ -145,9 +145,9 @@ extract_s3_credentials() {
     fi
 
     # Get Postgres backup S3 credentials
-    if kubectl --server=http://traefik-iad-acb:8001 get secret drawrace-postgres-backup-s3-temp -n "$GARAGE_NAMESPACE" >/dev/null 2>&1; then
-        BACKUP_ACCESS_KEY_ID=$(kubectl --server=http://traefik-iad-acb:8001 get secret drawrace-postgres-backup-s3-temp -n "$GARAGE_NAMESPACE" -o jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
-        BACKUP_SECRET_ACCESS_KEY=$(kubectl --server=http://traefik-iad-acb:8001 get secret drawrace-postgres-backup-s3-temp -n "$GARAGE_NAMESPACE" -o jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
+    if kubectl --server=http://traefik-rs-manager:8001 get secret drawrace-postgres-backup-s3-temp -n "$GARAGE_NAMESPACE" >/dev/null 2>&1; then
+        BACKUP_ACCESS_KEY_ID=$(kubectl --server=http://traefik-rs-manager:8001 get secret drawrace-postgres-backup-s3-temp -n "$GARAGE_NAMESPACE" -o jsonpath='{.data.ACCESS_KEY_ID}' | base64 -d)
+        BACKUP_SECRET_ACCESS_KEY=$(kubectl --server=http://traefik-rs-manager:8001 get secret drawrace-postgres-backup-s3-temp -n "$GARAGE_NAMESPACE" -o jsonpath='{.data.SECRET_ACCESS_KEY}' | base64 -d)
 
         log "Postgres backup S3 credentials extracted successfully."
     else
@@ -227,9 +227,9 @@ verify_external_secrets() {
     for i in {1..12}; do
         log "Check attempt $i/12..."
 
-        API_STATUS=$(kubectl --server=http://traefik-iad-acb:8001 get externalsecret drawrace-api-s3-credentials -n "$DRAWRACE_NAMESPACE" -o jsonpath='{.status.conditions[0].status}')
-        PG_BACKUP_STATUS=$(kubectl --server=http://traefik-iad-acb:8001 get externalsecret drawrace-postgres-backup-s3 -n "$DRAWRACE_NAMESPACE" -o jsonpath='{.status.conditions[0].status}')
-        PG_STATUS=$(kubectl --server=http://traefik-iad-acb:8001 get externalsecret drawrace-postgres-credentials -n "$DRAWRACE_NAMESPACE" -o jsonpath='{.status.conditions[0].status}')
+        API_STATUS=$(kubectl --server=http://traefik-rs-manager:8001 get externalsecret drawrace-api-s3-credentials -n "$DRAWRACE_NAMESPACE" -o jsonpath='{.status.conditions[0].status}')
+        PG_BACKUP_STATUS=$(kubectl --server=http://traefik-rs-manager:8001 get externalsecret drawrace-postgres-backup-s3 -n "$DRAWRACE_NAMESPACE" -o jsonpath='{.status.conditions[0].status}')
+        PG_STATUS=$(kubectl --server=http://traefik-rs-manager:8001 get externalsecret drawrace-postgres-credentials -n "$DRAWRACE_NAMESPACE" -o jsonpath='{.status.conditions[0].status}')
 
         if [ "$API_STATUS" = "True" ] && [ "$PG_BACKUP_STATUS" = "True" ] && [ "$PG_STATUS" = "True" ]; then
             log "✅ All ExternalSecrets are now Ready!"
@@ -247,8 +247,8 @@ verify_external_secrets() {
 cleanup_temp_secrets() {
     log "Cleaning up temporary Garage secrets..."
 
-    kubectl --server=http://traefik-iad-acb:8001 delete secret drawrace-api-s3-temp -n "$GARAGE_NAMESPACE" --ignore-not-found=true
-    kubectl --server=http://traefik-iad-acb:8001 delete secret drawrace-postgres-backup-s3-temp -n "$GARAGE_NAMESPACE" --ignore-not-found=true
+    kubectl --server=http://traefik-rs-manager:8001 delete secret drawrace-api-s3-temp -n "$GARAGE_NAMESPACE" --ignore-not-found=true
+    kubectl --server=http://traefik-rs-manager:8001 delete secret drawrace-postgres-backup-s3-temp -n "$GARAGE_NAMESPACE" --ignore-not-found=true
 
     log "Temporary secrets cleaned up."
 }

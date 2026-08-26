@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-CLUSTER_ENDPOINT="${CLUSTER_ENDPOINT:-http://traefik-iad-acb:8001}"
+CLUSTER_ENDPOINT="${CLUSTER_ENDPOINT:-http://traefik-rs-manager:8001}"
 NAMESPACE="${NAMESPACE:-garage-operator}"
 
 echo "=== DrawRace Garage Resources Verification ==="

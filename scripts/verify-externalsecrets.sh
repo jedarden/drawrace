@@ -15,7 +15,7 @@ set -euo pipefail
 
 # Configuration
 NAMESPACE="drawrace"
-CLUSTER_ENDPOINT="http://traefik-iad-acb:8001"
+CLUSTER_ENDPOINT="http://traefik-rs-manager:8001"
 EXPECTED_SECRETS=(
     "drawrace-postgres"
     "drawrace-cloudflare"
