@@ -94,12 +94,12 @@ fi
 echo ""
 
 # Test 5: K8s cluster access
-echo "5. Checking kubectl access to iad-acb..."
-K8S_SERVER="${K8S_SERVER:-http://traefik-iad-acb:8001}"
+echo "5. Checking kubectl access to rs-manager..."
+K8S_SERVER="${K8S_SERVER:-http://traefik-rs-manager:8001}"
 if kubectl --server="$K8S_SERVER" cluster-info > /dev/null 2>&1; then
-    check_pass "Can reach iad-acb cluster"
+    check_pass "Can reach rs-manager cluster"
 else
-    check_fail "Cannot reach iad-acb cluster"
+    check_fail "Cannot reach rs-manager cluster"
     echo "   Check: kubectl is configured and Tailscale connection is active"
 fi
 echo ""

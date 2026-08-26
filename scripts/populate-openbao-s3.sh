@@ -16,7 +16,7 @@ set -euo pipefail
 DRAWRACE_NAMESPACE="drawrace"
 GARAGE_NAMESPACE="garage-operator"
 OPENBAO_ADDR="${OPENBAO_ADDR:-https://openbao.ardenone.com}"
-KUBERNETES_PROXY="${KUBERNETES_PROXY:-http://traefik-iad-acb:8001}"
+KUBERNETES_PROXY="${KUBERNETES_PROXY:-http://traefik-rs-manager:8001}"
 
 # Colors for output
 RED='\033[0;31m'

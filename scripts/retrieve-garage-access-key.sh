@@ -24,20 +24,20 @@ mkdir -p "$(dirname "$RECORD_FILE")"
 echo "Step 1: Verifying cluster connectivity..."
 
 # Check if we can access the cluster
-if ! kubectl --server=http://traefik-ardenone-manager:8001 get namespaces "$NAMESPACE" &>/dev/null; then
+if ! kubectl --server=http://traefik-rs-manager:8001 get namespaces "$NAMESPACE" &>/dev/null; then
     echo "❌ Cannot access namespace $NAMESPACE"
     echo "Trying direct kubeconfig access..."
 
-    if kubectl --kubeconfig=/home/coding/.kube/ardenone-manager.kubeconfig get namespaces "$NAMESPACE" &>/dev/null; then
+    if kubectl --kubeconfig=/home/coding/.kube/rs-manager.kubeconfig get namespaces "$NAMESPACE" &>/dev/null; then
         echo "✅ Cluster access confirmed via direct kubeconfig"
-        KUBECTL_CMD="kubectl --kubeconfig=/home/coding/.kube/ardenone-manager.kubeconfig"
+        KUBECTL_CMD="kubectl --kubeconfig=/home/coding/.kube/rs-manager.kubeconfig"
     else
         echo "❌ No cluster access available"
         exit 1
     fi
 else
     echo "✅ Cluster access confirmed via proxy"
-    KUBECTL_CMD="kubectl --server=http://traefik-ardenone-manager:8001"
+    KUBECTL_CMD="kubectl --server=http://traefik-rs-manager:8001"
 fi
 
 # Step 2: Verify secret exists
@@ -75,7 +75,7 @@ if [[ -z "$ACCESS_KEY_ID" ]]; then
     exit 1
 fi
 
-echo "✅ Access Key ID retrieved: ${ACCESS_KEY_ID:0:8}..." (first 8 chars only)
+echo "✅ Access Key ID retrieved: ${ACCESS_KEY_ID:0:8}... (first 8 chars only)"
 
 # Store in temp files for verification
 echo "$ACCESS_KEY_ID" > "$TEMP_DIR/access-key-id"

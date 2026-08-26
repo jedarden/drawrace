@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
     let redis_mgr = redis.get_connection_manager().await?;
 
     // Create application state
-    let state = Arc::new(LiveState::new(redis, redis_mgr, pod_ip, physics_engine));
+    let state = Arc::new(LiveState::new(redis.clone(), redis_mgr, pod_ip, physics_engine));
 
     // Build router
     let app = app::app(state.clone());
@@ -76,6 +76,37 @@ async fn main() -> Result<()> {
     let state_clone = state.clone();
     tokio::spawn(async move {
         background::run_race_loop(&state_clone).await;
+    });
+
+    // Start Redis health watchdog
+    let redis_health = state.redis_health.clone();
+    tokio::spawn(async move {
+        redis_health.run_watchdog().await;
+    });
+
+    // Set up Redis pub/sub subscriptions for cross-pod communication
+    let subscription_guard = state.redis_subscription.clone();
+
+    // Subscribe to race update channels (for broadcasting state across pods)
+    // This example subscribes to a pattern for race updates
+    // In a real implementation, you'd subscribe to specific channels based on your architecture
+    let subscription_ref = subscription_guard.clone();
+    tokio::spawn(async move {
+        // Subscribe to race state updates pattern
+        subscription_ref.subscribe("race:*").await;
+        subscription_ref.subscribe("lobby:*").await;
+        subscription_ref.subscribe("room:*").await;
+
+        tracing::info!("Redis pub/sub subscriptions configured for cross-pod communication");
+
+        // Start subscription processing
+        subscription_ref.start().await;
+    });
+
+    // Start Redis subscription health watchdog
+    let redis_subscription = state.redis_subscription.clone();
+    tokio::spawn(async move {
+        redis_subscription.run_watchdog().await;
     });
 
     // Start server

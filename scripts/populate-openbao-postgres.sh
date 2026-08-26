@@ -106,8 +106,8 @@ verify_openbao_secret() {
 check_external_secret_sync() {
     log "Checking if ExternalSecret is syncing..."
 
-    if kubectl --server=http://traefik-iad-acb:8001 get externalsecret drawrace-postgres-credentials -n "$DRAWRACE_NAMESPACE" >/dev/null 2>&1; then
-        STATUS=$(kubectl --server=http://traefik-iad-acb:8001 get externalsecret drawrace-postgres-credentials -n "$DRAWRACE_NAMESPACE" -o jsonpath='{.status.conditions[0].status}')
+    if kubectl --server=http://traefik-rs-manager:8001 get externalsecret drawrace-postgres-credentials -n "$DRAWRACE_NAMESPACE" >/dev/null 2>&1; then
+        STATUS=$(kubectl --server=http://traefik-rs-manager:8001 get externalsecret drawrace-postgres-credentials -n "$DRAWRACE_NAMESPACE" -o jsonpath='{.status.conditions[0].status}')
 
         if [ "$STATUS" = "True" ]; then
             log "✅ ExternalSecret 'drawrace-postgres-credentials' is Ready and synced."
