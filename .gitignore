@@ -3,15 +3,10 @@
 .marathon/artifacts/
 
 # Beads — issue tracker database and state
-# Bead store: SQLite and history stay local; the JSONL checkpoint is tracked.
-# Must be `.beads/*`, not `.beads/` — git cannot re-include a file whose
-# parent directory is excluded.
-# bead-rs: the checkpoint under .beads/ is the durable store and IS tracked.
-# .beads/.gitignore excludes the SQLite db and scratch files.
-.beads/*.db
-.beads/*.db-shm
-.beads/*.db-wal
-!.beads/issues.jsonl
+# Bead store: All beads files stay local to prevent repository bloat.
+# Large JSONL checkpoint files (237MB+) caused 18GB repository bloat and agent crashes.
+# See: crash investigation bead bf-32l83 for details.
+.beads/
 
 # Needle dispatch state
 .needle-predispatch-sha
