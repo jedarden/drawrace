@@ -4,8 +4,8 @@
 
 set -euo pipefail
 
-# Default to iad-acb cluster config if KUBECONFIG not set
-KUBECONFIG="${KUBECONFIG:-${HOME}/.kube/iad-acb.kubeconfig}"
+# Default to rs-manager cluster config if KUBECONFIG not set
+KUBECONFIG="${KUBECONFIG:-${HOME}/.kube/rs-manager.kubeconfig}"
 
 if [ ! -f "${KUBECONFIG}" ]; then
   echo "❌ Kubeconfig not found at ${KUBECONFIG}"

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Verification script for Kubernetes cluster admin permissions on iad-acb
+# Verification script for Kubernetes cluster admin permissions on rs-manager
 # Tests ability to create GarageBucket and GarageKey resources in garage-operator namespace
 
 set -euo pipefail
 
 # Configuration
-CLUSTER_NAME="iad-acb"
+CLUSTER_NAME="rs-manager"
 NAMESPACE="garage-operator"
 
 echo "🔍 Testing Kubernetes cluster access..."
@@ -111,7 +111,7 @@ if [ "$CAN_CREATE_BUCKET" = true ] && [ "$CAN_CREATE_KEY" = true ]; then
     echo "🎉 All required permissions verified!"
     echo ""
     echo "Next steps:"
-    echo "1. Apply k8s manifests: kubectl apply -f k8s/iad-acb/drawrace/"
+    echo "1. Apply k8s manifests: kubectl apply -f k8s/rs-manager/drawrace/"
     echo "2. Check pod status: kubectl get pods -n drawrace"
     exit 0
 else
