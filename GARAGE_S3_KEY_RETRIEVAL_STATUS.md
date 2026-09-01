@@ -55,12 +55,27 @@ The Garage resources are **CONFIGURED but NOT DEPLOYED**:
 
 ### Infrastructure Blockers
 
-Per `GARAGE_RESOURCES_VERIFICATION.md`:
+**CRITICAL INFRASTRUCTURE FAILURE (Verified 2026-09-01):**
 
-1. ❌ **OpenBao root token not obtained** (nd-1fkb)
-2. ❌ **Cluster admin permissions on iad-acb not granted**
-3. ❌ **iad-acb cluster connectivity issues documented**
-4. ❌ **garage-operator CRDs may not be installed on target cluster**
+1. ❌ **garage-operator namespace in "Terminating" state** (138 days)
+   - Namespace cannot create new resources
+   - Existing resources are being removed
+   - Operator webhook services are non-functional
+
+2. ❌ **ardenone-hub cluster offline in Tailscale**
+   - Last seen: 84-85 days ago
+   - Multiple endpoints offline: ardenone-hub, mesh-dns-ardenone-hub, traefik-ardenone-hub
+   - No Garage S3 API access available
+
+3. ❌ **No S3 credentials in any namespace**
+   - Verified: No secrets in drawrace namespace
+   - Verified: garage-operator namespace non-functional
+   - No fallback storage location exists
+
+4. ❌ **Alternative access methods blocked**
+   - Garage CLI not available on lab server
+   - Garage admin API not accessible (cluster offline)
+   - Kubernetes Garage CRDs non-functional (webhook service down)
 
 ---
 
@@ -220,20 +235,42 @@ bao kv put secret/drawrace/garage-s3 \
 
 ## Conclusion
 
-**Status:** ⏸️ **BLOCKED - Key does not exist yet**
+**Status:** ❌ **BLOCKED - Infrastructure Failure**
 
 The Garage S3 `secretAccessKey` cannot be retrieved because:
 
-1. The Garage resources that would generate the key are configured but not deployed
-2. Infrastructure blockers (OpenBao token, cluster permissions) prevent deployment
-3. The secrets are only auto-created by garage-operator after successful resource deployment
-4. No fallback storage location exists for the credentials
+1. ❌ **Critical Infrastructure Failure**: The garage-operator namespace has been in "Terminating" state for 138 days and cannot function
+2. ❌ **Cluster Offline**: The ardenone-hub cluster (hosting Garage S3) has been offline in Tailscale for 84-85 days
+3. ❌ **No Resources Deployed**: All Garage resources are configured but not deployed due to namespace termination
+4. ❌ **No Access Methods**: All potential access methods (Kubernetes secrets, Garage CLI, admin API) are non-functional
+5. ❌ **No Existing Storage**: The secretAccessKey has never been created and does not exist in any location
 
-**Next Steps:**
-1. Resolve infrastructure blockers (nd-1fkb)
-2. Deploy Garage resources (`kubectl apply -f k8s/garage-resources.yaml`)
-3. Verify secret creation
-4. Retrieve key using documented methods
-5. Migrate to OpenBao for secure storage
+**Infrastructure Verification Results (2026-09-01):**
+- ✅ Garage CRDs exist on rs-manager cluster
+- ❌ garage-operator namespace: Terminating (138 days)
+- ❌ ardenone-hub cluster: Offline in Tailscale (84-85 days)  
+- ❌ drawrace namespace: No secrets found
+- ❌ No functional Garage access methods available
 
-**Bead nd-5lzo Status:** Cannot complete retrieval until infrastructure blockers are resolved and Garage resources are deployed.
+**Root Cause Analysis:**
+The garage-operator infrastructure on rs-manager has been non-functional for at least 138 days. The namespace is stuck in "Terminating" state, preventing any new Garage resources from being deployed. Additionally, the ardenone-hub cluster that hosts the actual Garage S3 service has been offline for 84-85 days, making direct Garage API access impossible.
+
+**Required Actions Before Retrieval is Possible:**
+1. **Restore garage-operator namespace** - Unclear why it's stuck in "Terminating" state
+2. **Bring ardenone-hub cluster online** - Required for Garage S3 API access
+3. **Re-deploy Garage resources** - Once namespace is functional
+4. **Generate new S3 keys** - Auto-created by garage-operator after deployment
+5. **Verify secret creation** - Confirm Kubernetes secrets exist
+6. **Retrieve and migrate keys** - Move to secure storage (OpenBao)
+
+**Alternative Approaches:**
+1. **Deploy to different cluster** - If rs-manager/garage-operator cannot be restored
+2. **Use external S3 service** - Alternative to Garage S3 infrastructure
+3. **Manual key creation** - If Garage admin API becomes accessible
+
+**Bead nd-5lzo Status:** ❌ **BLOCKED** - Cannot complete retrieval until critical infrastructure failures are resolved. The secretAccessKey does not exist and cannot be created with current infrastructure state.
+
+**Recommended Next Steps:**
+1. Investigate and resolve garage-operator namespace termination issue
+2. Restore ardenone-hub cluster connectivity in Tailscale
+3. Consider alternative Garage deployment targets if current infrastructure cannot be recovered
