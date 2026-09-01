@@ -1,0 +1,24 @@
+docs/notes/ directory listing
+Generated: 2026-09-01
+Total files: 18
+
+Files:
+1. access-setup-guide.md
+2. compilation-error-classification.md
+3. compilation-error-root-causes-comprehensive.md
+4. compilation-error-root-causes.md
+5. features.md
+6. .gitkeep
+7. iad-acb-node-2-cni-investigation.md
+8. infrastructure-access-request.md
+9. nd-1tdq.md
+10. nd-2ilv.md
+11. nd-4bdv.md
+12. nd-4mf5.md
+13. nd-4p8p.md
+14. nd-53wv.md
+15. track-json-schema.md
+16. vitest-timeout-investigation.md
+17. workflowtemplate-deduplication-analysis.md
+
+Note: .gitkeep is an empty file for directory preservation
