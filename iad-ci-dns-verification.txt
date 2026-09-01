@@ -1,0 +1,25 @@
+iad-ci Cluster DNS Resolution Verification
+==========================================
+
+Date: 2026-09-01
+Task: drawrace-4630a23e
+
+Cluster Endpoint
+----------------
+Kubeconfig: /home/coding/.kube/iad-ci.kubeconfig
+Server URL: https://hcp-de5bec10-ce14-4eed-a6f4-750f3fd3a89a.spot.rackspace.com
+Hostname: hcp-de5bec10-ce14-4eed-a6f4-750f3fd3a89a.spot.rackspace.com
+
+DNS Resolution Test
+-------------------
+Command: host hcp-de5bec10-ce14-4eed-a6f4-750f3fd3a89a.spot.rackspace.com
+Result: SUCCESS
+Resolved IP: 162.209.114.65
+
+Acceptance Criteria
+-------------------
+✓ Cluster endpoint hostname extracted from kubeconfig
+✓ DNS resolution succeeds (hostname resolves to IP)
+✓ No DNS timeout or 'NXDOMAIN' errors
+
+Status: PASSED
