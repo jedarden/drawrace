@@ -951,3 +951,14 @@
 {"bead":"drawrace-0f44ab2f","duration_ms":509008,"event":"fail","exit_code":1,"outcome":"failure","strand":"pluck","ts":"2026-09-02T09:09:42.054361928+00:00","worker":"lab-drawrace"}
 {"bead":"drawrace-0092d05b","event":"claim","strand":"pluck","ts":"2026-09-02T09:12:03.167315562+00:00","worker":"lab-drawrace"}
 {"adapter":"claude-code-glm-4.7","bead":"drawrace-0092d05b","event":"dispatch","model":"glm-4.7","strand":"pluck","ts":"2026-09-02T09:12:03.226616758+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-38a3bc4d","event":"claim","strand":"explore","ts":"2026-09-02T09:16:11.095912358+00:00","worker":"lab-roam-1"}
+{"adapter":"claude-code-glm-4.7","bead":"drawrace-38a3bc4d","event":"dispatch","model":"glm-4.7","strand":"explore","ts":"2026-09-02T09:16:11.187019836+00:00","worker":"lab-roam-1"}
+{"bead":"drawrace-38a3bc4d","event":"claim","strand":"explore","ts":"2026-09-02T09:16:11.220107594+00:00","worker":"lab-roam-4"}
+{"bead":"drawrace-38a3bc4d","event":"claim","strand":"explore","ts":"2026-09-02T09:16:13.187126734+00:00","worker":"lab-roam-10"}
+{"bead":"drawrace-0092d05b","duration_ms":298461,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-02T09:17:01.702092445+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-bac06da0","event":"claim","strand":"pluck","ts":"2026-09-02T09:17:01.862822628+00:00","worker":"lab-drawrace"}
+{"adapter":"claude-code-glm-4.7","bead":"drawrace-bac06da0","event":"dispatch","model":"glm-4.7","strand":"pluck","ts":"2026-09-02T09:17:01.933669496+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-38a3bc4d","duration_ms":299349,"event":"complete","exit_code":0,"outcome":"success","strand":"explore","ts":"2026-09-02T09:21:10.553601065+00:00","worker":"lab-roam-1"}
+{"bead":"drawrace-bac06da0","duration_ms":394452,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-02T09:23:36.402112944+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-0092d05b","event":"claim","strand":"pluck","ts":"2026-09-02T09:23:36.623410512+00:00","worker":"lab-drawrace"}
+{"adapter":"claude-code-glm-4.7","bead":"drawrace-0092d05b","event":"dispatch","model":"glm-4.7","strand":"pluck","ts":"2026-09-02T09:23:36.696887865+00:00","worker":"lab-drawrace"}
