@@ -795,3 +795,6 @@
 {"bead":"drawrace-cd8323cc","duration_ms":443074,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-02T05:40:11.885050095+00:00","worker":"lab-drawrace"}
 {"bead":"drawrace-cbff467b","event":"claim","strand":"pluck","ts":"2026-09-02T05:42:32.344263114+00:00","worker":"lab-drawrace"}
 {"adapter":"claude-code-glm-4.7","bead":"drawrace-cbff467b","event":"dispatch","model":"glm-4.7","strand":"pluck","ts":"2026-09-02T05:42:32.408299607+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-cbff467b","duration_ms":708943,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-02T05:54:21.366419125+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-f433b6cc","event":"claim","strand":"pluck","ts":"2026-09-02T05:54:21.501682636+00:00","worker":"lab-drawrace"}
+{"adapter":"claude-code-glm-4.7","bead":"drawrace-f433b6cc","event":"dispatch","model":"glm-4.7","strand":"pluck","ts":"2026-09-02T05:54:21.562275205+00:00","worker":"lab-drawrace"}
