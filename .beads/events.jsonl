@@ -926,3 +926,13 @@
 {"bead":"drawrace-bac06da0","duration_ms":580615,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-02T08:25:55.912401705+00:00","worker":"lab-drawrace"}
 {"bead":"drawrace-38a3bc4d","event":"claim","strand":"pluck","ts":"2026-09-02T08:25:56.117681379+00:00","worker":"lab-drawrace"}
 {"adapter":"claude-code-glm-4.7","bead":"drawrace-38a3bc4d","event":"dispatch","model":"glm-4.7","strand":"pluck","ts":"2026-09-02T08:25:56.189567461+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-7926abaa","duration_ms":497727,"event":"complete","exit_code":0,"outcome":"success","strand":"explore","ts":"2026-09-02T08:26:56.576407772+00:00","worker":"lab-roam-7"}
+{"bead":"drawrace-7926abaa","event":"claim","strand":"explore","ts":"2026-09-02T08:27:00.944017159+00:00","worker":"lab-roam-7"}
+{"adapter":"claude-code-glm-4.7","bead":"drawrace-7926abaa","event":"dispatch","model":"glm-4.7","strand":"explore","ts":"2026-09-02T08:27:01.002317742+00:00","worker":"lab-roam-7"}
+{"bead":"drawrace-7926abaa","duration_ms":971409,"event":"complete","exit_code":0,"outcome":"success","strand":"explore","ts":"2026-09-02T08:43:12.424372487+00:00","worker":"lab-roam-7"}
+{"bead":"drawrace-9705e788","event":"claim","strand":"explore","ts":"2026-09-02T08:46:21.848677464+00:00","worker":"lab-roam-1"}
+{"adapter":"claude-code-glm-4.7","bead":"drawrace-9705e788","event":"dispatch","model":"glm-4.7","strand":"explore","ts":"2026-09-02T08:46:21.919444895+00:00","worker":"lab-roam-1"}
+{"bead":"drawrace-9705e788","duration_ms":116193,"event":"complete","exit_code":0,"outcome":"success","strand":"explore","ts":"2026-09-02T08:48:18.130669156+00:00","worker":"lab-roam-1"}
+{"bead":"drawrace-38a3bc4d","duration_ms":1342163,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-02T08:48:18.369874376+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-38a3bc4d","event":"claim","strand":"pluck","ts":"2026-09-02T08:48:18.601654964+00:00","worker":"lab-drawrace"}
+{"adapter":"claude-code-glm-4.7","bead":"drawrace-38a3bc4d","event":"dispatch","model":"glm-4.7","strand":"pluck","ts":"2026-09-02T08:48:18.716755462+00:00","worker":"lab-drawrace"}
