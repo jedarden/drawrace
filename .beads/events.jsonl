@@ -879,3 +879,12 @@
 {"bead":"drawrace-b94e2031","duration_ms":132010,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-02T07:53:38.182466132+00:00","worker":"lab-drawrace"}
 {"bead":"drawrace-b94e2031","event":"claim","strand":"pluck","ts":"2026-09-02T07:53:38.238203026+00:00","worker":"lab-drawrace"}
 {"adapter":"claude-code-glm-4.7","bead":"drawrace-b94e2031","event":"dispatch","model":"glm-4.7","strand":"pluck","ts":"2026-09-02T07:53:38.295611786+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-b94e2031","duration_ms":123620,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-02T07:55:41.929456701+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-b94e2031","event":"claim","strand":"pluck","ts":"2026-09-02T07:55:42.009147624+00:00","worker":"lab-drawrace"}
+{"adapter":"claude-code-glm-4.7","bead":"drawrace-b94e2031","event":"dispatch","model":"glm-4.7","strand":"pluck","ts":"2026-09-02T07:55:42.109621521+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-b94e2031","duration_ms":107850,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-02T07:57:29.981860262+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-74bc1557","event":"claim","strand":"pluck","ts":"2026-09-02T07:57:30.439837416+00:00","worker":"lab-drawrace"}
+{"adapter":"claude-code-glm-4.7","bead":"drawrace-74bc1557","event":"dispatch","model":"glm-4.7","strand":"pluck","ts":"2026-09-02T07:57:30.564707823+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-74bc1557","duration_ms":21813,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-02T07:57:52.405735743+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-74bc1557","event":"claim","strand":"pluck","ts":"2026-09-02T07:57:52.514532597+00:00","worker":"lab-drawrace"}
+{"adapter":"claude-code-glm-4.7","bead":"drawrace-74bc1557","event":"dispatch","model":"glm-4.7","strand":"pluck","ts":"2026-09-02T07:57:52.590735209+00:00","worker":"lab-drawrace"}
