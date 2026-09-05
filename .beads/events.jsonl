@@ -1037,3 +1037,6 @@
 {"bead":"drawrace-5efabf14","duration_ms":1209415,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-05T23:03:25.876884195+00:00","worker":"lab-drawrace"}
 {"bead":"drawrace-5efabf14","event":"claim","strand":"pluck","ts":"2026-09-05T23:03:26.006486640+00:00","worker":"lab-drawrace"}
 {"adapter":"claude-code-glm-5.3-flash","bead":"drawrace-5efabf14","event":"dispatch","model":"glm-5.3-flash","strand":"pluck","ts":"2026-09-05T23:03:26.066701865+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-5efabf14","duration_ms":1154122,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-05T23:22:40.203612438+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-a2f02974","event":"claim","strand":"pluck","ts":"2026-09-05T23:22:40.326290009+00:00","worker":"lab-drawrace"}
+{"adapter":"claude-code-glm-5.3-flash","bead":"drawrace-a2f02974","event":"dispatch","model":"glm-5.3-flash","strand":"pluck","ts":"2026-09-05T23:22:40.389890834+00:00","worker":"lab-drawrace"}
