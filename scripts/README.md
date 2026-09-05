@@ -6,13 +6,18 @@ This directory contains scripts to validate the iad-ci cluster kubeconfig and ex
 
 ### verify-cluster-endpoint.sh
 
-Basic validation script that:
+Validation script that:
 - Verifies kubeconfig exists at `/home/coding/.kube/iad-ci.kubeconfig`
+  (overridable as the first argument, for testing against fixtures)
 - Checks kubeconfig is readable
-- Extracts server endpoint URL
-- Validates URL format
-- Extracts hostname
-- Tests DNS resolution (best-effort)
+- Extracts the server endpoint via the canonical kubectl jsonpath:
+  `kubectl --kubeconfig=<path> config view --minify -o jsonpath="{.clusters[0].cluster.server}"`
+- Errors and exits 1 if the endpoint is empty or malformed
+- Validates URL format and extracts the hostname
+- Tests DNS resolution (best-effort; skipped with `DRAWRACE_SKIP_DNS=1`)
+
+**Exit codes:** `0` on success, `1` on any failure (missing/unreadable
+kubeconfig, kubectl error, empty endpoint, invalid URL format).
 
 **Usage:**
 ```bash
@@ -60,6 +65,36 @@ All tests passed!
 Cluster Endpoint: https://hcp-de5bec10-ce14-4eed-a6f4-750f3fd3a89a.spot.rackspace.com
 Hostname: hcp-de5bec10-ce14-4eed-a6f4-750f3fd3a89a.spot.rackspace.com
 Status: ✅ Valid
+```
+
+### tests/endpoint-validation.test.sh
+
+Table-driven tests for `verify-cluster-endpoint.sh` that exercise **both exit
+paths** against mock kubeconfig fixtures (drawrace-7c86174e), so the exit-code
+contract is verified rather than asserted:
+
+| Fixture | Expected |
+|---|---|
+| valid https endpoint | exit 0, `SUCCESS: Endpoint extracted: <url>` |
+| empty `server:` | exit 1, `ERROR: Failed to extract endpoint from kubeconfig` |
+| malformed (non-URL) `server:` | exit 1, `ERROR: Invalid URL format` |
+| missing kubeconfig file | exit 1, `Kubeconfig not found` |
+
+**Usage:**
+```bash
+bash tests/endpoint-validation.test.sh
+```
+
+**Expected Output:**
+```
+✓ PASS: valid endpoint → exit 0 + SUCCESS message
+✓ PASS: empty endpoint → exit 1 + ERROR message
+✓ PASS: malformed endpoint → exit 1 + format ERROR
+✓ PASS: missing kubeconfig → exit 1
+
+Passed: 4
+Failed: 0
+All endpoint validation tests passed!
 ```
 
 ## Cluster Endpoint Details
