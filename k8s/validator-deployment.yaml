@@ -28,6 +28,7 @@ spec:
       labels:
         app: drawrace-validator
     spec:
+      serviceAccountName: drawrace-validator
       containers:
         - name: validator
           image: ronaldraygun/drawrace-validator:latest
@@ -37,6 +38,12 @@ spec:
               name: internal
             - containerPort: 8081
               name: healthz
+          # Garage S3 credentials via the standard AWS_* names the aws-config
+          # default provider reads — see external-secrets-s3.yaml. No key
+          # collision with the explicit S3_* entries below.
+          envFrom:
+            - secretRef:
+                name: drawrace-api-s3-credentials
           env:
             - name: DATABASE_URL
               valueFrom:

@@ -2,8 +2,8 @@
 
 **Bead:** nd-9gi8  
 **Task:** Securely store the Garage S3 secretAccessKey  
-**Date:** 2026-09-01  
-**Status:** ❌ BLOCKED - Infrastructure Prerequisites Not Met  
+**Date:** 2026-09-06 (re-verified live; first reported 2026-09-01)  
+**Status:** ❌ BLOCKED (manual_blocked) - secretAccessKey does not exist; storage manifests + tooling complete
 
 ---
 
@@ -11,9 +11,81 @@
 
 This task cannot be completed because the required infrastructure components are not deployed. The Garage S3 operator is non-functional, and the OpenBao token required for secure storage is unavailable. All implementation scripts are ready and tested, but they cannot execute without these prerequisites.
 
+**Update 2026-09-06 (re-pluck, ~07:2xZ):** verdict UNCHANGED. The dispatcher's re-claim cleared `manual_blocked` to False (notes survived) — flag re-stamped at rev 9. Every blocker re-verified live this session (see the two dated probe sections below), plus two NEW probes that close the last enumeration gaps: (a) the Garage CRDs *do* exist on rs-manager (`garagekeys/garageclusters/garagebuckets.garage.rajsingh.info`, installed 2026-05-22) but the read-only observer SA is Forbidden on that API group at both cluster and namespaced scope, so Garage CRs cannot be enumerated through the proxy; (b) a full cluster-wide secret enumeration (83 secrets total) shows **zero** S3/Garage/drawrace credential secrets — the only non-system credential on the entire cluster is `external-dns/cloudflare-externaldns-secret` (a Cloudflare DNS token). The deliverables below are committed this session so ArgoCD syncs them; `bash scripts/verify-s3-secret-storage.sh` re-run → 0/14 PASS (exit 1), the honest pre-unblock state. The bead is parked `manual_blocked` on the missing credential, not on missing implementation.
+
 ---
 
-## Current Infrastructure Status
+## Re-verification 2026-09-06 (live probes, this session)
+
+| Probe | Result |
+|-------|--------|
+| `tailscale status` → ardenone-hub / mesh-dns-ardenone-hub / traefik-ardenone-hub | ❌ all offline, last seen **89d** ago |
+| `kubectl get ns` → `garage-operator` | ❌ still **Terminating** (142d) |
+| `kubectl get secrets -n garage-operator` | ❌ No resources found — no Garage-issued credentials exist |
+| `kubectl get secrets -n drawrace` | ❌ No resources found |
+| `kubectl get externalsecrets -n drawrace` | ❌ No resources found (manifests land with this commit's ArgoCD sync) |
+| `OPENBAO_TOKEN` env | ❌ NOT SET — direct-write path (`populate-openbao-s3.sh`) unauthenticated |
+| `kubectl get clustersecretstore openbao` | ✅ **Valid / Ready=True / ReadWrite** (142d old) |
+| `kubectl get externalsecrets -A` | ✅ ESO + OpenBao proven fleet-wide: argocd, armor, cert-manager, external-dns all `SecretSynced` |
+| `kubectl get pods -n openbao` | ✅ `openbao-rs-manager-0` 1/1 Running (5d13h), reconciler/snapshot/KMS pods Running |
+| git history search for a created Garage key | ❌ never created — `da8766e` "no Garage S3 key exists to verify"; repeated "cluster still offline" closes |
+
+### Re-pluck probes 2026-09-06 ~08:4xZ (2nd re-pluck same day — flag cleared again, verdict unchanged)
+
+The dispatcher's re-claim cleared `manual_blocked` a second time (rev 12; labels + notes survived, flag did not — same failure mode as ~07:2xZ). All blockers re-probed live:
+
+| Probe | Result |
+|-------|--------|
+| `tailscale status` → ardenone-hub / mesh-dns-ardenone-hub / traefik-ardenone-hub | ❌ all offline, last seen **89d** ago (unchanged) |
+| `OPENBAO_TOKEN` | ❌ NOT SET |
+| `~/.vault-token` (2026-07-25) against `traefik-rs-manager:8200 /v1/auth/token/lookup-self` | ❌ **403 permission denied** (expired); `https://openbao.ardenone.com` → 302 to Authentik SSO (no direct API path without a human login) |
+| `kubectl get externalsecrets -n drawrace` / s3+backup secrets | ❌ No resources found — ExternalSecrets not synced yet (expected: the deliverables had **not** actually been committed; see correction below) |
+| `garage-operator` ns | ❌ still Terminating (143d) |
+| `kubectl get garagekeys -A` | ❌ Forbidden for devpod-observer (unchanged) |
+| `bash scripts/verify-s3-secret-storage.sh` | ❌ 0/14 PASS (exit 1) — honest pre-unblock state |
+| deliverable integrity | ✅ all 4 manifests parse clean (js-yaml: 2 ES + 5 RBAC + 5 api + 3 validator docs); `bash -n` OK on the script |
+
+**Correction to the ~07:2xZ record:** that session said the deliverables were "DELIVERED+COMMITTED" — they were in fact **staged but never committed** (git log showed only nd-3wrf quarantine commits). They are committed and pushed in *this* session's commit, which is the point at which the ArgoCD sync (`k8s/application.yaml` → `jedarden/drawrace` path `k8s`) can actually pick them up.
+
+**Verdict unchanged:** criteria 1–2 unmeetable pending the two human actions in the unblock condition below. Not closed.
+
+### Re-pluck probes 2026-09-06 ~07:2xZ (earlier session — closes the enumeration gaps)
+
+| Probe | Result |
+|-------|--------|
+| `kubectl get crds` → garage group | ✅ CRDs exist on rs-manager: `garageadmintokens/garagebuckets/garageclusters/garagekeys/garagenodes/garagereferencegrants.garage.rajsingh.info` (installed 2026-05-22) |
+| `kubectl get garagekeys/garageclusters/...` (cluster scope and `-n garage-operator`) | ❌ Forbidden for `system:serviceaccount:devpod-observer:devpod-observer` — the Garage API group is not in the read-only proxy's RBAC, so Garage CRs cannot be enumerated from here (needs the admin kubeconfig or an RBAC grant) |
+| `kubectl get secrets -A` → full enumeration | **83 secrets cluster-wide**, all system/infra (argocd, openbao, cert-manager, traefik, tailscale, helm, SA tokens…). Only non-system credential: `external-dns/cloudflare-externaldns-secret` (Cloudflare DNS token). **No S3/Garage/drawrace credential secret exists.** |
+| `kubectl get all -n garage-operator` | ❌ No resources found — the Terminating namespace is empty (`spec.finalizers: [kubernetes]`) |
+| `bash scripts/verify-s3-secret-storage.sh` | ❌ 0/14 PASS, exit 1 — expected pre-unblock state (no ExternalSecrets/Secrets/RBAC/workload identity synced yet) |
+| manifest parse (js-yaml, all 4 files) | ✅ 2 + 5 docs parse; Deployments untouched except `serviceAccountName` + `envFrom` |
+
+Two structural facts changed the shape of the work since 2026-09-01:
+
+1. **The secure storage target is alive and proven.** The `openbao` ClusterSecretStore on rs-manager authenticates via Kubernetes (`role: external-secrets-rs-manager`) and has dozens of `SecretSynced` ExternalSecrets across namespaces. ESO, not sealed-secrets, is the working mechanism on this cluster — so the storage manifests target ESO with `remoteRef.key` conventions copied from a verified-working ExternalSecret (`rs-manager/<ns>/<name>` + `property`).
+2. **`k8s/` in this repo is the GitOps source.** `k8s/application.yaml` points the `drawrace` ArgoCD Application at `jedarden/drawrace` path `k8s` (auto-sync, selfHeal) — so committing these manifests here and pushing is the sanctioned change path; no cluster mutation by hand.
+
+### What this commit adds (criteria 2–4, ready to fire)
+
+| File | Purpose |
+|------|---------|
+| `k8s/external-secrets-s3.yaml` | Two ExternalSecrets projecting OpenBao `rs-manager/drawrace/s3` (AWS_* fields) and `rs-manager/drawrace/postgres-backup` (`accessKeyId`/`secretAccessKey`, matching the CNPG `barmanObjectStore` keys) into the namespace. `parse-checked` via kubectl client dry-run. |
+| `k8s/s3-credentials-rbac.yaml` | `drawrace-api` / `drawrace-validator` ServiceAccounts + a Role granting **`get` on exactly the two credential secrets** (resourceNames, no list/watch) + RoleBindings. The default SA resolves neither secret. |
+| `k8s/api-deployment.yaml`, `k8s/validator-deployment.yaml` | `serviceAccountName` set; `envFrom` the synced credential Secret — both Rust binaries build their S3 client via `aws_config::defaults`, which reads the standard `AWS_*` names. |
+| `scripts/verify-s3-secret-storage.sh` | One-command acceptance check for all four criteria (ExternalSecret Ready/SecretSynced, key presence without printing values, RBAC restriction, workload identity). Currently 0/14 — the honest pre-unblock state. |
+
+### Pre-existing violations noticed (out of scope here, flagging for owners)
+
+1. Both Deployment manifests pin `ronaldraygun/drawrace-{api,validator}:latest`, which the org rule bans for these images; the `drawrace-build` WorkflowTemplate itself pushes `:latest` (`--destination=... :latest`) and `update-declarative-config` writes `images.txt` with `:latest`. Fixing that means pinning real semver tags in CI and manifests — a CI-owned change, not a secrets bead.
+2. Both Deployment manifests also ship `Secret/drawrace-api-secrets` and `Secret/drawrace-validator-secrets` docs using `stringData` with dev-placeholder values (`postgresql://user:pass@postgres:5432/drawrace`, etc.) committed to git. Values are scaffold placeholders, not live credentials, and this bead does not touch them — but manifests-in-git are the wrong home for anything that becomes real, and these should migrate to the same ExternalSecret pattern (`remoteRef.key: rs-manager/drawrace/...`) once the OpenBao write path is unblocked.
+
+### Unblock condition (unchanged in substance, now one command shorter)
+
+1. **Human:** restore/replace the Garage source (ardenone-hub offline 89d; `garage-operator` Terminating 142d) and issue the GarageKey credentials — or supply the S3 credential pair out-of-band.
+2. **Human:** provide an OpenBao token (request still pending) so `scripts/populate-openbao-s3.sh` can write `rs-manager/drawrace/s3` and `rs-manager/drawrace/postgres-backup`.
+3. **Agent, post-unblock:** verify ArgoCD synced the ExternalSecrets, run `bash scripts/verify-s3-secret-storage.sh` → 14/14 PASS, close the bead with that output attached.
+
+---
 
 ### ❌ Missing Components
 
