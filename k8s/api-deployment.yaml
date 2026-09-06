@@ -27,6 +27,7 @@ spec:
       labels:
         app: drawrace-api
     spec:
+      serviceAccountName: drawrace-api
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -41,6 +42,13 @@ spec:
           ports:
             - containerPort: 8080
               name: http
+          # Garage S3 credentials (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY /
+          # AWS_ENDPOINT_URL / AWS_REGION) come from the ExternalSecret-managed
+          # Secret — see external-secrets-s3.yaml. The aws-config default
+          # provider in crates/api reads these standard AWS_* names.
+          envFrom:
+            - secretRef:
+                name: drawrace-api-s3-credentials
           env:
             - name: DATABASE_URL
               valueFrom:
