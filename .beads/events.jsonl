@@ -1061,3 +1061,6 @@
 {"bead":"drawrace-f28f8572","duration_ms":1009483,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-06T01:59:00.723236925+00:00","worker":"lab-drawrace"}
 {"bead":"drawrace-f28f8572","event":"claim","strand":"pluck","ts":"2026-09-06T01:59:00.858493552+00:00","worker":"lab-drawrace"}
 {"adapter":"claude-code-glm-5.3-flash","bead":"drawrace-f28f8572","event":"dispatch","model":"glm-5.3-flash","strand":"pluck","ts":"2026-09-06T01:59:00.923592446+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-f28f8572","duration_ms":1273262,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-06T02:20:14.199479013+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-f28f8572","event":"claim","strand":"pluck","ts":"2026-09-06T02:20:14.317417258+00:00","worker":"lab-drawrace"}
+{"adapter":"claude-code-glm-5.3-flash","bead":"drawrace-f28f8572","event":"dispatch","model":"glm-5.3-flash","strand":"pluck","ts":"2026-09-06T02:20:14.377509754+00:00","worker":"lab-drawrace"}
