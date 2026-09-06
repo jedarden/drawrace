@@ -1136,3 +1136,7 @@
 {"bead":"drawrace-cd8323cc","event":"claim","strand":"pluck","ts":"2026-09-06T08:38:22.505484255+00:00","worker":"lab-drawrace"}
 {"bead":"nd-9gi8","event":"claim","strand":"pluck","ts":"2026-09-06T08:38:23.411109469+00:00","worker":"lab-drawrace"}
 {"adapter":"claude-code-glm-5.3-flash","bead":"nd-9gi8","event":"dispatch","model":"glm-5.3-flash","strand":"pluck","ts":"2026-09-06T08:38:23.485421154+00:00","worker":"lab-drawrace"}
+{"bead":"nd-9gi8","duration_ms":3095718,"event":"complete","exit_code":0,"outcome":"success","strand":"pluck","ts":"2026-09-06T09:29:59.253753399+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-cd8323cc","event":"claim","strand":"pluck","ts":"2026-09-06T09:30:00.036866596+00:00","worker":"lab-drawrace"}
+{"bead":"nd-9gi8","event":"claim","strand":"pluck","ts":"2026-09-06T09:30:01.016025611+00:00","worker":"lab-drawrace"}
+{"adapter":"claude-code-glm-5.3-flash","bead":"nd-9gi8","event":"dispatch","model":"glm-5.3-flash","strand":"pluck","ts":"2026-09-06T09:30:01.107829277+00:00","worker":"lab-drawrace"}
