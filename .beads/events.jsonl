@@ -1152,3 +1152,9 @@
 {"bead":"nd-3wrf","event":"claim","strand":"pluck","ts":"2026-09-06T10:30:30.613064998+00:00","worker":"lab-drawrace"}
 {"bead":"drawrace-7c766bbe","event":"claim","strand":"pluck","ts":"2026-09-06T10:30:31.683498442+00:00","worker":"lab-drawrace"}
 {"adapter":"claude-code-glm-5.3-flash","bead":"drawrace-7c766bbe","event":"dispatch","model":"glm-5.3-flash","strand":"pluck","ts":"2026-09-06T10:30:31.748862202+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-7c766bbe","duration_ms":1310523,"event":"fail","exit_code":1,"outcome":"failure","strand":"pluck","ts":"2026-09-06T10:52:22.288672222+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-cd8323cc","event":"claim","strand":"pluck","ts":"2026-09-06T10:52:23.030847118+00:00","worker":"lab-drawrace"}
+{"bead":"nd-9gi8","event":"claim","strand":"pluck","ts":"2026-09-06T10:52:23.902305282+00:00","worker":"lab-drawrace"}
+{"bead":"nd-3wrf","event":"claim","strand":"pluck","ts":"2026-09-06T10:52:24.837828169+00:00","worker":"lab-drawrace"}
+{"bead":"drawrace-7c766bbe","event":"claim","strand":"pluck","ts":"2026-09-06T10:52:26.019002100+00:00","worker":"lab-drawrace"}
+{"adapter":"claude-code-glm-5.3-flash","bead":"drawrace-7c766bbe","event":"dispatch","model":"glm-5.3-flash","strand":"pluck","ts":"2026-09-06T10:52:26.096072083+00:00","worker":"lab-drawrace"}
