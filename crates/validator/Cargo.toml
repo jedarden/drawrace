@@ -57,3 +57,7 @@ path = "src/bin/generate-reference-ghosts.rs"
 [[bin]]
 name = "extract-reference-ghosts"
 path = "src/bin/extract-reference-ghosts.rs"
+
+[[bin]]
+name = "validate-track3-seeds"
+path = "src/bin/validate-track3-seeds.rs"
