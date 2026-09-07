@@ -8,8 +8,12 @@ spec:
   secretName: drawrace-api-tls
   duration: 2160h0m0s # 90d
   renewBefore: 360h0m0s # 15d
+  # letsencrypt-cloudflare is the issuer every other rs-manager vpn-entrypoint
+  # service uses (argocd, openbao, warden, unifi-agent-proxy). This Certificate
+  # originally referenced `letsencrypt-prod`, a ClusterIssuer that does not
+  # exist on rs-manager (left over from the iad-acb deployment).
   issuerRef:
-    name: letsencrypt-prod
+    name: letsencrypt-cloudflare
     kind: ClusterIssuer
   commonName: "api-drawrace.ardenone.com"
   dnsNames:
