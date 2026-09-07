@@ -28,7 +28,7 @@ spec:
       subdomain: drawrace-live
       containers:
         - name: live
-          image: ronaldraygun/drawrace-live:latest
+          image: ronaldraygun/drawrace-live:0.0.1
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
