@@ -1,6 +1,6 @@
 #!/usr/bin/env ts-node
 /**
- * Generate 30 seed ghost blob files for track 3 (dunes-03).
+ * Generate 25 seed ghost blob files for track 3 (dunes-03).
  *
  * Track 3: Dune Drifter
  * - 48m long (longest of the three tracks)
@@ -12,7 +12,7 @@
  * - advanced (pr ≤ 0.05):  1 ghost
  * - skilled  (pr ≤ 0.20):  5 ghosts
  * - mid      (pr ≤ 0.50):  8 ghosts
- * - novice   (pr >  0.50): 15 ghosts
+ * - novice   (pr >  0.50): 10 ghosts
  */
 
 import { writeFileSync, mkdirSync } from 'fs';
@@ -35,7 +35,7 @@ function createVertices(coords: number[][], scale: number = 1.0): Array<{ x: num
 }
 
 /**
- * 30 seed ghosts with varied wheel shapes and times spanning all buckets.
+ * 25 seed ghosts with varied wheel shapes and times spanning all buckets.
  * Times adjusted for dunes-03 (48m, target 55s):
  * - Elite: ~39s (extremely fast, perfect wheel)
  * - Advanced: ~46s (very fast, optimal swaps)
@@ -249,7 +249,7 @@ const SEEDS: SeedGhost[] = [
             ], 0.8) }
         ]
     },
-    // Novice (15 ghosts) - slower runs, various wheel shapes
+    // Novice (10 ghosts) - slower runs, various wheel shapes
     {
         name: "Wanderer",
         time_ms: 75_800,
@@ -385,42 +385,6 @@ const SEEDS: SeedGhost[] = [
                 [0.35, -0.12]
             ], 0.5) }
         ]
-    },
-    {
-        name: "SandSnail",
-        time_ms: 97_900,
-        wheels: [{ swapTick: 0, vertices: createVertices([
-            [0.43, 0.0], [0.34, 0.28], [0.28, 0.34], [0.0, 0.43],
-            [-0.28, 0.34], [-0.34, 0.28], [-0.43, 0.0], [-0.34, -0.28],
-            [-0.28, -0.34], [0.0, -0.43], [0.28, -0.34], [0.34, -0.28]
-        ], 0.45) }]
-    },
-    {
-        name: "DuneDawdler",
-        time_ms: 99_800,
-        wheels: [
-            { swapTick: 0, vertices: createVertices([
-                [0.36, 0.0], [0.28, 0.12], [0.18, 0.18], [0.12, 0.28], [0.0, 0.36],
-                [-0.12, 0.28], [-0.18, 0.18], [-0.28, 0.12], [-0.36, 0.0], [-0.28, -0.12],
-                [-0.18, -0.18], [-0.12, -0.28], [0.0, -0.36], [0.12, -0.28], [0.18, -0.18],
-                [0.28, -0.12]
-            ], 0.4) },
-            { swapTick: 6600, vertices: createVertices([
-                [0.40, 0.0], [0.33, 0.11], [0.22, 0.22], [0.11, 0.33], [0.0, 0.40],
-                [-0.11, 0.33], [-0.22, 0.22], [-0.33, 0.11], [-0.40, 0.0], [-0.33, -0.11],
-                [-0.22, -0.22], [-0.11, -0.33], [0.0, -0.40], [0.11, -0.33], [0.22, -0.22],
-                [0.33, -0.11]
-            ], 0.45) }
-        ]
-    },
-    {
-        name: "MirageMolasses",
-        time_ms: 102_000,
-        wheels: [{ swapTick: 0, vertices: createVertices([
-            [0.42, 0.0], [0.32, 0.26], [0.26, 0.32], [0.0, 0.42],
-            [-0.26, 0.32], [-0.32, 0.26], [-0.42, 0.0], [-0.32, -0.26],
-            [-0.26, -0.32], [0.0, -0.42], [0.26, -0.32], [0.32, -0.26]
-        ], 0.4) }]
     }
 ];
 
@@ -478,7 +442,7 @@ function main() {
     console.log('  - advanced (pr ≤ 0.05):  1 ghost');
     console.log('  - skilled  (pr ≤ 0.20):  5 ghosts');
     console.log('  - mid      (pr ≤ 0.50):  8 ghosts');
-    console.log('  - novice   (pr >  0.50): 15 ghosts');
+    console.log('  - novice   (pr >  0.50): 10 ghosts');
     console.log('');
     console.log('Next step: Run validation to verify all ghosts');
 }
