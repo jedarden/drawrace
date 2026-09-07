@@ -31,7 +31,7 @@ spec:
       serviceAccountName: drawrace-validator
       containers:
         - name: validator
-          image: ronaldraygun/drawrace-validator:latest
+          image: ronaldraygun/drawrace-validator:0.0.1
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

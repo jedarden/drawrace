@@ -37,7 +37,7 @@ spec:
               app: drawrace-api
       containers:
         - name: api
-          image: ronaldraygun/drawrace-api:latest
+          image: ronaldraygun/drawrace-api:0.0.1
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
