@@ -1,4 +1,19 @@
 ---
+# CloudNativePG Cluster for the DrawRace leaderboard database (rs-manager).
+# Synced by ArgoCD Application `drawrace` into namespace `drawrace` from the
+# byte-for-byte mirror at declarative-config k8s/rs-manager/drawrace/.
+#
+# CNPG generates all bootstrap credentials itself (bead drawrace-d26c81c4):
+# the referenced initdb secret `drawrace-postgres-credentials` is filled in /
+# created by the operator at bootstrap, so bf-1hab8 mirrors whatever the
+# operator generated into OpenBao — it cannot invent credentials first.
+#
+# NOTE (2026-09-07, drawrace-d26c81c4): do not add `spec.monitoring.enabled`.
+# That field does not exist in the CNPG v1 schema, and the Application syncs
+# with ServerSideApply=true, where an undeclared field fails the whole apply
+# ("field not declared in schema") instead of being pruned. Monitoring intent
+# is unchanged: enablePodMonitor defaults to false, and rs-manager has no
+# Prometheus-operator CRDs anyway (see k8s/README.md).
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -46,7 +61,10 @@ spec:
     retentionPolicy: "30d"
     barmanObjectStore:
       destinationPath: "s3://drawrace-pg-backups/"
-      endpointURL: "http://garage.ardenone-hub.svc:3900"
+      # Garage S3 on ardenone-cluster, reached over Tailscale from rs-manager
+      # (verified reachable 2026-09-07; the old `garage.ardenone-hub.svc:3900`
+      # is an in-cluster name that never resolved outside its own cluster).
+      endpointURL: "http://garage-ardenone-cluster.tail1b1987.ts.net:3900"
       s3Credentials:
         accessKeyId:
           name: drawrace-postgres-backup-s3
@@ -59,6 +77,3 @@ spec:
       data:
         compression: gzip
         jobs: 2
-
-  monitoring:
-    enabled: false
