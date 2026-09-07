@@ -3,10 +3,14 @@
 # Synced by ArgoCD Application `drawrace` into namespace `drawrace` from the
 # byte-for-byte mirror at declarative-config k8s/rs-manager/drawrace/.
 #
-# CNPG generates all bootstrap credentials itself (bead drawrace-d26c81c4):
-# the referenced initdb secret `drawrace-postgres-credentials` is filled in /
-# created by the operator at bootstrap, so bf-1hab8 mirrors whatever the
-# operator generated into OpenBao — it cannot invent credentials first.
+# ORDERING (corrected 2026-09-07, bf-1hab8 pluck #82): this Cluster CONSUMES
+# the OpenBao-sourced secret `drawrace-postgres-credentials` (initdb.secret.name
+# below; the CNPG v1 CRD only generates credentials when that name is EMPTY),
+# so the secret must exist BEFORE this manifest first applies: populate
+# secret/data/rs-manager/drawrace/postgres in OpenBao, then let the
+# external-secrets-postgres.yaml ExternalSecret project it here. The earlier
+# "operator fills the secret at bootstrap" claim (drawrace-d26c81c4) was
+# filed-in-error and closed — do not reintroduce Cluster-first ordering.
 #
 # NOTE (2026-09-07, drawrace-d26c81c4): do not add `spec.monitoring.enabled`.
 # That field does not exist in the CNPG v1 schema, and the Application syncs
