@@ -181,7 +181,7 @@ spec:
             arguments:
               parameters:
                 - name: path
-                  value: k8s/iad-acb/drawrace
+                  value: k8s/rs-manager/drawrace
                 - name: git_short_sha
                   value: "{{tasks.get-git-sha.outputs.parameters.git_short_sha}}"
 
@@ -289,7 +289,7 @@ spec:
     # ArgoCD sync it to the cluster. Runs only on main-branch, non-republish builds.
     #
     # Generates a new random key, updates configmap.yaml in declarative-config,
-    # commits and pushes the change. ArgoCD then syncs the ConfigMap to iad-acb.
+    # commits and pushes the change. ArgoCD then syncs the ConfigMap to rs-manager.
     # This avoids cross-cluster kubectl issues by using GitOps.
     - name: rotate-client-key
       container:
@@ -304,7 +304,7 @@ spec:
             git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/jedarden/declarative-config" /tmp/dc
             cd /tmp/dc
 
-            FILE="k8s/iad-acb/drawrace/configmap.yaml"
+            FILE="k8s/rs-manager/drawrace/configmap.yaml"
 
             # Extract current value (handle both placeholder and real values)
             CURRENT=$(yq eval '.data.current' "$FILE")

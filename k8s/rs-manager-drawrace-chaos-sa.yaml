@@ -1,5 +1,5 @@
 ---
-# ServiceAccount for drawrace chaos tests from iad-ci workflow
+# ServiceAccount for drawrace chaos tests run from iad-ci against rs-manager
 # This SA has permission to delete drawrace-api pods for chaos testing
 apiVersion: v1
 kind: ServiceAccount

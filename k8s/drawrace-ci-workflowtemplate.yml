@@ -365,7 +365,7 @@ spec:
     # ── Chaos test template ────────────────────────────────────────────────────
     # Runs k6 chaos test while killing a drawrace-api pod.
     # See plan.md §Testing 9 for details.
-    # Uses kubectl-proxy over Tailscale to access iad-acb cluster.
+    # Uses kubectl-proxy over Tailscale to access the rs-manager cluster.
     - name: chaos-test
       activeDeadlineSeconds: 600
       container:
@@ -383,21 +383,21 @@ spec:
             export API="https://api.drawrace.ardenone.com"
             export HMAC_KEY="drawrace-dev-key-2026"
             export NS="drawrace"
-            # Create minimal kubeconfig for iad-acb kubectl-proxy
+            # Create minimal kubeconfig for the rs-manager kubectl-proxy
             mkdir -p ~/.kube
             cat > ~/.kube/config <<EOF
             apiVersion: v1
             clusters:
               - cluster:
-                  server: http://traefik-iad-acb:8001
+                  server: http://traefik-rs-manager:8001
                   insecure-skip-tls-verify: true
-                name: iad-acb
+                name: rs-manager
             contexts:
               - context:
-                  cluster: iad-acb
+                  cluster: rs-manager
                   namespace: drawrace
-                name: iad-acb
-            current-context: iad-acb
+                name: rs-manager
+            current-context: rs-manager
             EOF
             export KUBECONF="$HOME/.kube/config"
             # Run chaos test
@@ -423,7 +423,7 @@ spec:
     # replacement pod to become Ready, then asserts the drawrace:validate Redis
     # list drains with no permanently lost submissions. Driven by
     # load/validator-chaos-test.sh + load/validator-chaos.js. Uses the same
-    # kubectl-proxy-over-Tailscale access to iad-acb as the api chaos test.
+    # kubectl-proxy-over-Tailscale access to rs-manager as the api chaos test.
     - name: validator-chaos-test
       activeDeadlineSeconds: 900
       container:
@@ -441,21 +441,21 @@ spec:
             export API="https://api.drawrace.ardenone.com"
             export HMAC_KEY="drawrace-dev-key-2026"
             export NS="drawrace"
-            # Create minimal kubeconfig for iad-acb kubectl-proxy
+            # Create minimal kubeconfig for the rs-manager kubectl-proxy
             mkdir -p ~/.kube
             cat > ~/.kube/config <<EOF
             apiVersion: v1
             clusters:
               - cluster:
-                  server: http://traefik-iad-acb:8001
+                  server: http://traefik-rs-manager:8001
                   insecure-skip-tls-verify: true
-                name: iad-acb
+                name: rs-manager
             contexts:
               - context:
-                  cluster: iad-acb
+                  cluster: rs-manager
                   namespace: drawrace
-                name: iad-acb
-            current-context: iad-acb
+                name: rs-manager
+            current-context: rs-manager
             EOF
             export KUBECONF="$HOME/.kube/config"
             # Run validator chaos test (pod-kill + queue-drain + no-loss assertion)
