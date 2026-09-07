@@ -1,34 +1,18 @@
 {
   "active_root": {
-<<<<<<< HEAD
-    "path": "objects/b136f43c43bb0760d2c20fd5e81c4222a8832d1e92003bd265e340d90bf7534a.jsonl",
-    "sha256": "b136f43c43bb0760d2c20fd5e81c4222a8832d1e92003bd265e340d90bf7534a"
+    "path": "objects/2027a7018a2794e7672a44fe4148086014d20b05fc8bfa68b57add7c46b7d597.jsonl",
+    "sha256": "2027a7018a2794e7672a44fe4148086014d20b05fc8bfa68b57add7c46b7d597"
   },
   "added_paths": [
-    "objects/b136f43c43bb0760d2c20fd5e81c4222a8832d1e92003bd265e340d90bf7534a.jsonl"
+    "objects/2027a7018a2794e7672a44fe4148086014d20b05fc8bfa68b57add7c46b7d597.jsonl"
   ],
   "attempt_outcome_count": 0,
-  "created_at": "2026-09-07T03:36:19.27099071Z",
+  "created_at": "2026-09-07T03:52:53.114718633Z",
   "deleted_paths": [
-    "objects/d9b413ec235e1eeeba839e67e4397762f693b1b38dec932b665269c2d9810edf.jsonl"
+    "objects/5db983e9f4a9e7af408bc7307b4e40b5928d7a2383ad92571fd2e254ba7d5794.jsonl"
   ],
-  "event_count": 2481,
-  "generation_id": "gen-e3d3c56bfc71989a1ca3c555a5464854",
-=======
-    "path": "objects/4dc718337108d143e0524ad6b4adccdd1a46d60b069ec27f2ec621b19a909eda.jsonl",
-    "sha256": "4dc718337108d143e0524ad6b4adccdd1a46d60b069ec27f2ec621b19a909eda"
-  },
-  "added_paths": [
-    "objects/4dc718337108d143e0524ad6b4adccdd1a46d60b069ec27f2ec621b19a909eda.jsonl"
-  ],
-  "attempt_outcome_count": 0,
-  "created_at": "2026-09-07T03:23:55.561303392Z",
-  "deleted_paths": [
-    "objects/6f6d7052f61ea1b273b9713df954aaf32d317fb57616e6031506935f5e58c584.jsonl"
-  ],
-  "event_count": 2475,
-  "generation_id": "gen-620e8ea5c3f08c829389e4cc6eb14244",
->>>>>>> 7df0abede6aea32cd3065e8697c60193160e49e9
+  "event_count": 2489,
+  "generation_id": "gen-cbb2855b76b1bb6b9df729b4b0bfe865",
   "issue_count": 432,
   "mode": "monolithic",
   "receipt_count": 1,
@@ -38,13 +22,7 @@
     "forensic.jsonl"
   ],
   "schema_version": 1,
-<<<<<<< HEAD
-  "snapshot_sequence": 2481,
+  "snapshot_sequence": 2489,
   "store_uuid": "",
-  "total_record_count": 2914
-=======
-  "snapshot_sequence": 2475,
-  "store_uuid": "",
-  "total_record_count": 2908
->>>>>>> 7df0abede6aea32cd3065e8697c60193160e49e9
+  "total_record_count": 2922
 }
