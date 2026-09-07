@@ -378,7 +378,9 @@ const SEEDS: SeedGhost[] = [
                 [-0.20, -0.20], [-0.10, -0.30], [0.0, -0.37], [0.10, -0.30], [0.20, -0.20],
                 [0.30, -0.10]
             ], 0.45) },
-            { swapTick: 6000, vertices: createVertices([
+            // Swap tick must stay <= finish tick (95_700 ms = 5742 ticks @ 1/60s),
+            // else the structure check rejects the blob (validate-track3-seeds).
+            { swapTick: 5400, vertices: createVertices([
                 [0.41, 0.0], [0.35, 0.12], [0.24, 0.24], [0.12, 0.35], [0.0, 0.41],
                 [-0.12, 0.35], [-0.24, 0.24], [-0.35, 0.12], [-0.41, 0.0], [-0.35, -0.12],
                 [-0.24, -0.24], [-0.12, -0.35], [0.0, -0.41], [0.12, -0.35], [0.24, -0.24],
