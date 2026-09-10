@@ -3,7 +3,7 @@ import { PHYSICS_VERSION } from "./version.js";
 import { sfc32, hashSeed } from "./prng.js";
 import { InjectedClock } from "./clock.js";
 import { parseSurfaces, applyDrag, createSurfaceContactFilter, validateZones } from "./surface.js";
-import { buildWheelBody } from "./swap.js";
+import { buildWheelBody, motorSpeedForRadius } from "./swap.js";
 import { StuckDetector } from "./stuck-detector.js";
 
 export interface TrackDef {
@@ -51,7 +51,6 @@ const VELOCITY_ITERATIONS = 8;
 const POSITION_ITERATIONS = 3;
 const MAX_TICKS = 60 * 180; // 3 minute DNF
 const CHASSIS_DENSITY = 1.0;
-const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
@@ -185,7 +184,9 @@ export function createHeadlessRace(
       frequencyHz: SUSPENSION_FREQ_HZ,
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
-      motorSpeed: MOTOR_SPEED,
+      // Same radius-compensated target as runHeadless/executeTwinWheelSwap so a
+      // wheel's linear top speed is independent of its radius (drawrace-d85f702c)
+      motorSpeed: motorSpeedForRadius(wheelRadius),
       maxMotorTorque: MOTOR_MAX_TORQUE,
     })
   );
@@ -201,7 +202,7 @@ export function createHeadlessRace(
       frequencyHz: SUSPENSION_FREQ_HZ,
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
-      motorSpeed: MOTOR_SPEED,
+      motorSpeed: motorSpeedForRadius(wheelRadius),
       maxMotorTorque: MOTOR_MAX_TORQUE,
     })
   );

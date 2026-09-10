@@ -1,7 +1,7 @@
 import { World, Vec2, Edge, Polygon, Circle, Box, WheelJoint, type Body, type Joint, type WheelJoint as WheelJointType } from "planck";
 import { PHYSICS_VERSION } from "./version.js";
 import { sfc32, hashSeed } from "./prng.js";
-import { buildWheelBody, executeTwinWheelSwap } from "./swap.js";
+import { buildWheelBody, executeTwinWheelSwap, motorSpeedForRadius, wheelRadiusOf, wheelMaxExtent } from "./swap.js";
 import type { WheelSwap } from "./swap.js";
 import { parseSurfaces, validateZones, applyDrag, createSurfaceContactFilter, type SurfaceSegment } from "./surface.js";
 import { StuckDetector } from "./stuck-detector.js";
@@ -58,7 +58,6 @@ const WHEEL_DENSITY = 1.0;
 const WHEEL_FRICTION = 2.5;  // Increased from 0.8 for better terrain grip (bf-5fz89)
 const WHEEL_RESTITUTION = 0.3;
 const CHASSIS_DENSITY = 1.0;
-const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 const MOTOR_HOLD_TORQUE = 5;  // Small torque to hold position during countdown (bf-31s6q)
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
@@ -82,6 +81,8 @@ export class RaceSim {
   private stuck = false;
   private finishX: number;
   private motorEnabled = false;
+  /** Radius of the currently fitted wheel — drives the radius-compensated motor target. */
+  private currentWheelRadius = 0.5;
   private wheelSwapLog: WheelSwap[] = [];
   private surfaces: SurfaceSegment[];
   readonly track: TrackDef;
@@ -164,9 +165,8 @@ export class RaceSim {
       ) < 1e-6
       ? wheelVertices.slice(0, -1)
       : wheelVertices;
-    const wcX = wv.reduce((s, v) => s + v.x, 0) / wv.length;
-    const wcY = wv.reduce((s, v) => s + v.y, 0) / wv.length;
-    const wheelRadius = Math.max(...wv.map((v) => Math.hypot(v.x - wcX, v.y - wcY)));
+    const wheelPoly = wv.map((v) => [v.x, v.y] as [number, number]);
+    const wheelRadius = wheelMaxExtent(wheelPoly);
 
     const startX = track.start.pos[0];
     const terrainPts = track.terrain;
@@ -181,6 +181,7 @@ export class RaceSim {
 
     // Place wheel center above terrain surface; gravity [0,+10] pulls down to rest on it
     const wheelSpawnY = terrainY - wheelRadius;
+    this.currentWheelRadius = wheelRadiusOf(wheelPoly);
 
     // Front wheel (player-drawn)
     const wheelVerts = wv.map((v) => Vec2(v.x, v.y));
@@ -222,7 +223,7 @@ export class RaceSim {
     // Rear wheel (drawn polygon — AWD, same shape as front)
     const rearSpawnX = startX - 0.9;
     const rearSpawnY = wheelSpawnY;
-    this.rearWheelBody = buildWheelBody(this.world, wv.map((v) => [v.x, v.y] as [number, number]), rearSpawnX, rearSpawnY);
+    this.rearWheelBody = buildWheelBody(this.world, wheelPoly, rearSpawnX, rearSpawnY);
 
     // Front wheel joint (suspension + motor) — stored so swapWheel can rebind it
     const frontJoint = this.world.createJoint(
@@ -235,7 +236,7 @@ export class RaceSim {
         frequencyHz: SUSPENSION_FREQ_HZ,
         dampingRatio: SUSPENSION_DAMPING_RATIO,
         enableMotor: true,
-        motorSpeed: MOTOR_SPEED,
+        motorSpeed: motorSpeedForRadius(this.currentWheelRadius),
         maxMotorTorque: MOTOR_MAX_TORQUE,
       })
     );
@@ -257,7 +258,7 @@ export class RaceSim {
         frequencyHz: SUSPENSION_FREQ_HZ,
         dampingRatio: SUSPENSION_DAMPING_RATIO,
         enableMotor: true,
-        motorSpeed: MOTOR_SPEED,
+        motorSpeed: motorSpeedForRadius(this.currentWheelRadius),
         maxMotorTorque: MOTOR_MAX_TORQUE,
       })
     );
@@ -270,6 +271,7 @@ export class RaceSim {
   swapWheel(vertices: Array<{ x: number; y: number }>): void {
     if (this.finished) return;
     const poly = vertices.map((v) => [v.x, v.y] as [number, number]);
+    this.currentWheelRadius = wheelRadiusOf(poly);
     const result = executeTwinWheelSwap(
       this.world,
       this.chassisBody,
@@ -324,7 +326,7 @@ export class RaceSim {
         const j = curr.joint!;
         if (j.getType() === "wheel-joint") {
           (j as WheelJointType).setMaxMotorTorque(MOTOR_MAX_TORQUE);
-          (j as WheelJointType).setMotorSpeed(MOTOR_SPEED);
+          (j as WheelJointType).setMotorSpeed(motorSpeedForRadius(this.currentWheelRadius));
         }
         curr = curr.next;
       }

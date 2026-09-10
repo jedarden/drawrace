@@ -13,6 +13,69 @@ const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on
 const SUSPENSION_DAMPING_RATIO = 0.7;
 const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
+/**
+ * Reference radius the motor target is calibrated against. The motor asks for
+ * MOTOR_SPEED rad/s at this radius and scales inversely with the actual wheel
+ * radius, so every wheel gets the same linear surface speed
+ * (MOTOR_SPEED * MOTOR_REF_RADIUS m/s) instead of top speed growing linearly
+ * with radius (v = ω·r). Wheel choice then differentiates via bump/airtime
+ * geometry, obstacle clearance and tooth-terrain interlock rather than raw
+ * top speed (drawrace-d85f702c).
+ */
+export const MOTOR_REF_RADIUS = 0.5;
+/** Floor against degenerate/near-zero polygons so the ratio stays finite. */
+const MIN_EFFECTIVE_RADIUS = 0.05;
+
+/**
+ * Mean rolling radius = polygon perimeter / 2π — the physical rolling
+ * circumference of the wheel, so v = ω·R is exactly distance travelled per
+ * radian and equalizing ω·R across shapes equalizes linear top speed by
+ * construction. (Max-vertex radius was rejected: it overestimates the rolling
+ * circumference of spiky shapes — a triangle's corners, a star's points — so
+ * those wheels got under-spun and lost the corner-strike grip that locomotes
+ * them on flats; see packages/engine-core/scripts/radius-law-lab.ts and
+ * diagnostic-wheel-spin.test.ts for the A/B evidence.)
+ */
+export function wheelRadiusOf(polygon: [number, number][]): number {
+  const verts =
+    polygon.length > 1 &&
+    Math.hypot(polygon[0][0] - polygon[polygon.length - 1][0], polygon[0][1] - polygon[polygon.length - 1][1]) < 1e-6
+      ? polygon.slice(0, -1)
+      : polygon;
+  let perimeter = 0;
+  for (let i = 0; i < verts.length; i++) {
+    const a = verts[i];
+    const b = verts[(i + 1) % verts.length];
+    perimeter += Math.hypot(b[0] - a[0], b[1] - a[1]);
+  }
+  return perimeter / (2 * Math.PI);
+}
+
+/**
+ * Farthest-vertex distance from the vertex centroid — the wheel's physical
+ * size, used for spawn clearance and layout. NOT the rolling radius: spiky
+ * shapes reach farther than they roll. Motor targets must use wheelRadiusOf.
+ */
+export function wheelMaxExtent(polygon: [number, number][]): number {
+  const verts =
+    polygon.length > 1 &&
+    Math.hypot(polygon[0][0] - polygon[polygon.length - 1][0], polygon[0][1] - polygon[polygon.length - 1][1]) < 1e-6
+      ? polygon.slice(0, -1)
+      : polygon;
+  const cx = verts.reduce((s, q) => s + q[0], 0) / verts.length;
+  const cy = verts.reduce((s, q) => s + q[1], 0) / verts.length;
+  return Math.max(...verts.map((q) => Math.hypot(q[0] - cx, q[1] - cy)));
+}
+
+/** Motor speed (rad/s) giving a wheel of `radius` the reference linear speed. */
+export function motorSpeedForRadius(radius: number): number {
+  return MOTOR_SPEED * (MOTOR_REF_RADIUS / Math.max(radius, MIN_EFFECTIVE_RADIUS));
+}
+
+/** Motor speed (rad/s) giving `polygon` the reference linear speed. */
+export function motorSpeedFor(polygon: [number, number][]): number {
+  return motorSpeedForRadius(wheelRadiusOf(polygon));
+}
 
 export function buildWheelBody(
   world: World,
@@ -104,7 +167,7 @@ export function executeWheelSwap(
       frequencyHz: SUSPENSION_FREQ_HZ,
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
-      motorSpeed: MOTOR_SPEED,
+      motorSpeed: motorSpeedFor(newPolygon),
       maxMotorTorque: MOTOR_MAX_TORQUE,
     }),
   )!;
@@ -149,7 +212,7 @@ export function executeTwinWheelSwap(
       frequencyHz: SUSPENSION_FREQ_HZ,
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
-      motorSpeed: MOTOR_SPEED,
+      motorSpeed: motorSpeedFor(newPolygon),
       maxMotorTorque: MOTOR_MAX_TORQUE,
     }),
   )!;
@@ -172,7 +235,7 @@ export function executeTwinWheelSwap(
       frequencyHz: SUSPENSION_FREQ_HZ,
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
-      motorSpeed: MOTOR_SPEED,
+      motorSpeed: motorSpeedFor(newPolygon),
       maxMotorTorque: MOTOR_MAX_TORQUE,
     }),
   )!;
