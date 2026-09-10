@@ -3,7 +3,7 @@ import { PHYSICS_VERSION } from "./version.js";
 import { sfc32 } from "./prng.js";
 import { InjectedClock } from "./clock.js";
 import { type TrackDef, type HeadlessRaceResult } from "./headless-race.js";
-import { buildWheelBody, executeTwinWheelSwap, type WheelSwap } from "./swap.js";
+import { buildWheelBody, executeTwinWheelSwap, motorSpeedForRadius, type WheelSwap } from "./swap.js";
 import { parseSurfaces, applyDrag, createSurfaceContactFilter } from "./surface.js";
 import { StuckDetector } from "./stuck-detector.js";
 
@@ -33,7 +33,6 @@ const SUSPENSION_DAMPING_RATIO = 0.7;
 const CHASSIS_FLIP_THRESHOLD = Math.PI / 6; // 30° dead zone — allow natural chassis lean for grip
 const CHASSIS_RIGHTING_STIFFNESS = 500;  // N·m/rad above threshold — strong spring to resist flip
 const CHASSIS_RIGHTING_EXTRA_DAMPING = 0; // N·m·s/rad always-on damping
-const MOTOR_SPEED = 8;
 const MOTOR_MAX_TORQUE = 40;
 
 export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
@@ -157,7 +156,7 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
       frequencyHz: SUSPENSION_FREQ_HZ,
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
-      motorSpeed: MOTOR_SPEED,
+      motorSpeed: motorSpeedForRadius(wheelRadius),
       maxMotorTorque: MOTOR_MAX_TORQUE,
     }),
   )!;
@@ -172,7 +171,7 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
       frequencyHz: SUSPENSION_FREQ_HZ,
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
-      motorSpeed: MOTOR_SPEED,
+      motorSpeed: motorSpeedForRadius(wheelRadius),
       maxMotorTorque: MOTOR_MAX_TORQUE,
     }),
   )!;
