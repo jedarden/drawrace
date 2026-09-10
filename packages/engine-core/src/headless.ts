@@ -9,10 +9,21 @@ import { StuckDetector } from "./stuck-detector.js";
 
 export type { WheelSwap };
 
-export type TickSampler = (_tick: number, _chassisBody: {
+export interface TickSamplerBody {
   getPosition: () => { x: number; y: number };
   getLinearVelocity: () => { x: number; y: number };
-}) => void;
+}
+
+/**
+ * Per-tick observer: fired after each world.step with the tick number, the
+ * chassis body and the front wheel body. Read-only — sampling never feeds
+ * back into the simulation.
+ */
+export type TickSampler = (
+  _tick: number,
+  _chassisBody: TickSamplerBody,
+  _frontWheelBody: TickSamplerBody,
+) => void;
 
 export interface MultiWheelInput {
   /** wheels[0].swap_tick must be 0 (initial spawn); remaining entries are mid-race swaps */
@@ -199,7 +210,7 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
 
     // Optional tick sampling for regression tests
     if (onTick) {
-      onTick(ticks + 1, chassisBody);
+      onTick(ticks + 1, chassisBody, wheelBody);
     }
 
     const currentTick = ticks + 1;
