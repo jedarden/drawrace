@@ -2,8 +2,8 @@ import { World, Vec2, Edge, Box, WheelJoint, Circle } from "planck";
 import { PHYSICS_VERSION } from "./version.js";
 import { sfc32, hashSeed } from "./prng.js";
 import { InjectedClock } from "./clock.js";
-import { parseSurfaces, applyDrag, createSurfaceContactFilter, validateZones } from "./surface.js";
-import { buildWheelBody, motorSpeedForRadius } from "./swap.js";
+import { parseSurfaces, applyDrag, applyWheelDrag, createSurfaceContactFilter, validateZones } from "./surface.js";
+import { buildWheelBody, motorSpeedForRadius, motorTorqueForRadius, wheelProfile, type WheelProfile } from "./swap.js";
 import { StuckDetector } from "./stuck-detector.js";
 
 export interface TrackDef {

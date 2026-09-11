@@ -1,9 +1,9 @@
 import { World, Vec2, Edge, Polygon, Circle, Box, WheelJoint, type Body, type Joint, type WheelJoint as WheelJointType } from "planck";
 import { PHYSICS_VERSION } from "./version.js";
 import { sfc32, hashSeed } from "./prng.js";
-import { buildWheelBody, executeTwinWheelSwap, motorSpeedForRadius, wheelRadiusOf, wheelMaxExtent } from "./swap.js";
+import { buildWheelBody, executeTwinWheelSwap, motorSpeedForRadius, motorTorqueForRadius, wheelProfile, wheelRadiusOf, wheelMaxExtent, type WheelProfile } from "./swap.js";
 import type { WheelSwap } from "./swap.js";
-import { parseSurfaces, validateZones, applyDrag, createSurfaceContactFilter, type SurfaceSegment } from "./surface.js";
+import { parseSurfaces, validateZones, applyDrag, applyWheelDrag, createSurfaceContactFilter, type SurfaceSegment } from "./surface.js";
 import { StuckDetector } from "./stuck-detector.js";
 
 export interface ChallengeModifiers {
@@ -83,6 +83,9 @@ export class RaceSim {
   private motorEnabled = false;
   /** Radius of the currently fitted wheel — drives the radius-compensated motor target. */
   private currentWheelRadius = 0.5;
+  /** Shape profile of the currently fitted wheel — feeds the per-wheel surface
+   * interaction terms (sinkage drag + tooth interlock, drawrace-8d3baef5). */
+  private currentProfile: WheelProfile = { radius: 0.5, roughness: 0 };
   private wheelSwapLog: WheelSwap[] = [];
   private surfaces: SurfaceSegment[];
   readonly track: TrackDef;
@@ -130,8 +133,13 @@ export class RaceSim {
 
     // Validate zones coverage (throws if zones are malformed)
     validateZones(track.zones, terrainMinX, terrainMaxX);
+    // Wheel profile is resolved once the wheel body exists (below), so the
+    // resolver reads the tracked field rather than closing over a not-yet-set
+    // local — same tracking-through-swaps scheme as runHeadless.
     if (track.surfaces && Array.isArray(track.surfaces) && track.surfaces.length > 0) {
-      this.world.on("pre-solve", createSurfaceContactFilter(ground, this.surfaces));
+      this.world.on("pre-solve", createSurfaceContactFilter(ground, this.surfaces, (body) =>
+        body === this.wheelBody || body === this.rearWheelBody ? this.currentProfile.roughness : 0,
+      ));
     }
 
     // Add obstacles
@@ -182,6 +190,7 @@ export class RaceSim {
     // Place wheel center above terrain surface; gravity [0,+10] pulls down to rest on it
     const wheelSpawnY = terrainY - wheelRadius;
     this.currentWheelRadius = wheelRadiusOf(wheelPoly);
+    this.currentProfile = wheelProfile(wheelPoly);
 
     // Front wheel (player-drawn)
     const wheelVerts = wv.map((v) => Vec2(v.x, v.y));
@@ -237,7 +246,7 @@ export class RaceSim {
         dampingRatio: SUSPENSION_DAMPING_RATIO,
         enableMotor: true,
         motorSpeed: motorSpeedForRadius(this.currentWheelRadius),
-        maxMotorTorque: MOTOR_MAX_TORQUE,
+        maxMotorTorque: motorTorqueForRadius(this.currentWheelRadius),
       })
     );
     if (!frontJoint) throw new Error("Failed to create wheel joint");
@@ -259,7 +268,7 @@ export class RaceSim {
         dampingRatio: SUSPENSION_DAMPING_RATIO,
         enableMotor: true,
         motorSpeed: motorSpeedForRadius(this.currentWheelRadius),
-        maxMotorTorque: MOTOR_MAX_TORQUE,
+        maxMotorTorque: motorTorqueForRadius(this.currentWheelRadius),
       })
     );
     if (!rearJoint) throw new Error("Failed to create rear wheel joint");
@@ -272,6 +281,7 @@ export class RaceSim {
     if (this.finished) return;
     const poly = vertices.map((v) => [v.x, v.y] as [number, number]);
     this.currentWheelRadius = wheelRadiusOf(poly);
+    this.currentProfile = wheelProfile(poly);
     const result = executeTwinWheelSwap(
       this.world,
       this.chassisBody,
@@ -325,7 +335,7 @@ export class RaceSim {
       while (curr) {
         const j = curr.joint!;
         if (j.getType() === "wheel-joint") {
-          (j as WheelJointType).setMaxMotorTorque(MOTOR_MAX_TORQUE);
+          (j as WheelJointType).setMaxMotorTorque(motorTorqueForRadius(this.currentWheelRadius));
           (j as WheelJointType).setMotorSpeed(motorSpeedForRadius(this.currentWheelRadius));
         }
         curr = curr.next;
@@ -333,6 +343,10 @@ export class RaceSim {
     }
 
     applyDrag(this.chassisBody, this.surfaces);
+    // Per-wheel surface interaction (sinkage/plow drag) — same placement and
+    // terms as runHeadless so both paths simulate identically.
+    applyWheelDrag(this.wheelBody, this.currentProfile, this.surfaces);
+    applyWheelDrag(this.rearWheelBody, this.currentProfile, this.surfaces);
     // Anti-flip: spring kicks in only beyond FLIP_THRESHOLD (30°)
     // Dead zone preserves natural chassis lean that irregular wheels need for grip
     const _ra = this.chassisBody.getAngle();

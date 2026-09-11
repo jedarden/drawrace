@@ -3,8 +3,8 @@ import { PHYSICS_VERSION } from "./version.js";
 import { sfc32 } from "./prng.js";
 import { InjectedClock } from "./clock.js";
 import { type TrackDef, type HeadlessRaceResult } from "./headless-race.js";
-import { buildWheelBody, executeTwinWheelSwap, motorSpeedForRadius, type WheelSwap } from "./swap.js";
-import { parseSurfaces, applyDrag, createSurfaceContactFilter } from "./surface.js";
+import { buildWheelBody, executeTwinWheelSwap, motorSpeedForRadius, motorTorqueForRadius, wheelProfile, type WheelProfile, type WheelSwap } from "./swap.js";
+import { parseSurfaces, applyDrag, applyWheelDrag, createSurfaceContactFilter } from "./surface.js";
 import { StuckDetector } from "./stuck-detector.js";
 
 export type { WheelSwap };
@@ -77,8 +77,17 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
   const terrainMinX = terrain[0][0];
   const terrainMaxX = terrain[terrain.length - 1][0];
   const surfaces = parseSurfaces(track.surfaces, terrainMinX, terrainMaxX);
+  // Wheel shape profiles feed two per-wheel interaction terms: sinkage drag on
+  // soft ground and the ice tooth-interlock friction bonus. Tracked through
+  // swaps (drawrace-8d3baef5).
+  let frontProfile: WheelProfile = wheelProfile(wheels[0].polygon);
+  let rearProfile: WheelProfile = frontProfile;
   if (track.surfaces && Array.isArray(track.surfaces) && track.surfaces.length > 0) {
-    world.on("pre-solve", createSurfaceContactFilter(ground, surfaces));
+    world.on("pre-solve", createSurfaceContactFilter(ground, surfaces, (body) =>
+      body === wheelBody ? frontProfile.roughness
+      : body === rearWheelBody ? rearProfile.roughness
+      : 0,
+    ));
   }
 
   // --- obstacles ---
@@ -168,7 +177,7 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
       motorSpeed: motorSpeedForRadius(wheelRadius),
-      maxMotorTorque: MOTOR_MAX_TORQUE,
+      maxMotorTorque: motorTorqueForRadius(wheelRadius),
     }),
   )!;
 
@@ -183,7 +192,7 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
       motorSpeed: motorSpeedForRadius(wheelRadius),
-      maxMotorTorque: MOTOR_MAX_TORQUE,
+      maxMotorTorque: motorTorqueForRadius(wheelRadius),
     }),
   )!;
 
@@ -199,6 +208,8 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
 
   for (ticks = 0; ticks < MAX_TICKS; ticks++) {
     applyDrag(chassisBody, surfaces);
+    applyWheelDrag(wheelBody, frontProfile, surfaces);
+    applyWheelDrag(rearWheelBody, rearProfile, surfaces);
     const _ra = chassisBody.getAngle();
     const _rv = chassisBody.getAngularVelocity();
     const _excess = Math.abs(_ra) > CHASSIS_FLIP_THRESHOLD
@@ -233,6 +244,8 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
       wheelJoint = res.newFrontJoint;
       rearWheelBody = res.newRearBody;
       rearWheelJoint = res.newRearJoint;
+      frontProfile = wheelProfile(swap.polygon);
+      rearProfile = frontProfile;
       // Reset stuck detection on wheel swap
       stuckDetector.reset();
       stuckDetector.setBaseline(chassisBody.getPosition().x);
