@@ -24,7 +24,7 @@ const MOTOR_MAX_TORQUE = 40;
  */
 export const MOTOR_REF_RADIUS = 0.5;
 /** Floor against degenerate/near-zero polygons so the ratio stays finite. */
-const MIN_EFFECTIVE_RADIUS = 0.05;
+export const MIN_EFFECTIVE_RADIUS = 0.05;
 
 /**
  * Mean rolling radius = polygon perimeter / 2π — the physical rolling
@@ -75,6 +75,83 @@ export function motorSpeedForRadius(radius: number): number {
 /** Motor speed (rad/s) giving `polygon` the reference linear speed. */
 export function motorSpeedFor(polygon: [number, number][]): number {
   return motorSpeedForRadius(wheelRadiusOf(polygon));
+}
+
+/**
+ * Torque-shaping exponent for the radius-compensated motor (drawrace-8d3baef5):
+ * drive torque scales as (MOTOR_REF_RADIUS / radius)^exponent. Equalized top
+ * speed (motorSpeedForRadius) leaves launch dynamics radius-biased — the
+ * calibration lab measured large wheels reaching zone pace first on flats —
+ * and exponent 1 removes that bias by granting the same torque per unit of
+ * rolling circumference, so the remaining launch differentiator is the wheel's
+ * own rotational inertia, which favors small. Patch per config in the
+ * calibration harness, same convention as SURFACE_PRESETS.
+ */
+export const MOTOR_TORQUE_TUNING = { exponent: 1 };
+
+/** Motor torque (N·m) for a wheel of `radius` under the torque-shaping law. */
+export function motorTorqueForRadius(radius: number): number {
+  return (
+    MOTOR_MAX_TORQUE *
+    (MOTOR_REF_RADIUS / Math.max(radius, MIN_EFFECTIVE_RADIUS)) ** MOTOR_TORQUE_TUNING.exponent
+  );
+}
+
+/** Motor torque (N·m) giving `polygon` the torque-shaped launch profile. */
+export function motorTorqueFor(polygon: [number, number][]): number {
+  return motorTorqueForRadius(wheelRadiusOf(polygon));
+}
+
+/**
+ * Tooth roughness of a wheel silhouette: the relative radial deviation
+ * (max−min)/(max+min) sampled at every vertex AND every edge midpoint, taken
+ * about the vertex centroid. A true circle scores 0; an n-gon inscribed in a
+ * circle scores (1−cos(π/n))/(1+cos(π/n)) (≈0.3% for a 30-gon, ≈0.8% for an
+ * 18-gon — the edge sag between vertices is the only deviation); a toothed
+ * gear scores (tip−base)/(tip+base) (≈0.21 for the 16-tooth candidate).
+ *
+ * This is the shape term the ice interlock multiplies by — teeth claw into an
+ * icy surface where smooth circles slip (drawrace-8d3baef5).
+ */
+export function wheelRoughness(polygon: [number, number][]): number {
+  const raw = polygon;
+  const verts =
+    raw.length > 1 &&
+    Math.hypot(raw[0][0] - raw[raw.length - 1][0], raw[0][1] - raw[raw.length - 1][1]) < 1e-6
+      ? raw.slice(0, -1)
+      : raw;
+  if (verts.length < 3) return 0;
+  const cx = verts.reduce((s, v) => s + v[0], 0) / verts.length;
+  const cy = verts.reduce((s, v) => s + v[1], 0) / verts.length;
+  let min = Infinity;
+  let max = 0;
+  for (let i = 0; i < verts.length; i++) {
+    const a = verts[i];
+    const b = verts[(i + 1) % verts.length];
+    // vertex radius and edge-midpoint radius (midpoints dip inside on n-gons)
+    for (const [x, y] of [
+      [a[0], a[1]],
+      [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
+    ]) {
+      const r = Math.hypot(x - cx, y - cy);
+      if (r < min) min = r;
+      if (r > max) max = r;
+    }
+  }
+  const span = max + min;
+  return span > MIN_EFFECTIVE_RADIUS ? (max - min) / span : 0;
+}
+
+/** Rolling radius plus tooth roughness — the two shape terms surface physics needs. */
+export interface WheelProfile {
+  /** Mean rolling radius (perimeter / 2π) — see wheelRadiusOf. */
+  radius: number;
+  /** Relative radial deviation 0..1 — see wheelRoughness. */
+  roughness: number;
+}
+
+export function wheelProfile(polygon: [number, number][]): WheelProfile {
+  return { radius: wheelRadiusOf(polygon), roughness: wheelRoughness(polygon) };
 }
 
 export function buildWheelBody(
@@ -168,7 +245,7 @@ export function executeWheelSwap(
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
       motorSpeed: motorSpeedFor(newPolygon),
-      maxMotorTorque: MOTOR_MAX_TORQUE,
+      maxMotorTorque: motorTorqueFor(newPolygon),
     }),
   )!;
 
@@ -213,7 +290,7 @@ export function executeTwinWheelSwap(
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
       motorSpeed: motorSpeedFor(newPolygon),
-      maxMotorTorque: MOTOR_MAX_TORQUE,
+      maxMotorTorque: motorTorqueFor(newPolygon),
     }),
   )!;
 
@@ -236,7 +313,7 @@ export function executeTwinWheelSwap(
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
       motorSpeed: motorSpeedFor(newPolygon),
-      maxMotorTorque: MOTOR_MAX_TORQUE,
+      maxMotorTorque: motorTorqueFor(newPolygon),
     }),
   )!;
 
