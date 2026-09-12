@@ -12,6 +12,27 @@
 </head>
 <body>
 <canvas id="test-canvas" width="390" height="844"></canvas>
+<!-- Agentation UI-feedback toolbar mount point -->
+<div id="agentation-root"></div>
+<script type="module">
+// Agentation is a React component, so React and react-dom must resolve before
+// the agentation import (both are declared peer dependencies). Vite resolves
+// the bare specifiers for this page the same way it resolves the imports below.
+// DEV-gated like main.tsx: production CSP is script-src 'self' (no
+// 'unsafe-inline'), so an unconditional inline mount would be blocked — and
+// bundling agentation would blow the page budget — if this page ever joins the
+// production build input. Tree-shaken out of production artifacts entirely.
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { Agentation } from "agentation";
+
+if (import.meta.env.DEV) {
+  const agentationHost = document.getElementById("agentation-root");
+  if (agentationHost) {
+    createRoot(agentationHost).render(createElement(Agentation));
+  }
+}
+</script>
 <script type="module">
 import { RaceSim } from "@drawrace/engine-core";
 import { createRenderer, preloadAssets } from "./src/Renderer.ts";
