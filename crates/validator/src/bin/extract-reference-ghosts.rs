@@ -104,8 +104,9 @@ use uuid::Uuid;
 use drawrace_api::blob::GhostBlob;
 
 /// Current physics version. Source of truth is `packages/engine-core/src/version.ts`
-/// (`PHYSICS_VERSION = 8`). Override via the `CURRENT_PHYSICS_VERSION` env var.
-const DEFAULT_PHYSICS_VERSION: i16 = 8;
+/// (`PHYSICS_VERSION = 9`; v9: radius-compensated wheel motor, drawrace-0238e6da).
+/// Override via the `CURRENT_PHYSICS_VERSION` env var.
+const DEFAULT_PHYSICS_VERSION: i16 = 9;
 
 /// How many ghosts to pull per track. 80 × 3 = up to 240 candidates, comfortably
 /// clearing the >=200 bar when prod is populated.

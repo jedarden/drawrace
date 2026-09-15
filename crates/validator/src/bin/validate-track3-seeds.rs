@@ -53,7 +53,8 @@ const DEFAULT_TRACK_ID: u16 = 3;
 /// packages/engine-core/src/version.ts. Blobs written by a different version
 /// are re-simulated with mismatched physics, so a mismatch is reported (older
 /// but swaps-capable versions still simulate; see MIN).
-const PHYSICS_VERSION_CURRENT: u8 = 8;
+/// (v9: radius-compensated wheel motor, drawrace-0238e6da.)
+const PHYSICS_VERSION_CURRENT: u8 = 9;
 /// Version at which mid-race wheel swaps were introduced; the wheels[] table
 /// this binary feeds the engine only exists from here up.
 const PHYSICS_VERSION_MIN: u8 = 2;

@@ -73,7 +73,9 @@ struct Args {
     track: TrackId,
 }
 
-const PHYSICS_VERSION: u8 = 8;
+/// Must match PHYSICS_VERSION in packages/engine-core/src/version.ts
+/// (v9: radius-compensated wheel motor, drawrace-0238e6da).
+const PHYSICS_VERSION: u8 = 9;
 const HEADER_SIZE: usize = 36;
 const SEED_PLAYER_UUID: &str = "00000000-0000-4000-8000-000000000001";
 

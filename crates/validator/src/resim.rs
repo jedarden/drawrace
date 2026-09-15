@@ -329,12 +329,13 @@ impl ResimEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::wasm_loader::expected_physics_version;
 
     #[test]
     fn load_resim_wasm() {
         match ResimEngine::load() {
             Ok(engine) => {
-                assert_eq!(engine.physics_version, 8);
+                assert_eq!(engine.physics_version, expected_physics_version());
             }
             Err(e) => {
                 if e.to_string().contains("No such file")

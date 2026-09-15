@@ -160,6 +160,41 @@ impl EngineCoreWasm {
     }
 }
 
+/// Physics version the validator must be in lockstep with, read from the
+/// client source of truth (`packages/engine-core/src/version.ts`) rather than
+/// a hand-bumped literal. A PHYSICS_VERSION bump must land on both sides in
+/// the same commit (plan §Physics versioning), so the validator tests assert
+/// against the client constant itself — a missed validator-side bump (the v9
+/// miss that produced drawrace-6d637f14) now fails loudly with the actual
+/// vs expected versions in the message.
+#[cfg(test)]
+pub(crate) fn expected_physics_version() -> u32 {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let candidates = [
+        format!("{}/../../packages/engine-core/src/version.ts", manifest_dir),
+        "packages/engine-core/src/version.ts".to_string(),
+    ];
+    let text = candidates
+        .iter()
+        .find_map(|p| std::fs::read_to_string(p).ok())
+        .unwrap_or_else(|| {
+            panic!(
+                "could not read engine-core version.ts at any of {:?}",
+                candidates
+            )
+        });
+    for line in text.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("export const PHYSICS_VERSION =") {
+            let value = rest.trim().trim_end_matches(';').trim();
+            return value.parse().unwrap_or_else(|e| {
+                panic!("failed to parse PHYSICS_VERSION value {:?}: {}", value, e)
+            });
+        }
+    }
+    panic!("PHYSICS_VERSION declaration not found in {}", candidates[0]);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,7 +203,7 @@ mod tests {
     fn load_engine_core_wasm() {
         match EngineCoreWasm::load() {
             Ok(wasm) => {
-                assert_eq!(wasm.physics_version, 8);
+                assert_eq!(wasm.physics_version, expected_physics_version());
                 assert!(!wasm.content_hash.is_empty());
             }
             Err(e) => {
@@ -183,8 +218,10 @@ mod tests {
     fn physics_version_matches_metadata() {
         match EngineCoreWasm::load() {
             Ok(wasm) => {
-                // Physics version should be 8 as per metadata (updated from 4)
-                assert_eq!(wasm.physics_version, 8);
+                // load() already bails unless the WASM export equals the
+                // metadata's physicsVersion; here we additionally pin that
+                // both agree with the client's PHYSICS_VERSION constant.
+                assert_eq!(wasm.physics_version, expected_physics_version());
             }
             Err(e) => {
                 // If WASM file doesn't exist or fails to load, skip test
