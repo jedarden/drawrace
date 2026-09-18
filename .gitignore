@@ -41,3 +41,5 @@ e2e/phone-smoke/artifacts/
 .beads/traces/
 .beads.db
 .beads/beads.db
+.beads/.bf_history/
+docs/database-credentials-population-status.md
