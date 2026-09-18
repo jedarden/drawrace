@@ -38,3 +38,6 @@ e2e/phone-smoke/artifacts/
 .idea/
 *.swp
 *~
+.beads/traces/
+.beads.db
+.beads/beads.db
