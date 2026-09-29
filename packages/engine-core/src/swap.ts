@@ -1,5 +1,6 @@
 import { World, Vec2, Polygon, WheelJoint } from "planck";
 import type { Body, Joint } from "planck";
+import { registerWheelToothiness } from "./surface.js";
 
 export interface WheelSwap {
   swap_tick: number;
@@ -77,6 +78,28 @@ export function motorSpeedFor(polygon: [number, number][]): number {
   return motorSpeedForRadius(wheelRadiusOf(polygon));
 }
 
+/**
+ * Launch-torque shaping (drawrace-8d3baef5): exponent 0 keeps the flat
+ * MOTOR_MAX_TORQUE for every wheel (legacy behavior, and the default);
+ * exponent k scales the joint's max torque by (MOTOR_REF_RADIUS/r)^k, so
+ * k > 0 lets small wheels spin up harder launch torque than large ones — the
+ * per-zone lever that makes a small wheel win a flat launch zone. Tracks opt
+ * in per-run via TrackDef.tuning.torqueExponent; the global default below is
+ * only a sweep knob for calibration scripts.
+ */
+export const MOTOR_TORQUE_TUNING = { exponent: 0 };
+
+/** Max motor torque for a wheel of `radius` under torque shaping exponent `exponent`. */
+export function motorTorqueForRadius(radius: number, exponent: number = MOTOR_TORQUE_TUNING.exponent): number {
+  if (exponent === 0) return MOTOR_MAX_TORQUE;
+  return MOTOR_MAX_TORQUE * Math.pow(MOTOR_REF_RADIUS / Math.max(radius, MIN_EFFECTIVE_RADIUS), exponent);
+}
+
+/** Max motor torque for `polygon` under torque shaping exponent `exponent`. */
+export function motorTorqueFor(polygon: [number, number][], exponent: number = MOTOR_TORQUE_TUNING.exponent): number {
+  return motorTorqueForRadius(wheelRadiusOf(polygon), exponent);
+}
+
 export function buildWheelBody(
   world: World,
   polygon: [number, number][],
@@ -92,6 +115,9 @@ export function buildWheelBody(
       : raw;
 
   const body = world.createBody({ position: Vec2(spawnX, spawnY), type: "dynamic" });
+  // Register the shape's toothiness (maxExtent/rollingRadius) so surface
+  // interlock can tell toothed wheels from circles (drawrace-8d3baef5)
+  registerWheelToothiness(body, verts);
   const pv = verts.map((v) => Vec2(v[0], v[1]));
 
   if (pv.length <= 12) {
@@ -139,6 +165,7 @@ export function executeWheelSwap(
   newPolygon: [number, number][],
   swapTick: number,
   swapLog: WheelSwap[],
+  torqueExponent = 0,
 ): SwapResult {
   // Capture values before destroying bodies (Vec2 refs may be invalidated after destroy)
   const px = oldWheelBody.getPosition().x;
@@ -168,7 +195,7 @@ export function executeWheelSwap(
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
       motorSpeed: motorSpeedFor(newPolygon),
-      maxMotorTorque: MOTOR_MAX_TORQUE,
+      maxMotorTorque: motorTorqueFor(newPolygon, torqueExponent),
     }),
   )!;
 
@@ -189,6 +216,7 @@ export function executeTwinWheelSwap(
   newPolygon: [number, number][],
   swapTick: number,
   swapLog: WheelSwap[],
+  torqueExponent = 0,
 ): TwinSwapResult {
   // Capture chassis velocity before any destruction
   const cvx = chassisBody.getLinearVelocity().x;
@@ -213,7 +241,7 @@ export function executeTwinWheelSwap(
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
       motorSpeed: motorSpeedFor(newPolygon),
-      maxMotorTorque: MOTOR_MAX_TORQUE,
+      maxMotorTorque: motorTorqueFor(newPolygon, torqueExponent),
     }),
   )!;
 
@@ -236,7 +264,7 @@ export function executeTwinWheelSwap(
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
       motorSpeed: motorSpeedFor(newPolygon),
-      maxMotorTorque: MOTOR_MAX_TORQUE,
+      maxMotorTorque: motorTorqueFor(newPolygon, torqueExponent),
     }),
   )!;
 

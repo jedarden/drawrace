@@ -3,8 +3,8 @@ import { PHYSICS_VERSION } from "./version.js";
 import { sfc32 } from "./prng.js";
 import { InjectedClock } from "./clock.js";
 import { type TrackDef, type HeadlessRaceResult } from "./headless-race.js";
-import { buildWheelBody, executeTwinWheelSwap, motorSpeedForRadius, type WheelSwap } from "./swap.js";
-import { parseSurfaces, applyDrag, createSurfaceContactFilter } from "./surface.js";
+import { buildWheelBody, executeTwinWheelSwap, motorSpeedForRadius, motorTorqueForRadius, wheelRadiusOf, MOTOR_TORQUE_TUNING, type WheelSwap } from "./swap.js";
+import { parseSurfaces, applyDrag, applyWheelInteractionDrag, createSurfaceContactFilter } from "./surface.js";
 import { StuckDetector } from "./stuck-detector.js";
 
 export type { WheelSwap };
@@ -44,7 +44,6 @@ const SUSPENSION_DAMPING_RATIO = 0.7;
 const CHASSIS_FLIP_THRESHOLD = Math.PI / 6; // 30° dead zone — allow natural chassis lean for grip
 const CHASSIS_RIGHTING_STIFFNESS = 500;  // N·m/rad above threshold — strong spring to resist flip
 const CHASSIS_RIGHTING_EXTRA_DAMPING = 0; // N·m·s/rad always-on damping
-const MOTOR_MAX_TORQUE = 40;
 
 export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
   const { track, wheels, seed, onTick } = input;
@@ -76,7 +75,11 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
   // Only register contact filter when surfaces are explicitly defined
   const terrainMinX = terrain[0][0];
   const terrainMaxX = terrain[terrain.length - 1][0];
-  const surfaces = parseSurfaces(track.surfaces, terrainMinX, terrainMaxX);
+  const surfaces = parseSurfaces(track.surfaces, terrainMinX, terrainMaxX, track.tuning?.surfaceInteractions);
+  // Launch-torque shaping exponent: the track's opt-in value, else the global
+  // sweep default (0 = flat legacy torque) so calibration scripts can drive
+  // runs that don't carry an explicit tuning block (drawrace-8d3baef5)
+  const torqueExponent = track.tuning?.torqueExponent ?? MOTOR_TORQUE_TUNING.exponent;
   if (track.surfaces && Array.isArray(track.surfaces) && track.surfaces.length > 0) {
     world.on("pre-solve", createSurfaceContactFilter(ground, surfaces));
   }
@@ -144,6 +147,10 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
   });
 
   // --- bodies ---
+  // Current wheel polygons per axle — their rolling radii drive the per-wheel
+  // soft-surface interaction drag (drawrace-8d3baef5)
+  let frontPoly = initialPoly;
+  let rearPoly = initialPoly;
   let wheelBody = buildWheelBody(world, initialPoly, startX, wheelSpawnY);
 
   const chassisSpawnY = wheelSpawnY - 1.5;
@@ -168,7 +175,7 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
       motorSpeed: motorSpeedForRadius(wheelRadius),
-      maxMotorTorque: MOTOR_MAX_TORQUE,
+      maxMotorTorque: motorTorqueForRadius(wheelRadius, torqueExponent),
     }),
   )!;
 
@@ -183,7 +190,7 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
       motorSpeed: motorSpeedForRadius(wheelRadius),
-      maxMotorTorque: MOTOR_MAX_TORQUE,
+      maxMotorTorque: motorTorqueForRadius(wheelRadius, torqueExponent),
     }),
   )!;
 
@@ -199,6 +206,11 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
 
   for (ticks = 0; ticks < MAX_TICKS; ticks++) {
     applyDrag(chassisBody, surfaces);
+    // Per-wheel soft-surface interaction drag (sinkage/plow) — the chassis
+    // drag above is wheel-independent and cannot separate wheels by radius
+    // (drawrace-8d3baef5). No-op on surfaces without interaction coefficients.
+    applyWheelInteractionDrag(wheelBody, wheelRadiusOf(frontPoly), surfaces);
+    applyWheelInteractionDrag(rearWheelBody, wheelRadiusOf(rearPoly), surfaces);
     const _ra = chassisBody.getAngle();
     const _rv = chassisBody.getAngularVelocity();
     const _excess = Math.abs(_ra) > CHASSIS_FLIP_THRESHOLD
@@ -228,11 +240,14 @@ export function runHeadless(input: MultiWheelInput): HeadlessRaceResult {
         swap.polygon,
         swap.swap_tick,
         swapLog,
+        torqueExponent,
       );
       wheelBody = res.newFrontBody;
       wheelJoint = res.newFrontJoint;
       rearWheelBody = res.newRearBody;
       rearWheelJoint = res.newRearJoint;
+      frontPoly = swap.polygon;
+      rearPoly = swap.polygon;
       // Reset stuck detection on wheel swap
       stuckDetector.reset();
       stuckDetector.setBaseline(chassisBody.getPosition().x);

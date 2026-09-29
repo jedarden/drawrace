@@ -47,11 +47,28 @@ describe("parseSurfaces", () => {
     ];
     const result = parseSurfaces(raw, MIN_X, MAX_X);
     expect(result).toHaveLength(5);
-    expect(result[0]).toEqual({ x_range: [0, 20], type: "normal" });
-    expect(result[1]).toEqual({ x_range: [20, 40], type: "ice" });
-    expect(result[2]).toEqual({ x_range: [40, 60], type: "snow" });
-    expect(result[3]).toEqual({ x_range: [60, 80], type: "water" });
-    expect(result[4]).toEqual({ x_range: [80, 100], type: "rock" });
+    // Each segment bakes its resolved preset at parse time (drawrace-8d3baef5)
+    expect(result[0]).toEqual({ x_range: [0, 20], type: "normal", preset: SURFACE_PRESETS.normal });
+    expect(result[1]).toEqual({ x_range: [20, 40], type: "ice", preset: SURFACE_PRESETS.ice });
+    expect(result[2]).toEqual({ x_range: [40, 60], type: "snow", preset: SURFACE_PRESETS.snow });
+    expect(result[3]).toEqual({ x_range: [60, 80], type: "water", preset: SURFACE_PRESETS.water });
+    expect(result[4]).toEqual({ x_range: [80, 100], type: "rock", preset: SURFACE_PRESETS.rock });
+  });
+
+  it("bakes per-type interaction overrides into each segment preset", () => {
+    const raw = [
+      { x_range: [0, 50], type: "snow" },
+      { x_range: [50, 100], type: "ice" },
+    ];
+    const result = parseSurfaces(raw, MIN_X, MAX_X, {
+      snow: { sinkage: 1.5, interlock: 3 },
+      ice: { plow: 0.5 },
+    });
+    expect(result[0].preset).toEqual({ ...SURFACE_PRESETS.snow, sinkage: 1.5, interlock: 3 });
+    expect(result[1].preset).toEqual({ ...SURFACE_PRESETS.ice, plow: 0.5 });
+    // Overrides are baked per-track; the global presets stay untouched
+    expect(SURFACE_PRESETS.snow.sinkage).toBe(0);
+    expect(SURFACE_PRESETS.ice.plow).toBe(0);
   });
 
   it("rejects unknown surface type", () => {
@@ -148,6 +165,16 @@ describe("lookupSurface", () => {
     expect(lookupSurface(60, surfaces)).toEqual(SURFACE_PRESETS.snow);   // [40,60]
     expect(lookupSurface(80, surfaces)).toEqual(SURFACE_PRESETS.water);  // [60,80]
     expect(lookupSurface(100, surfaces)).toEqual(SURFACE_PRESETS.rock);  // [80,100]
+  });
+
+  it("returns the baked segment preset over the global when present", () => {
+    const baked: SurfaceSegment[] = [
+      { x_range: [0, 50], type: "snow", preset: { ...SURFACE_PRESETS.snow, sinkage: 2 } },
+      { x_range: [50, 100], type: "ice" },
+    ];
+    expect(lookupSurface(25, baked).sinkage).toBe(2);
+    // Segments constructed without a preset fall back to the global
+    expect(lookupSurface(75, baked).sinkage).toBe(SURFACE_PRESETS.ice.sinkage);
   });
 });
 

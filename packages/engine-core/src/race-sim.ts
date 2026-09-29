@@ -1,9 +1,10 @@
 import { World, Vec2, Edge, Polygon, Circle, Box, WheelJoint, type Body, type Joint, type WheelJoint as WheelJointType } from "planck";
 import { PHYSICS_VERSION } from "./version.js";
 import { sfc32, hashSeed } from "./prng.js";
-import { buildWheelBody, executeTwinWheelSwap, motorSpeedForRadius, wheelRadiusOf, wheelMaxExtent } from "./swap.js";
+import { buildWheelBody, executeTwinWheelSwap, motorSpeedForRadius, motorTorqueForRadius, wheelRadiusOf, wheelMaxExtent, MOTOR_TORQUE_TUNING } from "./swap.js";
 import type { WheelSwap } from "./swap.js";
-import { parseSurfaces, validateZones, applyDrag, createSurfaceContactFilter, type SurfaceSegment } from "./surface.js";
+import { parseSurfaces, validateZones, applyDrag, applyWheelInteractionDrag, registerWheelToothiness, createSurfaceContactFilter, type SurfaceSegment } from "./surface.js";
+import type { TrackTuning } from "./headless-race.js";
 import { StuckDetector } from "./stuck-detector.js";
 
 export interface ChallengeModifiers {
@@ -28,6 +29,7 @@ export interface TrackDef {
   ramps?: Array<{ zone: string; x_start: number; x_end: number }>;
   hazards?: Array<{ zone: string; type: string; x_start: number; x_end: number }>;
   surfaces?: unknown;
+  tuning?: TrackTuning;
   start: { pos: [number, number]; facing: number };
   finish: { pos: [number, number]; width: number };
   modifiers?: ChallengeModifiers;
@@ -58,7 +60,6 @@ const WHEEL_DENSITY = 1.0;
 const WHEEL_FRICTION = 2.5;  // Increased from 0.8 for better terrain grip (bf-5fz89)
 const WHEEL_RESTITUTION = 0.3;
 const CHASSIS_DENSITY = 1.0;
-const MOTOR_MAX_TORQUE = 40;
 const MOTOR_HOLD_TORQUE = 5;  // Small torque to hold position during countdown (bf-31s6q)
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
@@ -83,6 +84,8 @@ export class RaceSim {
   private motorEnabled = false;
   /** Radius of the currently fitted wheel — drives the radius-compensated motor target. */
   private currentWheelRadius = 0.5;
+  /** Launch-torque shaping exponent (track tuning; 0 = flat legacy torque). */
+  private readonly torqueExponent: number;
   private wheelSwapLog: WheelSwap[] = [];
   private surfaces: SurfaceSegment[];
   readonly track: TrackDef;
@@ -126,7 +129,8 @@ export class RaceSim {
     // (tracks without surfaces use Planck's default geometric-mean friction)
     const terrainMinX = terrain[0][0];
     const terrainMaxX = terrain[terrain.length - 1][0];
-    this.surfaces = parseSurfaces(track.surfaces, terrainMinX, terrainMaxX);
+    this.surfaces = parseSurfaces(track.surfaces, terrainMinX, terrainMaxX, track.tuning?.surfaceInteractions);
+    this.torqueExponent = track.tuning?.torqueExponent ?? MOTOR_TORQUE_TUNING.exponent;
 
     // Validate zones coverage (throws if zones are malformed)
     validateZones(track.zones, terrainMinX, terrainMaxX);
@@ -190,6 +194,10 @@ export class RaceSim {
       position: Vec2(startX, wheelSpawnY),
       type: "dynamic",
     });
+    // The front wheel is built inline (not via buildWheelBody), so it must
+    // register its own toothiness or the interlock law would grip the rear
+    // wheel only (drawrace-8d3baef5)
+    registerWheelToothiness(this.wheelBody, wheelPoly);
     if (wheelVerts.length <= 12) {
       // Planck.js supports up to 12 vertices in a single Polygon fixture
       this.wheelBody.createFixture(Polygon(wheelVerts), {
@@ -237,7 +245,7 @@ export class RaceSim {
         dampingRatio: SUSPENSION_DAMPING_RATIO,
         enableMotor: true,
         motorSpeed: motorSpeedForRadius(this.currentWheelRadius),
-        maxMotorTorque: MOTOR_MAX_TORQUE,
+        maxMotorTorque: motorTorqueForRadius(this.currentWheelRadius, this.torqueExponent),
       })
     );
     if (!frontJoint) throw new Error("Failed to create wheel joint");
@@ -259,7 +267,7 @@ export class RaceSim {
         dampingRatio: SUSPENSION_DAMPING_RATIO,
         enableMotor: true,
         motorSpeed: motorSpeedForRadius(this.currentWheelRadius),
-        maxMotorTorque: MOTOR_MAX_TORQUE,
+        maxMotorTorque: motorTorqueForRadius(this.currentWheelRadius, this.torqueExponent),
       })
     );
     if (!rearJoint) throw new Error("Failed to create rear wheel joint");
@@ -282,6 +290,7 @@ export class RaceSim {
       poly,
       this.tick,
       this.wheelSwapLog,
+      this.torqueExponent,
     );
     this.wheelBody = result.newFrontBody;
     this.wheelJoint = result.newFrontJoint;
@@ -325,7 +334,7 @@ export class RaceSim {
       while (curr) {
         const j = curr.joint!;
         if (j.getType() === "wheel-joint") {
-          (j as WheelJointType).setMaxMotorTorque(MOTOR_MAX_TORQUE);
+          (j as WheelJointType).setMaxMotorTorque(motorTorqueForRadius(this.currentWheelRadius, this.torqueExponent));
           (j as WheelJointType).setMotorSpeed(motorSpeedForRadius(this.currentWheelRadius));
         }
         curr = curr.next;
@@ -333,6 +342,11 @@ export class RaceSim {
     }
 
     applyDrag(this.chassisBody, this.surfaces);
+    // Per-wheel soft-surface interaction drag (drawrace-8d3baef5); no-op on
+    // surfaces without interaction coefficients. Both axles carry the same
+    // polygon, so one rolling radius serves both.
+    applyWheelInteractionDrag(this.wheelBody, this.currentWheelRadius, this.surfaces);
+    applyWheelInteractionDrag(this.rearWheelBody, this.currentWheelRadius, this.surfaces);
     // Anti-flip: spring kicks in only beyond FLIP_THRESHOLD (30°)
     // Dead zone preserves natural chassis lean that irregular wheels need for grip
     const _ra = this.chassisBody.getAngle();

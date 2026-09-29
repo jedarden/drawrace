@@ -2,9 +2,23 @@ import { World, Vec2, Edge, Box, WheelJoint, Circle } from "planck";
 import { PHYSICS_VERSION } from "./version.js";
 import { sfc32, hashSeed } from "./prng.js";
 import { InjectedClock } from "./clock.js";
-import { parseSurfaces, applyDrag, createSurfaceContactFilter, validateZones } from "./surface.js";
-import { buildWheelBody, motorSpeedForRadius } from "./swap.js";
+import { parseSurfaces, applyDrag, applyWheelInteractionDrag, createSurfaceContactFilter, validateZones, type SurfaceInteractionOverrides } from "./surface.js";
+import { buildWheelBody, motorSpeedForRadius, motorTorqueForRadius, wheelRadiusOf, MOTOR_TORQUE_TUNING } from "./swap.js";
 import { StuckDetector } from "./stuck-detector.js";
+
+/**
+ * Per-track physics opt-ins (drawrace-8d3baef5). Everything defaults to the
+ * exact legacy behavior; a track only exerts the wheel-surface interaction
+ * laws it declares here.
+ */
+export interface TrackTuning {
+  /** Per-surface sinkage/plow/interlock coefficient overrides, baked into
+   * each parsed segment's preset at parseSurfaces time. */
+  surfaceInteractions?: SurfaceInteractionOverrides;
+  /** Launch-torque shaping exponent k: max torque × (ref/r)^k, so k > 0 lets
+   * small rolling-radius wheels spin up harder launch torque. 0 = flat. */
+  torqueExponent?: number;
+}
 
 export interface TrackDef {
   id: string;
@@ -22,6 +36,7 @@ export interface TrackDef {
   ramps?: Array<{ zone: string; x_start: number; x_end: number }>;
   hazards?: Array<{ zone: string; type: string; x_start: number; x_end: number }>;
   surfaces?: unknown;
+  tuning?: TrackTuning;
   start: { pos: [number, number]; facing: number };
   finish: { pos: [number, number]; width: number };
 }
@@ -51,7 +66,6 @@ const VELOCITY_ITERATIONS = 8;
 const POSITION_ITERATIONS = 3;
 const MAX_TICKS = 60 * 180; // 3 minute DNF
 const CHASSIS_DENSITY = 1.0;
-const MOTOR_MAX_TORQUE = 40;
 const SUSPENSION_FREQ_HZ = 2.5;  // Softer suspension improves ground contact on irregular terrain
 const SUSPENSION_DAMPING_RATIO = 0.7;
 const CHASSIS_FLIP_THRESHOLD = Math.PI / 6; // 30° dead zone — allow natural chassis lean for grip
@@ -84,7 +98,8 @@ export function createHeadlessRace(
   // Parse surfaces; register contact filter only when explicitly defined
   const terrainMinX = terrain[0][0];
   const terrainMaxX = terrain[terrain.length - 1][0];
-  const surfaces = parseSurfaces(track.surfaces, terrainMinX, terrainMaxX);
+  const surfaces = parseSurfaces(track.surfaces, terrainMinX, terrainMaxX, track.tuning?.surfaceInteractions);
+  const torqueExponent = track.tuning?.torqueExponent ?? MOTOR_TORQUE_TUNING.exponent;
 
   // Validate zones coverage (throws if zones are malformed)
   validateZones(track.zones, terrainMinX, terrainMaxX);
@@ -124,6 +139,9 @@ export function createHeadlessRace(
   const wcX = wv.reduce((s, v) => s + v[0], 0) / wv.length;
   const wcY = wv.reduce((s, v) => s + v[1], 0) / wv.length;
   const wheelRadius = Math.max(...wv.map((v) => Math.hypot(v[0] - wcX, v[1] - wcY)));
+  // True rolling radius (perimeter/2π) for the per-wheel interaction drag —
+  // distinct from the max-extent spawn radius above (drawrace-8d3baef5)
+  const rollingRadius = wheelRadiusOf(wv);
 
   // Find terrain surface Y at start X by linear interpolation
   const startX = track.start.pos[0];
@@ -187,7 +205,7 @@ export function createHeadlessRace(
       // Same radius-compensated target as runHeadless/executeTwinWheelSwap so a
       // wheel's linear top speed is independent of its radius (drawrace-d85f702c)
       motorSpeed: motorSpeedForRadius(wheelRadius),
-      maxMotorTorque: MOTOR_MAX_TORQUE,
+      maxMotorTorque: motorTorqueForRadius(wheelRadius, torqueExponent),
     })
   );
 
@@ -203,7 +221,7 @@ export function createHeadlessRace(
       dampingRatio: SUSPENSION_DAMPING_RATIO,
       enableMotor: true,
       motorSpeed: motorSpeedForRadius(wheelRadius),
-      maxMotorTorque: MOTOR_MAX_TORQUE,
+      maxMotorTorque: motorTorqueForRadius(wheelRadius, torqueExponent),
     })
   );
 
@@ -216,6 +234,10 @@ export function createHeadlessRace(
 
   for (ticks = 0; ticks < MAX_TICKS; ticks++) {
     applyDrag(chassisBody, surfaces);
+    // Per-wheel soft-surface interaction drag (drawrace-8d3baef5); no-op on
+    // surfaces without interaction coefficients
+    applyWheelInteractionDrag(wheelBody, rollingRadius, surfaces);
+    applyWheelInteractionDrag(rearWheelBody, rollingRadius, surfaces);
     const _ra = chassisBody.getAngle();
     const _rv = chassisBody.getAngularVelocity();
     const _excess = Math.abs(_ra) > CHASSIS_FLIP_THRESHOLD
